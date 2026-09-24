@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Imperios del Aula</title>
+  </head>
+  <body>
+    <!-- Pantalla de inicio: el estudiante escribe su nombre y el código -->
+    <section id="screen-start" class="screen hidden">
+      <form id="form-join" class="box" autocomplete="off">
+        <h1>Imperios del Aula</h1>
+        <label>Tu nombre <input id="in-name" maxlength="20" required /></label>
+        <label>Código de la partida <input id="in-code" maxlength="4" required class="code-input" /></label>
+        <button type="submit" class="big">Entrar</button>
+        <p class="error" id="start-error"></p>
+        <p class="hint-box">El <b>código</b> te lo da tu profesor: primero crea la partida en su panel.</p>
+        <a class="small-link" href="/profesor">Soy el profesor →</a>
+      </form>
+    </section>
+
+    <!-- Sala de espera: elegir facción y color -->
+    <section id="screen-lobby" class="screen hidden">
+      <div class="box wide">
+        <div class="lobby-head">
+          <div>
+            <h2>Partida <span id="lobby-code" class="code"></span></h2>
+            <p class="muted" id="lobby-status">Esperando a que el profesor inicie la partida…</p>
+          </div>
+          <button id="btn-leave" title="Sales de la sala y liberas tu lugar">Salir de la sala</button>
+        </div>
+        <div id="host-box" class="host-box hidden">
+          <p>Estás en el <b>computador del profesor</b>: cuando estén todos, puedes iniciar la partida desde aquí.</p>
+          <button id="btn-start-host" class="big primary">▶ Iniciar partida</button>
+        </div>
+        <h3>Jugadores</h3>
+        <div id="lobby-members" class="members"></div>
+        <h3>Tu facción</h3>
+        <div id="lobby-factions" class="factions"></div>
+        <h3>Tu color</h3>
+        <div id="lobby-colors" class="colors"></div>
+        <p class="error" id="lobby-error"></p>
+      </div>
+    </section>
+
+    <!-- Panel del profesor -->
+    <section id="screen-teacher" class="screen hidden">
+      <div class="box wide">
+        <h1>Panel del profesor</h1>
+        <form id="form-pin" class="hidden">
+          <p>Estás entrando desde <b>otro computador</b>, así que hace falta la clave del profesor.
+            Aparece en la ventana donde se inició el servidor, en la línea «PROFESOR».</p>
+          <p class="muted">En el computador del servidor no se pide clave: abre allí <b>http://localhost:8080/profesor</b>.</p>
+          <label>Clave <input id="in-pin" maxlength="12" /></label>
+          <button type="submit">Entrar</button>
+        </form>
+        <div id="teacher-main" class="hidden">
+          <form id="form-room" class="new-room">
+            <h3>Nueva partida</h3>
+            <label>Jugadores <select id="in-max"></select></label>
+            <label>Mapa
+              <select id="in-map">
+                <option value="small">Pequeño</option>
+                <option value="normal" selected>Normal</option>
+                <option value="large">Grande</option>
+              </select>
+            </label>
+            <label>Duración
+              <select id="in-duration">
+                <option value="0">Sin límite</option>
+                <option value="15">15 minutos</option>
+                <option value="30" selected>30 minutos</option>
+                <option value="45">45 minutos</option>
+                <option value="60">60 minutos</option>
+                <option value="90">90 minutos</option>
+              </select>
+            </label>
+            <button type="submit" class="big">Crear partida</button>
+          </form>
+          <div id="teacher-rooms"></div>
+        </div>
+        <p class="error" id="teacher-error"></p>
+      </div>
+    </section>
+
+    <!-- Juego -->
+    <section id="screen-game" class="hidden">
+      <canvas id="game"></canvas>
+
+      <header id="topbar">
+        <div id="resources"></div>
+        <div id="top-right">
+          <div id="clock" title="Tiempo de partida"></div>
+          <div id="faction"></div>
+          <button id="btn-home" title="Centro Urbano (H)">⌂ Centro</button>
+          <button id="btn-idle" title="Siguiente trabajador inactivo (.)"></button>
+          <button id="btn-diplo" disabled title="Llega en la Fase 4">Diplomacia</button>
+          <div id="players"></div>
+        </div>
+      </header>
+
+      <aside id="info" class="panel hidden"></aside>
+      <div id="notices"></div>
+
+      <footer id="bottombar">
+        <div id="selection-grid"></div>
+        <div id="actions"></div>
+        <canvas id="minimap"></canvas>
+      </footer>
+    </section>
+
+    <!-- Avisos que tapan la pantalla (conexión, pausa, fin de partida) -->
+    <div id="overlay" class="hidden"></div>
+    <div id="paused" class="hidden">⏸ El profesor pausó la partida</div>
+    <div id="ended" class="hidden"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

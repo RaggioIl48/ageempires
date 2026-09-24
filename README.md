@@ -1,0 +1,125 @@
+# Imperios del Aula
+
+A multiplayer real-time strategy (RTS) game for the browser, designed for classes.
+Inspired by how classic RTS games play (gathering, building, armies,
+diplomacy), with **100% original** code, art and names.
+
+- The teacher runs the server on their computer.
+- Students open a URL in Chrome, Edge, Firefox or Safari (Windows or macOS). They install nothing.
+- No external services: it works on the school's local network.
+
+> Current status: **Phase 3 done** (rooms with a code, faction choice, reconnection, teacher panel and efficient network). See [docs/PROGRESO.md](docs/PROGRESO.md) and the [roadmap](docs/HOJA_DE_RUTA.md).
+
+## Requirements
+
+- [Node.js](https://nodejs.org) 20 or newer (only on the teacher's computer).
+
+## Playing in class (LAN mode)
+
+**1. The teacher starts the server** (in a terminal, in the project folder):
+
+```bash
+npm install        # first time only
+npm run build      # builds the game for the browser
+npm start          # starts the server
+```
+
+The console shows something like:
+
+```
+  PROFESOR:     abre http://localhost:8080/profesor en este computador
+                (desde otro computador, la clave del profesor es: 4821)
+
+  ESTUDIANTES:  http://192.168.1.20:8080
+```
+
+If Windows asks whether to allow Node.js on the network, answer **Allow** (private networks).
+
+**2. The teacher opens `http://localhost:8080/profesor`** and creates a game: number of
+players (1–16), map size and duration. The panel shows a **4-letter code** (for example
+`KBTR`) and the direct link for the students (`http://192.168.1.20:8080/?c=KBTR`).
+
+**3. The students open the link** (or the address and type the code), type their
+name and choose their **faction** and **color** in the waiting lobby.
+
+**4. The teacher presses "Iniciar partida"**. From the panel they can also: watch the
+game (whole map and each student's economy), pause/resume, end, remove a student and
+close the room.
+
+If a student loses the connection or closes the tab, they only need to open the link
+again: **they come back to their same player** automatically.
+
+**Testing alone (without students):** in the panel press **"🧪 Probar como estudiante"**, type
+a name and pick a faction. Since you are on the server computer, the waiting lobby shows the
+**"▶ Iniciar partida"** button: pressing it starts the game.
+
+### How students connect
+
+Through the **school's local network** (the same Wi-Fi or cable as the teacher's computer).
+No internet, accounts or installation needed: just Chrome, Edge, Firefox or Safari.
+
+1. Everyone must be on the **same network** as the teacher's computer.
+2. The address (e.g. `http://10.126.197.163:8080`) is shown in the teacher panel. It **can change
+   from one day to the next**: always copy it from the panel. Write it on the board or project it.
+3. The first time, Windows asks whether to allow Node.js on the network: answer **Allow**.
+4. ⚠️ **Guest Wi-Fi networks often isolate devices** from each other (students would not be able to
+   reach the teacher's computer). **Test before class:** connect a phone to the same Wi-Fi and open
+   the address. If the game's start screen appears, it works. If not: ask IT for a network without
+   isolation, or use a small dedicated router or a phone's hotspot for the class.
+
+Options (environment variables):
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `PORT` | Server port | `8080` |
+| `TEACHER_PIN` | Teacher PIN (to enter the panel from another computer) | 4 random digits |
+
+Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
+
+## Controls
+
+| Action | Control |
+|---|---|
+| Select | Left click |
+| Multiple selection | Drag with left click (Shift adds) |
+| All of the same type on screen | Double click |
+| Contextual order | Right click: ground = move · resource = gather · enemy = attack · foundation or damaged building = build/repair · own farm = farm it |
+| Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
+| Build | With workers: **Q** House · **E** Storehouse · **R** Farm · **T** Barracks (Shift: place several) |
+| Train | With a building: **Q** / **E** (see the buttons) · click a unit in the queue to cancel it |
+| Delete | **Delete** key (an unfinished foundation refunds what is left to build) |
+| Camera | WASD or arrows · middle-button drag · minimap |
+| Zoom | Mouse wheel |
+| Town Center | H |
+| Next idle worker | `.` (period) |
+| Cancel (selection or placement) | Esc |
+
+## Development
+
+```bash
+npm run dev        # server (restarts on save) + client with hot reload at http://localhost:5173
+npm test           # automated tests
+npm run typecheck  # type checking
+```
+
+## Architecture
+
+```
+shared/    Shared by client and server: game data and factions (data.ts),
+           real stats per faction (stats.ts) and message protocol (protocol.ts)
+server/    Authoritative server (Node.js + ws)
+  src/sim/   Simulation with no networking: map, pathfinding, movement, gathering,
+             construction, production and combat
+  src/lobby/ Rooms: code, students, teacher, reconnection
+  src/net/   HTTP + WebSocket and sync by changes (sync.ts)
+  test/      Tests (Vitest)
+client/    Browser (TypeScript + Canvas 2D, isometric view)
+```
+
+Key rules:
+
+1. **The server decides everything.** The client only sends intentions ("move these
+   units here", "gather this tree"). The server checks that the units belong to the
+   sender, simulates 10 steps per second and sends each player the state.
+2. **Balance lives in tables** (`shared/data.ts`): costs, speeds, amounts.
+3. **Everything that matters has a test** (`npm test`).

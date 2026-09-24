@@ -1,0 +1,120 @@
+# Progress by phase
+
+Full roadmap: [HOJA_DE_RUTA.md](HOJA_DE_RUTA.md).
+
+| Phase | Content | Status |
+|---|---|---|
+| 1 | Map, camera, selection, movement, workers, resources, gathering | ✅ Working and audited |
+| 2 | Construction, unit production, basic combat, factions | ✅ Working |
+| 3 | Rooms with a code, faction choice, reconnection, teacher panel, efficient sync | ✅ Working |
+| 4 | Teams, diplomacy, alliances, war | 🔜 Next |
+| 5 | Eras, technologies, advanced units | — |
+| 6 | Fog of war, victory conditions, balance | — |
+| 7 | Optimization, interface, LAN setup, documentation | — |
+
+## Phase 1 audit (2026-09-24)
+
+| Area | What was checked | Result |
+|---|---|---|
+| Output per minute | Does it drop to 0 when gathering stops? | ❌ Bug: it stayed stuck → **fixed** |
+| Workers next to the depot | Keep working if they reach the resource and the depot without walking? | ❌ Bug: they stopped after 5 trips → **fixed** |
+| Maps | 90 maps (2–16 players): fairness and reachable resources | ❌ Bug: berries/stone/metal enclosed → **fixed** (generation validates access) |
+| Security | Message over 16 KB | ❌ **Critical** bug: it would crash the server for the whole class → **fixed** |
+| Security | Flood of orders, malformed messages, other players' units | ✅ Handled correctly |
+| Security | Files outside the game folder (`/../`, `%2e%2e`…) | ✅ Blocked (new tests) |
+| Robustness | Error during a simulation step, rebuild while running, invalid variables | ✅ Hardened (logs and keeps running) |
+| Performance | 800 simultaneous orders | 247 ms → **24 ms** (shared path, reused memory) |
+| Performance | Simulation step with 800 units | 2.6 ms → **0.4 ms** (budget: 100 ms) |
+| Performance | Client on the largest map (16 players) | 61 FPS |
+| Interface | 16 players in the top bar | ❌ Covered a third of the screen → **fixed** (compact squares) |
+| Pending | Network traffic with 16 players and 800 units: ~160 Mbit/s | ⚠️ Too high for school Wi-Fi → **priority in Phase 3** (only changes + compact format + fog filtering) |
+
+Bugs found **during Phase 2** (by the new tests):
+- A building destroyed while under construction survived because its builders "healed" it → fixed.
+- A unit could walk into a building placed on its path → fixed (checks every step).
+- The rally point on a resource didn't send new workers to gather → fixed.
+
+## Phase 2 — what exists
+
+**Construction**: 4 buildings you can construct (House +5 population, Storehouse = depot,
+Farm = food for one worker, Barracks = army). Preview in green/red that follows the mouse,
+foundation that "rises", several builders (each extra helps less: 1→1×, 4→2×),
+cancel with a refund of what is left to build, and repair (costs 50% of the price, proportional).
+
+**Production**: queue of up to 5 per building, cost charged when ordering and refunded when
+cancelling, waits if there is no population ("build more houses"), rally point (on a resource,
+new workers go gather there).
+
+**Combat**: damage = attack × type advantage − armor (minimum 1). Advantages:
+infantry → cavalry and buildings; cavalry → workers and ranged; ranged →
+infantry; siege → buildings. Idle troops attack on their own what they see (first whoever
+fights, then workers, then buildings) and respond when attacked. The Town Center shoots arrows.
+"You are under attack!" notice.
+
+**Factions** (Total War style): each one strengthens some unit types and weakens others.
+
+| Faction | Strong in | Weak in |
+|---|---|---|
+| Legión del Norte | Infantry (+20% health, +1 armor) | Ranged (−10% attack) |
+| Clan del Viento | Cavalry (+20% attack, +15% health, +10% speed) | Siege (−20% attack) |
+| Guardia del Bosque | Ranged (+15% attack, +1 range), wood +10% | Cavalry (−15% health) |
+| Gremio de la Forja | Siege (+25% attack, +20% health), buildings +20% | Cavalry (−20% attack) |
+| Liga del Río | Food and metal +15%, workers +20% health | Infantry (−10% attack) |
+| Pueblo de la Montaña | Buildings +25% health, stone +20% | Infantry and cavalry (−5% speed) |
+
+For now each slot gets a faction in order (player 2 = Clan del Viento, red; player 4 =
+Gremio de la Forja, yellow). In Phase 3 each student will choose theirs in the lobby.
+
+**Tests**: 107 automated tests, including two "stress tests" that play 5–6 minutes with
+random orders (gathering, building, training, attacking, deleting) and check at every
+step that no rule is broken (health, resources, positions, queues, states).
+
+## Phase 3 — what exists
+
+**Efficient synchronization** (priority from the audit). Instead of sending the full state
+10 times per second, each student receives **only what changed since their last message**,
+in a compact format (lists of numbers) and compressed. Measured with 16 players and 800 units
+all working (worst case):
+
+| | Per student | Whole class |
+|---|---|---|
+| Before (Phase 2) | 1200 KB/s | 158 Mbit/s |
+| Changes only | 45 KB/s | 5.9 Mbit/s |
+| Changes + compression | **17 KB/s** | **2.3 Mbit/s** |
+
+Goal was < 1.5 Mbit/s per student: 0.14 Mbit/s achieved. If a student's connection is slow and
+a message is skipped, the next one includes everything they missed (it never gets out of sync).
+The map travels compressed by runs (~50× smaller).
+
+**Rooms with a code**: the teacher opens `/profesor` (on the server computer with no PIN;
+from another one with the PIN shown in the console), chooses players, map size and duration,
+and receives a 4-letter code with no confusing letters (no O, I or L) plus a direct link.
+
+**Students**: start screen (name + code, filled in automatically from the link) → waiting
+lobby where they choose **faction** (with strengths/weaknesses visible) and **color** (no
+repeats) → the game starts when the teacher decides.
+
+**Reconnection**: each student gets a secret token saved in the browser. If the connection
+drops, the page reloads or they close the tab, they come back to the **same player** with
+everything as it was. If they open the game in two tabs, the old one closes (without
+"stealing" the slot back).
+
+**Teacher panel**: list of rooms with their status and students (connected or not),
+start, **watch the game** (whole map + economy table of each student, with idle workers
+highlighted), **pause/resume**, **end** (summary for everyone), **remove a student** (cannot
+come back) and **close the room**. Clock with a countdown when there is a time limit; when it
+runs out the game ends on its own.
+
+**Security**: every teacher action is checked on the server; 5 wrong PINs cut the connection;
+a student cannot give orders to units that aren't theirs or join a game already underway.
+
+**Tests**: 131 automated tests. New: codec round trip, **3 minutes of random play checking
+that each client rebuilds exactly the server state** (even losing 30% of the messages),
+privacy (nobody sees someone else's queue), 21 lobby tests (PIN, codes, colors, full room,
+reconnection, second tab, removal, pause, end, time limit, teacher watching) and a
+**class of 16 students over real WebSockets**.
+
+## Known limits
+- Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.
+- There is no victory yet: the final table sorts by resources gathered (Phase 6).
+- If the server is restarted, the games in progress are lost (they are in memory).
