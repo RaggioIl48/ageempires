@@ -36,17 +36,20 @@ function lanAddresses(): string[] {
   return (real.length > 0 ? real : all).map((a) => a.address);
 }
 
+/**
+ * Dirección en internet, si el juego está publicado: PUBLIC_URL a mano, o la
+ * que pone Render automáticamente (RENDER_EXTERNAL_URL).
+ */
+const publicUrl = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+
 let server;
 try {
   server = await startGameServer({
     port,
     pin,
     staticDir,
-    // PUBLIC_URL: dirección en internet (si el juego está publicado); si no, las de la red local.
-    urls: (p) => [
-      ...(process.env.PUBLIC_URL ? [process.env.PUBLIC_URL.replace(/\/+$/, '')] : []),
-      ...lanAddresses().map((ip) => `http://${ip}:${p}`),
-    ],
+    // Publicado en internet: solo ese enlace (las direcciones internas del servidor no le sirven a nadie).
+    urls: (p) => (publicUrl ? [publicUrl] : lanAddresses().map((ip) => `http://${ip}:${p}`)),
   });
 } catch (err) {
   const code = (err as NodeJS.ErrnoException).code;
@@ -61,5 +64,6 @@ console.log('');
 console.log(`  PROFESOR:     abre http://localhost:${server.port}/profesor en este computador`);
 console.log(`                (desde otro computador, la clave del profesor es: ${pin})`);
 console.log('');
-for (const ip of lanAddresses()) console.log(`  ESTUDIANTES:  http://${ip}:${server.port}`);
+if (publicUrl) console.log(`  EN INTERNET:  ${publicUrl}  (panel del profesor: ${publicUrl}/profesor)`);
+else for (const ip of lanAddresses()) console.log(`  ESTUDIANTES:  http://${ip}:${server.port}`);
 console.log('');
