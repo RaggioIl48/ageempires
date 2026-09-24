@@ -85,6 +85,19 @@ describe('teacher', () => {
     expect(local.last('welcome')).toBeDefined();
   });
 
+  it('online (another computer): the teacher testing as a student starts with their PIN; a wrong PIN does not work', () => {
+    const { lobby, code, room } = setup();
+    const t = new FakeConn(false);
+    lobby.handle(t, { t: 'join', code, name: 'Teacher' });
+    lobby.handle(t, { t: 'start', code, pin: '0000' });
+    expect(room.phase).toBe('lobby');
+    expect(t.last('error')?.message).toMatch(/Clave/);
+    lobby.handle(t, { t: 'start', code });
+    expect(room.phase).toBe('lobby');
+    lobby.handle(t, { t: 'start', code, pin: '4321' });
+    expect(room.phase).toBe('playing');
+  });
+
   it('a local student can only start THEIR room, not someone else\'s', () => {
     const { lobby, teacher, code } = setup();
     lobby.handle(teacher, { t: 'createRoom', settings: SETTINGS });
@@ -99,7 +112,10 @@ describe('teacher', () => {
     const { send, code, student, room } = setup();
     const s = student('Ana');
     send(s, { t: 'createRoom', settings: SETTINGS });
+    expect(s.last('error')?.message).toMatch(/Solo el profesor/);
     send(s, { t: 'start', code });
+    expect(s.last('error')?.message).toMatch(/Clave de profesor incorrecta/);
+    send(s, { t: 'end', code });
     expect(s.last('error')?.message).toMatch(/Solo el profesor/);
     expect(room.phase).toBe('lobby');
   });

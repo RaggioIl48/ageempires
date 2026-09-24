@@ -189,7 +189,8 @@ export type ClientMessage =
   | { t: 'createRoom'; settings: RoomSettings }
   | { t: 'setSettings'; code: string; settings: RoomSettings }
   | { t: 'kick'; code: string; memberId: number }
-  | { t: 'start'; code: string }
+  /** `pin`: el profesor probando como estudiante en otro computador (inicia desde la sala de espera). */
+  | { t: 'start'; code: string; pin?: string }
   | { t: 'pause'; code: string; paused: boolean }
   | { t: 'end'; code: string }
   | { t: 'closeRoom'; code: string }
@@ -355,6 +356,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'pause':
       return isCode(m.code) && typeof m.paused === 'boolean' ? { t: 'pause', code: m.code, paused: m.paused } : null;
     case 'start':
+      if (!isCode(m.code)) return null;
+      return typeof m.pin === 'string' && m.pin.length <= 12 ? { t: 'start', code: m.code, pin: m.pin } : { t: 'start', code: m.code };
     case 'end':
     case 'closeRoom':
     case 'watch':

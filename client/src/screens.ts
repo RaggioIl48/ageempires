@@ -26,6 +26,15 @@ export function settingsText(s: RoomSettings): string {
 
 type Send = (m: ClientMessage) => void;
 
+/** Clave de profesor que se escribió en esta pestaña (o null). */
+export function teacherPin(): string | null {
+  try {
+    return sessionStorage.getItem('rts.pin');
+  } catch {
+    return null;
+  }
+}
+
 // ---------- Inicio ----------
 
 export class StartScreen {
@@ -75,7 +84,9 @@ export class LobbyScreen {
   constructor(private send: Send, onLeave: () => void) {
     el('btn-leave').addEventListener('click', onLeave);
     el('btn-start-host').addEventListener('click', () => {
-      if (this.room) this.send({ t: 'start', code: this.room.code });
+      if (!this.room) return;
+      const pin = teacherPin();
+      this.send(pin ? { t: 'start', code: this.room.code, pin } : { t: 'start', code: this.room.code });
     });
     el('lobby-factions').addEventListener('click', (e) => {
       const card = (e.target as HTMLElement).closest<HTMLElement>('[data-faction]');
@@ -87,10 +98,17 @@ export class LobbyScreen {
     });
   }
 
-  /** `host`: está en el computador del profesor (ve el botón para iniciar). */
+  /**
+   * `host`: está en el computador del servidor. También ve el botón para iniciar
+   * quien ya entró como profesor en este navegador (el servidor revisa la clave).
+   */
   setMe(memberId: number, host: boolean): void {
     this.me = memberId;
-    el('host-box').classList.toggle('hidden', !host);
+    const teacher = host || teacherPin() !== null;
+    el('host-box').classList.toggle('hidden', !teacher);
+    el('host-text').innerHTML = host
+      ? 'Estás en el <b>computador del profesor</b>: cuando estén todos, puedes iniciar la partida desde aquí.'
+      : 'Entraste como <b>profesor</b> en este navegador: cuando estén todos, puedes iniciar la partida desde aquí.';
   }
 
   error(text: string): void {
@@ -205,6 +223,11 @@ export class TeacherScreen {
   }
 
   askPin(message: string): void {
+    try {
+      sessionStorage.removeItem('rts.pin'); // la guardada no sirve
+    } catch {
+      /* sin almacenamiento */
+    }
     el('form-pin').classList.remove('hidden');
     el('teacher-main').classList.add('hidden');
     el('teacher-error').textContent = message;

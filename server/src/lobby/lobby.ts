@@ -54,11 +54,18 @@ export class Lobby {
         if (conn.role === 'student') conn.room?.command(conn, msg.cmd);
         return;
       case 'start': {
-        // Un "estudiante" en el computador del profesor (probando solo) también puede iniciar su sala.
-        if (conn.role === 'student' && conn.isLocal && conn.room?.code === msg.code) {
+        // El profesor probando como "estudiante" también puede iniciar su sala desde la sala de
+        // espera: si está en el computador del servidor, o si da la clave del profesor.
+        const byTeacher = conn.isLocal || (msg.pin !== undefined && msg.pin === this.opts.pin);
+        if (conn.role === 'student' && byTeacher && conn.room?.code === msg.code) {
           const error = conn.room.start();
           if (error) conn.send({ t: 'error', message: error });
           return;
+        }
+        if (conn.role === 'student') {
+          conn.pinFails++;
+          if (conn.pinFails >= MAX_PIN_FAILS) conn.close();
+          return conn.send({ t: 'error', message: 'Clave de profesor incorrecta: no se puede iniciar.' });
         }
         break; // si no, sigue abajo: solo el profesor
       }
