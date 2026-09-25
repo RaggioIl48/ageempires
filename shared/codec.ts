@@ -129,7 +129,8 @@ export function sameTuple(a: readonly number[] | undefined, b: readonly number[]
 }
 
 // ---------- Efectos ----------
-// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga]: [1, x, y] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
+// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
+// gain: [4, x, y, dueño, recurso, cantidad]
 export type EventTuple = number[];
 
 export function encodeEvent(e: GameEvent): EventTuple {
@@ -142,6 +143,8 @@ export function encodeEvent(e: GameEvent): EventTuple {
       return [2, q(e.x), q(e.y)];
     case 'destroyed':
       return [3, q(e.x), q(e.y), e.size];
+    case 'gain':
+      return [4, q(e.x), q(e.y), e.o, e.r, e.n];
   }
 }
 
@@ -153,6 +156,8 @@ export function decodeEvent(t: EventTuple): GameEvent {
       return t[3] ? { k: 'hit', x: dq(t[1]), y: dq(t[2]), c: 1 } : { k: 'hit', x: dq(t[1]), y: dq(t[2]) };
     case 2:
       return { k: 'death', x: dq(t[1]), y: dq(t[2]) };
+    case 4:
+      return { k: 'gain', x: dq(t[1]), y: dq(t[2]), o: t[3], r: t[4], n: t[5] };
     default:
       return { k: 'destroyed', x: dq(t[1]), y: dq(t[2]), size: t[3] };
   }

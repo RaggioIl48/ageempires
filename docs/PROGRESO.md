@@ -348,6 +348,26 @@ buildings and the Mongol Town Center (yurt camp).
 
 **Tests**: 232.
 
+## Crews +450 %, woodlots, trees and buildings that change with each age (2026-09-25)
+
+- **Crews now deliver +450 %** (×5.5) per trip when 5 or more workers gather the same resource close
+  together. Before, the bonus only sped up the gathering itself, and since much of each trip is walking
+  it was barely noticeable (about +40 %). Now it multiplies what each trip delivers, so it shows fully
+  in the income (tested in the browser: 4 workers on wood gave +40/min, 5 workers +220/min), and trees
+  and veins do not run out faster. A floating "+55 ×5.5" appears at the drop-off.
+- **Woodlot** (75 food, 50 stone — no wood needed): planted trees that **grow back** (1 wood/s, up to
+  600). Up to 5 workers, wood drop-off, never disappears; if it is empty, the workers wait. Its trees are
+  drawn small or big according to the wood left.
+- **Trees** of the map drawn with Unknown Horizons art (birch, maple, spruce, tupelo); they shrink as
+  they are cut.
+- **Buildings change with the age** (Age of Empires) and settlements grow from villages to stone towns
+  (Total War): e.g. Romans timber → stone, Goths wood → timber → stone, Gauls/Germans/Vikings wood until
+  the Industrial Age, Mongols tents until the Industrial Age.
+- **Archery range** drawn with a weaponsmith or a hunter's tent (by style) and two targets.
+- **Analysis** of the game and what to improve: [ANALISIS.md](ANALISIS.md).
+
+**Tests**: 233.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

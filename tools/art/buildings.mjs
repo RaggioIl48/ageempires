@@ -1,13 +1,17 @@
 // Edificios con imágenes de Unknown Horizons (juego de estrategia isométrico libre,
 // gráficos CC-BY-SA 3.0). Su casilla mide 64×32 como la nuestra.
 //
-// Cada pueblo usa un estilo de construcción:
-//   stone  = casas de piedra        (romanos)
-//   timber = entramado de madera    (visigodos, ostrogodos)
-//   wood   = madera y techos de paja/pasto (galos, germanos, vikingos)
-//   tent   = tiendas                (mongoles)
-// Lo que no tiene imagen adecuada (campo de tiro, murallas, edificios únicos, el
-// centro mongol) se sigue dibujando con formas.
+// Estilos de construcción:
+//   tent   = tiendas
+//   wood   = madera y techos de paja/pasto
+//   timber = entramado de madera
+//   stone  = casas de piedra
+// Cada pueblo tiene su estilo en cada era (como en Age of Empires, los edificios
+// cambian de aspecto al avanzar de era; y como los asentamientos de Total War, las
+// aldeas crecen hasta ciudades de piedra). Ej.: los romanos pasan del entramado a la
+// piedra en la Edad Media; los mongoles viven en tiendas hasta la Era Industrial.
+// Lo que no tiene imagen adecuada (murallas, edificios únicos, el centro mongol en
+// tiendas) se sigue dibujando con formas.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,15 +22,19 @@ export const UH_REPO = 'https://github.com/unknown-horizons/unknown-horizons';
 export const UH_COMMIT = 'af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615';
 const RAW = `https://raw.githubusercontent.com/unknown-horizons/unknown-horizons/${UH_COMMIT}/`;
 
+/** Estilo de cada pueblo en cada era (Tribal, Media, Industrial, Moderna). */
 export const STYLES = {
-  romans: 'stone',
-  visigoths: 'timber',
-  ostrogoths: 'timber',
-  gauls: 'wood',
-  germans: 'wood',
-  vikings: 'wood',
-  mongols: 'tent',
+  romans: ['timber', 'stone', 'stone', 'stone'],
+  visigoths: ['wood', 'timber', 'stone', 'stone'],
+  ostrogoths: ['wood', 'timber', 'stone', 'stone'],
+  gauls: ['wood', 'wood', 'timber', 'stone'],
+  germans: ['wood', 'wood', 'timber', 'stone'],
+  vikings: ['wood', 'wood', 'timber', 'stone'],
+  mongols: ['tent', 'tent', 'timber', 'stone'],
 };
+
+/** Árboles (mapa y bosque plantado): especie → carpeta; etapas de crecimiento 0..3 y adulto. */
+const TREES = ['birch0', 'maple0', 'maple1', 'maple2', 'spruce0', 'spruce1', 'tupelo0', 'tupelo1'];
 
 /** Imágenes usadas: carpeta de Unknown Horizons, vista (acción) y tamaño de su base en casillas. */
 const SPRITES = {
@@ -61,6 +69,15 @@ const SPRITES = {
   market: ['buildings/sailors/warehouse/as_warehouse0', 'idle', 3],
   workshop: ['buildings/citizens/as_cannonfoundry', 'idle', 3],
   factory: ['buildings/settlers/smeltery/as_smeltery0', 'idle', 4],
+  'archery-smith': ['buildings/settlers/weaponsmith/as_weaponsmith0', 'idle', 2],
+  'archery-hunter': ['buildings/sailors/hunter/as_hunter0', 'idle', 2],
+  'woodlot-hut': ['buildings/sailors/lumberjack/as_lumberjack0', 'idle', 2],
+  ...Object.fromEntries(
+    TREES.flatMap((t) => [
+      [`tree-${t}-4`, [`terrain/trees/as_${t}`, 'idle_full', 1]],
+      ...[0, 1, 2, 3].map((k) => [`tree-${t}-${k}`, [`terrain/trees/as_${t}`, 'work', 1, k]]),
+    ]),
+  ),
 };
 
 /** Qué imagen usa cada edificio según el estilo ('*' = todos los estilos). Varias = variantes. */
@@ -86,6 +103,11 @@ const MAP = {
   '*/market': ['market'],
   '*/workshop': ['workshop'],
   '*/factory': ['factory'],
+  'stone/archery_range': ['archery-smith'],
+  'timber/archery_range': ['archery-smith'],
+  'wood/archery_range': ['archery-hunter'],
+  'tent/archery_range': ['archery-hunter'],
+  '*/woodlot': ['woodlot-hut'],
 };
 
 export const UH_CREDITS = {
@@ -157,9 +179,9 @@ export async function buildBuildings(cache, out) {
   fs.mkdirSync(dir, { recursive: true });
   const sprites = {};
   let bytes = 0;
-  for (const [id, [folder, action, tiles]] of Object.entries(SPRITES)) {
+  for (const [id, [folder, action, tiles, frame = 0]] of Object.entries(SPRITES)) {
     const prefix = `content/gfx/${folder}/${action}/45/`;
-    const rel = list.filter((f) => f.startsWith(prefix) && f.endsWith('.png')).sort()[0];
+    const rel = list.filter((f) => f.startsWith(prefix) && f.endsWith('.png')).sort()[frame];
     if (!rel) throw new Error(`Unknown Horizons: no hay imagen en ${prefix}`);
     const local = path.join(cache, 'uh-files', rel.slice('content/gfx/'.length));
     if (!fs.existsSync(local)) {
@@ -175,5 +197,6 @@ export async function buildBuildings(cache, out) {
     sprites[id] = { file, w: img.w, h: img.h, tiles };
   }
   const credits = Object.keys(UH_CREDITS);
-  return { manifest: { v: 1, styles: STYLES, sprites, map: MAP, credits }, bytes };
+  const trees = TREES.map((t) => [0, 1, 2, 3, 4].map((k) => `tree-${t}-${k}`));
+  return { manifest: { v: 2, styles: STYLES, sprites, map: MAP, trees, credits }, bytes };
 }

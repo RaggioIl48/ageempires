@@ -140,6 +140,8 @@ function costHtml(cost: Cost, have?: Record<ResourceType, number>): string {
 }
 
 const NOTICE_MS = 4000;
+/** Aumento de la cuadrilla en porcentaje (5,5 veces = +450 %). */
+const CREW_PCT = Math.round((CREW_BONUS - 1) * 100);
 
 /** Datos del profesor cuando mira una partida. */
 export interface SpectatorInfo {
@@ -403,7 +405,7 @@ export class Hud {
     const n = u.crew ?? 1;
     const crew =
       u.task && u.owner === this.state.you
-        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together work ×${CREW_BONUS} faster">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>×${CREW_BONUS} gathering</b>` : ` · ${CREW_SIZE - n} more nearby for ×${CREW_BONUS}`}</div>`
+        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}% per trip</b>` : ` · ${CREW_SIZE - n} more nearby for +${CREW_PCT}%`}</div>`
         : '';
     return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
       <div class="row">${doing}</div>${carry}${crew}

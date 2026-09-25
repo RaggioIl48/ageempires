@@ -1,7 +1,7 @@
 // Escena con Canvas 2D: terreno, objetos ordenados de atrás hacia adelante,
 // selección, efectos de combate y previsualización de construcción.
 
-import { BUILDING_DEFS, TILE_MOUNTAIN, TILE_WATER, type BuildingType } from '../../shared/data.ts';
+import { BUILDING_DEFS, CREW_BONUS, RESOURCE_TYPES, TILE_MOUNTAIN, TILE_WATER, type BuildingType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
 import { isUpgraded } from '../../shared/stats.ts';
 import {
@@ -17,6 +17,8 @@ import {
   hash,
   healthBar,
   outlineFootprint,
+  RESOURCE_COLORS,
+  setEraLookup,
   unitTop,
 } from './sprites.ts';
 import { drawDyingUnit } from './art.ts';
@@ -117,7 +119,7 @@ type Drawable =
 const CORPSE_MS = 4000;
 
 /** Duración de cada efecto (ms). */
-const EFFECT_MS = { shot: 300, hit: 180, death: 900, destroyed: 1200 } as const;
+const EFFECT_MS = { shot: 300, hit: 180, death: 900, destroyed: 1200, gain: 1600 } as const;
 /** Los disparos de cañón vuelan más lento y terminan en una explosión. */
 const SHELL_MS = 600;
 const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number }) => (e.k === 'shot' && e.s === 2 ? SHELL_MS : EFFECT_MS[e.k]);
@@ -152,6 +154,9 @@ export class Renderer {
     ctx.fillStyle = '#12161c';
     ctx.fillRect(0, 0, cam.width, cam.height);
     if (!this.terrain) return;
+
+    // Los edificios cambian de estilo con la era de su dueño.
+    setEraLookup((id) => state.eraOf(id));
 
     // Transformación de cámara: a partir de aquí se dibuja en px del mundo.
     const z = cam.zoom * dpr;
@@ -398,6 +403,25 @@ export class Renderer {
           const p = worldToPx(e.x, e.y);
           ctx.globalAlpha = 0.8 * (1 - age);
           ellipse(ctx, p.px, p.py - 4 - age * 10, 6 + age * 8, 4 + age * 5, '#9a9a9a');
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'gain': {
+          // Bonificación de cuadrilla: "+55" que sube desde el depósito (solo lo propio).
+          if (e.o !== state.you) break;
+          const p = worldToPx(e.x, e.y);
+          const y = p.py - 30 - age * 26;
+          ctx.globalAlpha = Math.min(1, (1 - age) * 2);
+          ctx.font = 'bold 13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+          const text = `+${e.n} ×${CREW_BONUS}`;
+          ctx.strokeText(text, p.px, y);
+          const r = RESOURCE_TYPES[e.r];
+          ctx.fillStyle = r === 'wood' ? '#e0a860' : r === 'metal' ? '#b8d0ea' : RESOURCE_COLORS[r];
+          ctx.fillText(text, p.px, y);
+          ctx.textAlign = 'start';
           ctx.globalAlpha = 1;
           break;
         }

@@ -113,6 +113,8 @@ export type GameEvent =
   /** c: 1 = golpe de carga (más grande). */
   | { k: 'hit'; x: number; y: number; c?: 1 }
   | { k: 'death'; x: number; y: number }
+  /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
+  | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }
   | { k: 'destroyed'; x: number; y: number; size: number };
 
 export interface MapView {

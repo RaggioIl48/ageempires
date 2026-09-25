@@ -5,7 +5,7 @@
 
 import { BUILDING_DEFS, type FactionId, type ResourceType, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
-import { buildingSprite, drawSpriteUnit, spriteTop } from './art.ts';
+import { buildingSprite, drawSpriteUnit, spriteTop, treeSpecies, treeSprite } from './art.ts';
 import { worldToPx } from './view.ts';
 
 export const RESOURCE_COLORS: Record<ResourceType, string> = {
@@ -151,7 +151,15 @@ export function drawMountain(ctx: CanvasRenderingContext2D, x: number, y: number
 export function drawNode(ctx: CanvasRenderingContext2D, n: NodeView, x: number, y: number): void {
   const r = hash(n.tx, n.ty);
   switch (n.type) {
-    case 'tree':
+    case 'tree': {
+      // Árboles de Unknown Horizons: la especie depende de la casilla; se achican al talarlos.
+      const n0 = treeSpecies();
+      const stage = n.amount >= 55 ? 4 : n.amount >= 25 ? 3 : 2;
+      const t = n0 ? treeSprite(Math.floor(r * n0), stage, x, y, 0.78) : null;
+      if (t) {
+        ctx.drawImage(t.img, t.x, t.y, t.w, t.h);
+        break;
+      }
       ellipse(ctx, x + 4, y + 1, 12, 5, 'rgba(0,0,0,0.25)');
       ctx.fillStyle = '#6b4a2b';
       ctx.fillRect(x - 2, y - 11, 4, 11);
@@ -169,6 +177,7 @@ export function drawNode(ctx: CanvasRenderingContext2D, n: NodeView, x: number, 
         ellipse(ctx, x + 5 * s, y - 28 * s, 7 * s, 6 * s, '#58a04d');
       }
       break;
+    }
     case 'berries':
       ellipse(ctx, x + 2, y + 1, 11, 4, 'rgba(0,0,0,0.2)');
       ellipse(ctx, x, y - 7, 10, 8, '#3f7c35');
@@ -252,18 +261,66 @@ function flag(ctx: CanvasRenderingContext2D, x: number, y: number, color: string
 /** Altura total aproximada del dibujo de cada edificio (para "levantarlo" al construir). */
 export function buildingHeight(type: BuildingView['type']): number {
   return {
-    town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, barracks: 64,
+    town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, woodlot: 40, barracks: 64,
     archery_range: 40, stable: 50, tech_center: 66, market: 40, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
     castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
   }[type];
 }
 
 /** Imagen del edificio (si tiene y ya cargó), ubicada sobre su base. */
+/** Era de cada jugador (la fija el dibujo de la escena): los edificios cambian de estilo con ella. */
+let eraOf: (playerId: number) => number = () => 1;
+export function setEraLookup(f: (playerId: number) => number): void {
+  eraOf = f;
+}
+
 function artOf(b: BuildingView, faction?: FactionId) {
   if (!faction) return null;
   const s = BUILDING_DEFS[b.type].size;
   const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
-  return buildingSprite(b, faction, c.px, c.py);
+  return buildingSprite(b, faction, c.px, c.py, eraOf(b.owner));
+}
+
+/**
+ * Bosque plantado: la cabaña del leñador atrás y cinco árboles que crecen según la
+ * madera que queda (brotes cuando está casi vacío, árboles grandes cuando está lleno).
+ */
+function drawWoodlot(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, hut: NonNullable<ReturnType<typeof artOf>>): boolean {
+  const full = BUILDING_DEFS.woodlot.field!.amount;
+  const frac = Math.max(0, Math.min(1, (b.stock ?? full) / full));
+  fillFootprint(ctx, b.tx + 0.06, b.ty + 0.06, 2.88, '#6f7a3e');
+  outlineFootprint(ctx, b.tx + 0.06, b.ty + 0.06, 2.88, '#56602f', 1);
+  const species = b.id % Math.max(1, treeSpecies());
+  // Cabaña en la esquina de atrás (casillas 0..1), árboles en la L de adelante.
+  const h = worldToPx(b.tx + 1, b.ty + 1);
+  const k = 0.8;
+  const hutW = hut.w * k, hutH = hut.h * k;
+  const slots: [number, number][] = [[2, 0], [2, 1], [0, 2], [1, 2], [2, 2]];
+  const drawTree = (i: number) => {
+    const [dx, dy] = slots[i];
+    const stage = Math.round(Math.max(0, Math.min(4, frac * 4.4 - (i % 2) * 0.4)));
+    const p = worldToPx(b.tx + dx + 0.5, b.ty + dy + 0.5);
+    const t = treeSprite(species, stage, p.px, p.py, 0.85);
+    if (t) ctx.drawImage(t.img, t.x, t.y, t.w, t.h);
+  };
+  drawTree(0);
+  ctx.drawImage(hut.img, h.px - hutW / 2, h.py + 32 * k - hutH, hutW, hutH);
+  for (let i = 1; i < slots.length; i++) drawTree(i);
+  const R = worldToPx(b.tx + 3, b.ty);
+  flag(ctx, R.px - 10, R.py + 5, color, 22);
+  return true;
+}
+
+/** Dos blancos de paja con anillos (para reconocer el campo de tiro). */
+function archeryTargets(ctx: CanvasRenderingContext2D, b: BuildingView): void {
+  for (const [dx, dy] of [[2.6, 1.2], [1.2, 2.6]]) {
+    const p = worldToPx(b.tx + dx, b.ty + dy);
+    line(ctx, p.px - 3, p.py, p.px - 1, p.py - 10, '#6b4a2b', 1.5);
+    line(ctx, p.px + 3, p.py, p.px + 1, p.py - 10, '#6b4a2b', 1.5);
+    ellipse(ctx, p.px, p.py - 12, 6, 7, '#d9c27a', '#8a6d3b', 1);
+    ellipse(ctx, p.px, p.py - 12, 3.6, 4.2, '#c0392b');
+    ellipse(ctx, p.px, p.py - 12, 1.4, 1.6, '#f1e6cf');
+  }
 }
 
 /** Altura del edificio sobre el centro de su base (px del mundo): la de su imagen si tiene. */
@@ -278,12 +335,14 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
   const s = BUILDING_DEFS[b.type].size;
   // Imagen de Unknown Horizons (según el estilo del pueblo); si no hay, las formas de abajo.
   const art = artOf(b, faction);
+  if (art && b.type === 'woodlot' && drawWoodlot(ctx, b, color, art)) return;
   if (art) {
     if (art.yard) {
       fillFootprint(ctx, b.tx + 0.08, b.ty + 0.08, s - 0.16, '#a38d66');
       outlineFootprint(ctx, b.tx + 0.08, b.ty + 0.08, s - 0.16, '#7f6b4b', 1);
     }
     ctx.drawImage(art.img, art.x, art.y, art.w, art.h);
+    if (b.type === 'archery_range') archeryTargets(ctx, b);
     const R = worldToPx(b.tx + s, b.ty);
     flag(ctx, R.px - 10, R.py + 5, color, b.type === 'farm' ? 16 : 28);
     return;

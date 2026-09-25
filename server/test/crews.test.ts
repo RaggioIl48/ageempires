@@ -1,4 +1,5 @@
-// Cuadrillas (5 trabajadores juntos recolectan el doble), canteras y minas
+// Cuadrillas (5 trabajadores juntos: cada viaje rinde +450 %), canteras, minas,
+// bosques plantados
 // construibles, y formaciones en filas.
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS, CREW_BONUS, CREW_SIZE, UNIT_DEFS } from '../../shared/data.ts';
@@ -26,8 +27,9 @@ describe('cuadrillas', () => {
     const four = gather(4), five = gather(5);
     expect(four.crew).toBe(4);
     expect(five.crew).toBe(5);
-    // Con la cuadrilla completa, cada uno junta bastante más (el doble al recolectar; caminar no cambia).
-    expect(five.perWorker).toBeGreaterThan(four.perWorker * 1.5);
+    // Con la cuadrilla completa cada viaje entrega 5,5 veces más (camine lo que camine).
+    expect(five.perWorker).toBeGreaterThan(four.perWorker * 4.5);
+    expect(CREW_BONUS).toBe(5.5);
     expect(crewFactor(4)).toBe(1);
     expect(crewFactor(5)).toBe(CREW_BONUS);
   });
@@ -85,7 +87,7 @@ describe('cantera y mina', () => {
     expect(w.buildings.has(m1.id)).toBe(false);
   });
 
-  it('una cantera con su cuadrilla de 5 da el doble por trabajador', () => {
+  it('una cantera con su cuadrilla de 5 rinde +450 % y se ve un +N en el depósito', () => {
     const g = flatGame();
     const w = g.world;
     const q = w.addBuilding('quarry', 1, 12, 4)!;
@@ -93,6 +95,12 @@ describe('cantera y mina', () => {
     g.enqueue(1, { kind: 'gather', unitIds: ws.map((u) => u.id), targetId: q.id });
     run(g, 2);
     expect(ws.every((u) => u.crew === 5)).toBe(true);
+    const gains: { n: number }[] = [];
+    for (let i = 0; i < 400 && gains.length === 0; i++) {
+      g.step();
+      gains.push(...(w.events.filter((e) => e.k === 'gain') as { n: number }[]));
+    }
+    expect(gains[0]?.n).toBe(Math.round(10 * CREW_BONUS));
   });
 });
 
@@ -134,5 +142,28 @@ describe('formaciones', () => {
     runUntil(g, () => us.every((u) => u.state === 'idle'), 60);
     const xs = us.map((u) => u.x);
     expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(RANK_SPACING * 2 + 0.6);
+  });
+});
+
+describe('bosque plantado', () => {
+  it('se paga sin madera, da madera, vuelve a crecer y nunca desaparece', () => {
+    expect(BUILDING_DEFS.woodlot.cost.wood ?? 0).toBe(0);
+    expect(BUILDING_DEFS.woodlot.field).toMatchObject({ resource: 'wood', workers: 5 });
+    const g = flatGame();
+    const w = g.world;
+    const lot = w.addBuilding('woodlot', 1, 12, 4)!;
+    const ws = Array.from({ length: 2 }, (_, i) => w.addUnit('worker', 1, 16.5, 5.5 + i * 0.4));
+    g.enqueue(1, { kind: 'gather', unitIds: ws.map((u) => u.id), targetId: lot.id });
+    const wood0 = w.players.get(1)!.resources.wood;
+    run(g, 30);
+    expect(w.players.get(1)!.resources.wood).toBeGreaterThan(wood0 + 10);
+    // Vaciado: los trabajadores esperan y el bosque no desaparece; vuelve a crecer.
+    lot.stock = 0;
+    run(g, 5);
+    expect(w.buildings.has(lot.id)).toBe(true);
+    const before = lot.stock;
+    for (const u of ws) u.task = null;
+    run(g, 10);
+    expect(lot.stock).toBeGreaterThan(before + 8);
   });
 });

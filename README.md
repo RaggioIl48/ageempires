@@ -85,7 +85,7 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Select | Left click |
 | Multiple selection | Drag with left click (Shift adds) |
 | All of the same type on screen | Double click |
-| Contextual order | Right click: ground = move · resource = gather · enemy = attack (only ranged units can hit airplanes) · foundation or damaged building = build/repair · own farm, quarry or mine = work it |
+| Contextual order | Right click: ground = move · resource = gather · enemy = attack (only ranged units can hit airplanes) · foundation or damaged building = build/repair · own farm, quarry, mine or woodlot = work it |
 | Select a whole army type | Buttons above the minimap: **⚔ Infantry · 🏹 Ranged · 🐎 Cavalry · 💣 Siege · All** (Shift adds). With several types selected, click a type in the left panel to keep only those |
 | Groups | **Shift+1…9** saves the selection as a group · **1…9** selects it (press twice: the camera goes there) |
 | Formation | With 2 or more soldiers: **▤ Line** (infantry in front, ranged behind, cavalry on the flanks), **▥ Column** (3 wide) or **⁘ Loose**. In formation everyone marches at the pace of the slowest |
@@ -121,9 +121,9 @@ Units are drawn with sprite sheets built by `tools/art/build.mjs` from open proj
 - [[LPC] Horses](https://opengameart.org/content/lpc-horses) and
   [[LPC] Horse Riding](https://opengameart.org/content/lpc-horse-riding-updated-091) (cavalry),
 - [[LPC] Siege Weapons](https://opengameart.org/content/lpc-siege-weapons) (scorpion and artillery),
-- [Unknown Horizons](https://unknown-horizons.org) (buildings: each people has its own building style —
-  stone for the Romans, timber-framed for the Goths, wood and grass roofs for Gauls, Germans and
-  Vikings, tents for the Mongols).
+- [Unknown Horizons](https://unknown-horizons.org) (buildings and trees: each people has its own building
+  style in each age — e.g. the Romans go from timber-framed to stone, the Mongols live in tents until
+  the Industrial Age — so buildings change look when you advance, as in Age of Empires).
 
 Each people's look is described in `tools/art/recipes.mjs`. The build writes the sheets,
 `units.json` (animations, directions, team-color cut-outs) and `credits.json` (authors,

@@ -372,17 +372,19 @@ export const MINE_GATHER_RATE = 0.36;
 
 /**
  * Cuadrilla: si al menos CREW_SIZE trabajadores recogen el mismo recurso a menos de
- * CREW_RADIUS casillas unos de otros, cada uno recolecta CREW_BONUS veces más rápido.
+ * CREW_RADIUS casillas unos de otros, lo que entrega cada uno se multiplica por CREW_BONUS
+ * (sin gastar más el árbol o la veta).
  */
 export const CREW_SIZE = 5;
-export const CREW_BONUS = 2;
+/** +450 %: cada viaje de un trabajador de la cuadrilla entrega 5,5 veces lo que carga. */
+export const CREW_BONUS = 5.5;
 export const CREW_RADIUS = 5;
 /** Distancia (en casillas, desde el centro del trabajador) para recolectar o descargar. */
 export const INTERACT_RANGE = 1.25;
 
 // ---------- Edificios ----------
 export type BuildingType =
-  | 'town_center' | 'house' | 'storehouse' | 'farm' | 'quarry' | 'mine' | 'barracks'
+  | 'town_center' | 'house' | 'storehouse' | 'farm' | 'quarry' | 'mine' | 'woodlot' | 'barracks'
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
   | 'workshop' | 'factory' | 'market'
   // Edificio único de cada pueblo (Edad Media)
@@ -408,9 +410,10 @@ export interface BuildingDef {
   solid: boolean;
   /**
    * Campo de trabajo (granja, cantera, mina): qué recurso da, cuánto antes de agotarse,
-   * cuántos trabajadores caben y a qué ritmo recolecta cada uno (unidades/seg).
+   * cuántos trabajadores caben, a qué ritmo recolecta cada uno (unidades/seg) y, si vuelve
+   * a crecer (bosque plantado), cuánto recupera por segundo.
    */
-  field?: { resource: ResourceType; amount: number; workers: number; rate: number };
+  field?: { resource: ResourceType; amount: number; workers: number; rate: number; regrow?: number };
   /** ¿Lo pueden construir los trabajadores? */
   buildable: boolean;
   /** Era desde la que se puede construir. */
@@ -457,6 +460,11 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     label: 'Mine', description: 'Dig metal anywhere, no veins needed: up to 5 workers, 800 metal. Metal drop-off.',
     size: 3, hp: 700, cost: { wood: 150, stone: 75 }, buildTime: 35, popProvided: 0, dropoff: ['metal'], trains: [], researches: [],
     armor: DEFENSE, sight: 2, solid: true, field: { resource: 'metal', amount: 800, workers: 5, rate: MINE_GATHER_RATE }, buildable: true, era: 1,
+  },
+  woodlot: {
+    label: 'Woodlot', description: 'Planted trees that grow back: wood without cutting down the forest. Up to 5 workers, wood drop-off. It never runs out, but if you cut faster than it grows, the workers wait.',
+    size: 3, hp: 500, cost: { food: 75, stone: 50 }, buildTime: 25, popProvided: 0, dropoff: ['wood'], trains: [], researches: [],
+    armor: DEFENSE, sight: 2, solid: true, field: { resource: 'wood', amount: 600, workers: 5, rate: 0.45, regrow: 1 }, buildable: true, era: 1,
   },
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
@@ -560,7 +568,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
 };
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
-  'house', 'storehouse', 'farm', 'quarry', 'mine', 'barracks', 'tower', 'wall', 'gate',
+  'house', 'storehouse', 'farm', 'quarry', 'mine', 'woodlot', 'barracks', 'tower', 'wall', 'gate',
   'archery_range', 'stable', 'tech_center', 'market',
   'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',

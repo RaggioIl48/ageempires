@@ -148,6 +148,11 @@ export class World {
 
   // Cambios de nodos desde el último envío (el servidor los manda y los limpia).
   readonly changedNodes = new Set<number>();
+  /**
+   * Recursos que nacen durante la partida (lo que traen los campos de trabajo, lo que
+   * vuelve a crecer y lo extra de las cuadrillas). Sirve para comprobar que nada más los crea.
+   */
+  readonly created: Resources = { food: 0, wood: 0, stone: 0, metal: 0 };
   readonly removedNodes: number[] = [];
   /** Efectos de este paso (disparos, muertes…). */
   events: GameEvent[] = [];
@@ -342,6 +347,7 @@ export class World {
       repairOwed: { food: 0, wood: 0, stone: 0, metal: 0 },
     };
     this.buildings.set(b.id, b);
+    if (def.field) this.created[def.field.resource] += b.stock;
     for (let y = ty; y < ty + def.size; y++)
       for (let x = tx; x < tx + def.size; x++) {
         this.occupant[y * this.size + x] = b.id;

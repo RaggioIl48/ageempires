@@ -62,8 +62,13 @@ describe('arte de unidades', () => {
     expect(b.credits.length).toBeGreaterThan(0);
     for (const c of b.credits) expect(credits.items[c], c).toBeDefined();
     expect(sheetLicense(b.credits.map((c: string) => credits.items[c].licenses))).toBe('CC-BY-SA 4.0');
-    // Cada pueblo tiene un estilo, y sus casas tienen imagen.
-    for (const f of FACTION_ORDER) expect(b.map[`${b.styles[f]}/house`], f).toBeDefined();
+    // Cada pueblo tiene un estilo por era, y sus casas tienen imagen en todas.
+    for (const f of FACTION_ORDER) {
+      expect(b.styles[f], f).toHaveLength(4);
+      for (const st of b.styles[f]) expect(b.map[`${st}/house`], `${f} ${st}`).toBeDefined();
+    }
+    // Árboles: cada especie trae sus 5 etapas.
+    for (const t of b.trees) for (const id of t) expect(b.sprites[id], id).toBeDefined();
   });
 
   it('los trabajadores traen una animación por tarea', () => {

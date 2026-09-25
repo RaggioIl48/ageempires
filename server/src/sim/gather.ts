@@ -3,13 +3,14 @@
 // Si el recurso se agota, busca otro del mismo tipo cerca.
 //
 // Los "campos de trabajo" son edificios que dan un recurso hasta agotarse:
-// la granja (comida, un trabajador), la cantera (piedra) y la mina (metal), donde
-// caben varios. Cantera y mina son además depósito de lo suyo.
+// la granja (comida, un trabajador), la cantera (piedra), la mina (metal) y el bosque
+// plantado (madera, vuelve a crecer), donde caben varios. Estos últimos son además
+// depósito de lo suyo.
 //
 // Cuadrilla: si CREW_SIZE o más trabajadores recogen el mismo recurso cerca unos de
-// otros, cada uno recolecta CREW_BONUS veces más rápido.
+// otros, cada viaje que entregan rinde CREW_BONUS veces más (+450 %).
 
-import { BUILDING_DEFS, CREW_BONUS, CREW_RADIUS, CREW_SIZE, INTERACT_RANGE, NODE_DEFS, type ResourceType } from '../../../shared/data.ts';
+import { BUILDING_DEFS, CREW_BONUS, CREW_RADIUS, CREW_SIZE, INTERACT_RANGE, NODE_DEFS, RESOURCE_TYPES, type ResourceType } from '../../../shared/data.ts';
 import { carryCapacity, gatherRate } from '../../../shared/stats.ts';
 import { pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type ResourceNode, type Unit, type World } from './world.ts';
@@ -60,6 +61,15 @@ export function assignField(world: World, u: Unit, field: Building): boolean {
 
 export function updateGatherers(world: World, dt: number): void {
   updateCrews(world);
+  // Los bosques plantados vuelven a crecer.
+  for (const b of world.buildings.values()) {
+    const f = BUILDING_DEFS[b.type].field;
+    if (f?.regrow && b.progress >= 1 && b.stock < f.amount) {
+      const grown = Math.min(f.amount - b.stock, f.regrow * dt);
+      b.stock += grown;
+      world.created[f.resource] += grown;
+    }
+  }
   for (const u of world.units.values()) {
     if (u.task?.kind !== 'gather') continue;
     switch (u.state) {
@@ -107,7 +117,7 @@ function updateCrews(world: World): void {
   }
 }
 
-/** Multiplicador de la cuadrilla (×CREW_BONUS con CREW_SIZE o más). */
+/** Multiplicador de lo que entrega un trabajador según su cuadrilla (×CREW_BONUS con CREW_SIZE o más). */
 export function crewFactor(crew: number): number {
   return crew >= CREW_SIZE ? CREW_BONUS : 1;
 }
@@ -146,8 +156,14 @@ function stepGathering(world: World, u: Unit, dt: number): void {
   const techs = world.techsOf(u.owner);
   const capacity = carryCapacity(techs);
   const field = src.kind === 'field' ? BUILDING_DEFS[src.field.type].field!.rate : false;
-  u.gatherProgress += gatherRate(world.factionOf(u.owner), task.resource, field, techs) * crewFactor(u.crew) * dt;
-  while (u.gatherProgress >= 1 && u.carryAmount < capacity && remaining(src) > 0) {
+  const regrows = src.kind === 'field' && !!BUILDING_DEFS[src.field.type].field!.regrow;
+  // Bosque plantado sin árboles grandes: se espera a que crezcan (lo que ya lleva, lo entrega).
+  if (regrows && remaining(src) < 1) {
+    if (u.carryAmount > 0) startReturn(world, u);
+    return;
+  }
+  u.gatherProgress += gatherRate(world.factionOf(u.owner), task.resource, field, techs) * dt;
+  while (u.gatherProgress >= 1 && u.carryAmount < capacity && remaining(src) >= 1) {
     u.gatherProgress -= 1;
     u.carryAmount += 1;
     if (src.kind === 'node') {
@@ -157,7 +173,7 @@ function stepGathering(world: World, u: Unit, dt: number): void {
       src.field.stock -= 1;
     }
   }
-  if (remaining(src) <= 0) {
+  if (remaining(src) <= 0 && !regrows) {
     if (src.kind === 'node') world.removeNode(src.node.id);
     else {
       world.removeBuilding(src.field.id);
@@ -174,7 +190,15 @@ function stepReturning(world: World, u: Unit): void {
     return;
   }
   if (distanceToRect(u.x, u.y, drop.tx, drop.ty, drop.size) <= INTERACT_RANGE) {
-    if (u.carryType) world.deposit(u.owner, u.carryType, u.carryAmount);
+    if (u.carryType && u.carryAmount > 0) {
+      // Cuadrilla completa: el viaje rinde CREW_BONUS veces más (y se ve un "+N" en el depósito).
+      const bonus = crewFactor(u.crew);
+      const amount = Math.round(u.carryAmount * bonus);
+      world.deposit(u.owner, u.carryType, amount);
+      world.created[u.carryType] += amount - u.carryAmount;
+      if (bonus > 1)
+        world.events.push({ k: 'gain', x: drop.tx + drop.size / 2, y: drop.ty + drop.size / 2, o: u.owner, r: RESOURCE_TYPES.indexOf(u.carryType), n: amount });
+    }
     u.carryAmount = 0;
     u.carryType = null;
     u.path = [];

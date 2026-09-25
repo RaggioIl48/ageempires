@@ -45,8 +45,11 @@ interface Manifest {
 /** Edificios (Unknown Horizons): una imagen por edificio y estilo de construcción. */
 interface BuildingArt {
   v: number;
-  styles: Record<FactionId, string>;
+  /** Estilo de construcción de cada pueblo en cada era (índice 0 = Edad Tribal). */
+  styles: Record<FactionId, string[]>;
   sprites: Record<string, { file: string; w: number; h: number; tiles: number }>;
+  /** Árboles: por especie, sus etapas de crecimiento (0 = brote … 4 = adulto). */
+  trees: string[][];
   /** 'estilo/tipo' (o con '*' en lugar del estilo) → imágenes (varias = variantes). */
   map: Record<string, string[]>;
   credits: string[];
@@ -72,7 +75,7 @@ const getJson = <T>(file: string): Promise<T | null> =>
 export function loadArt(): Promise<void> {
   loading ??= Promise.all([getJson<Manifest>('units.json'), getJson<BuildingArt>('buildings.json')]).then(([m, b]) => {
     if (m?.v === 1) manifest = m;
-    if (b?.v === 1) buildingArt = b;
+    if (b?.v === 2) buildingArt = b;
   });
   return loading;
 }
@@ -109,9 +112,10 @@ export interface BuildingSprite {
  * Imagen para un edificio terminado (según el pueblo de su dueño), ya ubicada: su base
  * queda centrada sobre la base del edificio. null = no tiene (o no cargó): se usan formas.
  */
-export function buildingSprite(b: BuildingView, faction: FactionId, cx: number, cy: number): BuildingSprite | null {
+export function buildingSprite(b: BuildingView, faction: FactionId, cx: number, cy: number, era = 1): BuildingSprite | null {
   if (!buildingArt) return null;
-  const style = buildingArt.styles[faction];
+  const eras = buildingArt.styles[faction];
+  const style = eras?.[Math.max(0, Math.min(eras.length - 1, era - 1))];
   const list = buildingArt.map[`${style}/${b.type}`] ?? buildingArt.map[`*/${b.type}`];
   if (!list) return null;
   let id = list[b.id % list.length];
@@ -267,6 +271,24 @@ function drawFrame(
     }
   }
   return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+}
+
+/** Cantidad de especies de árboles con imagen. */
+export function treeSpecies(): number {
+  return buildingArt?.trees.length ?? 0;
+}
+
+/**
+ * Imagen de un árbol (especie `species`, etapa 0 = brote … 4 = adulto) con la base de su
+ * casilla en (cx, cy+16) y escala `k`. null = no hay o no cargó.
+ */
+export function treeSprite(species: number, stage: number, cx: number, cy: number, k = 1): BuildingSprite | null {
+  const id = buildingArt?.trees[species % buildingArt.trees.length]?.[Math.max(0, Math.min(4, stage))];
+  const sp = id ? buildingArt!.sprites[id] : undefined;
+  const img = sp ? artImage(sp.file) : null;
+  if (!sp || !img) return null;
+  const w = sp.w * k, h = sp.h * k;
+  return { img, x: cx - w / 2, y: cy + 16 * k - h, w, h, yard: false };
 }
 
 /** Retratos ya hechos (URL de la imagen), por hoja y color; null = en preparación. */

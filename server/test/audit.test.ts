@@ -1,6 +1,6 @@
 // Audit tests: suspected bugs and invariants that must always hold.
 import { describe, expect, it } from 'vitest';
-import { MAX_QUEUE, NODE_DEFS, RESOURCE_TYPES, STARTING_RESOURCES, type ResourceType } from '../../shared/data.ts';
+import { BUILDING_DEFS, MAX_QUEUE, NODE_DEFS, RESOURCE_TYPES, STARTING_RESOURCES, type ResourceType } from '../../shared/data.ts';
 import { createRng } from '../../shared/rng.ts';
 import { generateWorld } from '../src/sim/mapgen.ts';
 import type { World } from '../src/sim/world.ts';
@@ -81,11 +81,13 @@ function checkInvariants(w: World, initialTotals: Record<ResourceType, number>):
     if (r === 'food') continue;
     let onMap = 0;
     for (const n of w.nodes.values()) if (NODE_DEFS[n.type].resource === r) onMap += n.amount;
+    for (const b of w.buildings.values()) if (BUILDING_DEFS[b.type].field?.resource === r) onMap += b.stock;
     let carried = 0;
     for (const u of w.units.values()) if (u.carryType === r) carried += u.carryAmount;
     let banked = 0;
     for (const p of w.players.values()) banked += p.resources[r] - STARTING_RESOURCES[r];
-    if (onMap + carried + banked > initialTotals[r]) errors.push(`${r}: resources created from nothing`);
+    // Solo nacen recursos en los campos de trabajo, al volver a crecer y con las cuadrillas (w.created).
+    if (onMap + carried + banked > initialTotals[r] + w.created[r] + 1e-6) errors.push(`${r}: resources created from nothing`);
   }
   for (const p of w.players.values())
     for (const r of RESOURCE_TYPES) if (p.resources[r] < 0) errors.push(`player ${p.id} with negative ${r}`);
