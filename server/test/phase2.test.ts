@@ -63,7 +63,7 @@ describe('construction', () => {
     g.step();
     const notices = g.takeNotices(1);
     expect(buildingsOf(g, 1, 'house')).toHaveLength(0);
-    expect(notices).toContain('Recursos insuficientes');
+    expect(notices).toContain('Not enough resources');
   });
 
   it('the Town Center cannot be built by workers (not in the menu)', () => {
@@ -242,7 +242,7 @@ describe('production', () => {
     const notices = g.takeNotices(1);
     expect(byType(g, 1, 'worker')).toHaveLength(5);
     expect(tc.needsHouses).toBe(true);
-    expect(notices).toContain('Población máxima: construye más casas');
+    expect(notices).toContain('Population limit reached: build more houses');
     w.addBuilding('house', 1, 15, 15);
     run(g, UNIT_DEFS.worker.trainTime + 1);
     expect(byType(g, 1, 'worker')).toHaveLength(6);
@@ -387,7 +387,7 @@ describe('combat', () => {
     runUntil(g, () => !w.buildings.has(house.id), 120);
     expect(w.buildings.has(house.id)).toBe(false);
     expect(w.isWalkable(20, 20)).toBe(true);
-    expect(g.takeNotices(2).some((n) => n.includes('Casa'))).toBe(true);
+    expect(g.takeNotices(2).some((n) => n.includes('House'))).toBe(true);
   });
 
   it('you cannot attack your own units or buildings', () => {

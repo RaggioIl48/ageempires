@@ -148,7 +148,7 @@ function strike(world: World, owner: number, attack: AttackDef, cat: Category, f
   const victim = world.players.get(ownerOf(t));
   if (victim && world.tick - victim.lastAttackNotice > 150) {
     victim.lastAttackNotice = world.tick;
-    world.notify(victim.id, '¡Te están atacando!');
+    world.notify(victim.id, 'You are under attack!');
   }
   // Una unidad militar quieta que recibe un golpe responde.
   if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker')
@@ -246,6 +246,6 @@ export function removeDead(world: World): void {
     if (b.hp > 0) continue;
     world.removeBuilding(b.id);
     world.events.push({ k: 'destroyed', x: b.tx + b.size / 2, y: b.ty + b.size / 2, size: b.size });
-    world.notify(b.owner, `Perdiste un edificio: ${BUILDING_DEFS[b.type].label}`);
+    world.notify(b.owner, `You lost a building: ${BUILDING_DEFS[b.type].label}`);
   }
 }

@@ -37,7 +37,7 @@ describe('eras', () => {
     research(g, tc.id, 'era2');
     g.step();
     expect(tc.queue).toHaveLength(0);
-    expect(g.takeNotices(1).some((n) => n.includes('Cuartel'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('Barracks'))).toBe(true);
     expect(w.players.get(1)!.resources).toEqual(RICH);
 
     w.addBuilding('barracks', 1, 12, 12);
@@ -49,7 +49,7 @@ describe('eras', () => {
     expect(secs).toBeGreaterThan(TECH_DEFS.era2.time - 1);
     expect(secs).toBeLessThan(TECH_DEFS.era2.time + 1);
     // The whole class hears about it.
-    expect(g.takeNotices(2).some((n) => n.includes('avanzó a la Era Medieval'))).toBe(true);
+    expect(g.takeNotices(2).some((n) => n.includes('advanced to the Medieval Age'))).toBe(true);
   });
 
   it('you cannot skip an era, nor research the same thing twice at the same time', () => {
@@ -79,20 +79,20 @@ describe('eras', () => {
     train(g, barracks.id, 'spearman');
     g.step();
     expect(barracks.queue).toHaveLength(0);
-    expect(g.takeNotices(1).some((n) => n.includes('Era Medieval'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('Medieval Age'))).toBe(true);
 
     const [worker] = [w.addUnit('worker', 1, 20.5, 20.5)];
-    g.enqueue(1, { kind: 'build', unitIds: [worker.id], building: 'tower', tx: 22, ty: 22 });
+    g.enqueue(1, { kind: 'build', unitIds: [worker.id], building: 'archery_range', tx: 22, ty: 22 });
     g.step();
-    expect([...w.buildings.values()].some((b) => b.type === 'tower')).toBe(false);
+    expect([...w.buildings.values()].some((b) => b.type === 'archery_range')).toBe(false);
 
     completeTech(w, 1, 'era2');
     train(g, barracks.id, 'spearman');
     train(g, barracks.id, 'warrior'); // Tribal only
-    g.enqueue(1, { kind: 'build', unitIds: [worker.id], building: 'tower', tx: 22, ty: 22 });
+    g.enqueue(1, { kind: 'build', unitIds: [worker.id], building: 'archery_range', tx: 22, ty: 22 });
     g.step();
     expect(barracks.queue.map((q) => q.unit)).toEqual(['spearman']);
-    expect([...w.buildings.values()].some((b) => b.type === 'tower')).toBe(true);
+    expect([...w.buildings.values()].some((b) => b.type === 'archery_range')).toBe(true);
   });
 
   it('every unit can be trained in some building of its eras', () => {
@@ -156,7 +156,7 @@ describe('technologies', () => {
     research(g, tc.id, 'tools');
     run(g, TECH_DEFS.tools.time + 1);
     expect(w.players.get(1)!.techs & techBit('tools')).toBeTruthy();
-    expect(g.takeNotices(1).some((n) => n.includes('Herramientas'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('Tools'))).toBe(true);
     research(g, tc.id, 'tools'); // already researched
     g.step();
     expect(tc.queue).toHaveLength(0);
@@ -247,6 +247,24 @@ describe('towers, walls and gates', () => {
     expect(enemy.x).toBeLessThan(20);
   });
 
+  it('walls, gates and towers can be built from the Tribal Age', () => {
+    const { g, w } = richGame();
+    expect(w.players.get(1)!.era).toBe(1);
+    const u = w.addUnit('worker', 1, 15.5, 15.5);
+    g.enqueue(1, { kind: 'build', unitIds: [u.id], building: 'wall', tx: 17, ty: 15 });
+    g.enqueue(1, { kind: 'build', unitIds: [u.id], building: 'gate', tx: 18, ty: 15 });
+    g.enqueue(1, { kind: 'build', unitIds: [u.id], building: 'tower', tx: 20, ty: 18 });
+    g.step();
+    const types = [...w.buildings.values()].filter((b) => b.owner === 1).map((b) => b.type);
+    expect(types).toEqual(expect.arrayContaining(['wall', 'gate', 'tower']));
+  });
+
+  it('the Medieval Age lasts: the Industrial Age costs much more than the Medieval one', () => {
+    const total = (t: TechId) => Object.values(TECH_DEFS[t].cost).reduce((a, b) => a + (b ?? 0), 0);
+    expect(total('era3')).toBeGreaterThanOrEqual(4 * total('era2'));
+    expect(TECH_DEFS.era3.time).toBeGreaterThanOrEqual(3 * TECH_DEFS.era2.time);
+  });
+
   it('walls can be placed tile by tile', () => {
     const { g, w } = richGame();
     completeTech(w, 1, 'era2');
@@ -278,7 +296,7 @@ describe('aircraft', () => {
     g.enqueue(1, { kind: 'attack', unitIds: [knight.id], targetId: plane.id });
     g.step();
     expect(knight.task).toBeNull();
-    expect(g.takeNotices(1).some((n) => n.includes('aviones'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('airplanes'))).toBe(true);
     plane.cooldown = 99; // the plane doesn't fight back in this test
     const hp = plane.hp;
     g.enqueue(1, { kind: 'attack', unitIds: [knight.id, rifle.id], targetId: plane.id });

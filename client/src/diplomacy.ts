@@ -23,7 +23,7 @@ export class DiploPanel {
         const action = btn.dataset.dip as DiploAction;
         const target = Number(btn.dataset.target);
         const name = this.state.players.get(target)?.name ?? '';
-        if (action === 'declareWar' && !confirm(`¿Declarar la guerra a ${name}? Empezará en ${WAR_DELAY_SEC} segundos.`)) return;
+        if (action === 'declareWar' && !confirm(`Declare war on ${name}? It will start in ${WAR_DELAY_SEC} seconds.`)) return;
         this.net.command({ kind: 'diplo', action, target });
         return;
       }
@@ -44,8 +44,8 @@ export class DiploPanel {
     const incoming = s.proposals.filter((p) => p.to === s.you).length;
     const btn = el('btn-diplo');
     btn.removeAttribute('disabled');
-    btn.title = 'Alianzas, paz y guerra';
-    btn.innerHTML = `🤝 Diplomacia${incoming ? ` <span class="badge">${incoming}</span>` : ''}`;
+    btn.title = 'Alliances, peace and war';
+    btn.innerHTML = `🤝 Diplomacy${incoming ? ` <span class="badge">${incoming}</span>` : ''}`;
     btn.classList.toggle('alert', incoming > 0);
     if (!this.open) return;
     const key = `${s.diploVersion}|${[...s.players.values()].map((p) => `${p.id}${p.connected}`).join()}`;
@@ -57,10 +57,10 @@ export class DiploPanel {
   private html(): string {
     const s = this.state;
     const others = [...s.players.values()].filter((p) => p.id !== s.you);
-    const head = `<div class="dp-head"><h3>Diplomacia</h3><button data-close title="Cerrar">✕</button></div>`;
+    const head = `<div class="dp-head"><h3>Diplomacy</h3><button data-close title="Close">✕</button></div>`;
     const locked = s.diploLocked
-      ? '<p class="muted">Equipos fijos: en esta partida las alianzas no se pueden cambiar.</p>'
-      : '<p class="muted">Las alianzas y la paz necesitan que el otro acepte. La guerra empieza ' + WAR_DELAY_SEC + ' s después de declararla.</p>';
+      ? '<p class="muted">Fixed teams: alliances cannot be changed in this game.</p>'
+      : '<p class="muted">Alliances and peace need the other player to accept. War starts ' + WAR_DELAY_SEC + ' s after it is declared.</p>';
     const rows = s.spectator
       ? this.spectatorList()
       : others
@@ -74,17 +74,17 @@ export class DiploPanel {
             let actions = '';
             if (!s.diploLocked) {
               if (inc) {
-                const what = inc.kind === 'alliance' ? 'una alianza' : 'la paz';
+                const what = inc.kind === 'alliance' ? 'an alliance' : 'peace';
                 const acc = inc.kind === 'alliance' ? 'acceptAlliance' : 'acceptPeace';
                 const rej = inc.kind === 'alliance' ? 'rejectAlliance' : 'rejectPeace';
-                actions += `<span class="dp-offer">Te propone ${what} (${inc.secondsLeft} s)</span>${b(acc, '✔ Aceptar', 'primary')}${b(rej, '✖ Rechazar')}`;
-              } else if (out) actions += `<span class="muted">Esperando respuesta… (${out.secondsLeft} s)</span>`;
+                actions += `<span class="dp-offer">Proposes ${what} (${inc.secondsLeft} s)</span>${b(acc, '✔ Accept', 'primary')}${b(rej, '✖ Reject')}`;
+              } else if (out) actions += `<span class="muted">Waiting for an answer… (${out.secondsLeft} s)</span>`;
               else if (war) actions += '';
-              else if (rel === 'war') actions += b('proposePeace', '🕊 Proponer paz') + b('proposeAlliance', '🤝 Proponer alianza');
-              else if (rel === 'peace') actions += b('proposeAlliance', '🤝 Proponer alianza') + b('declareWar', '⚔ Declarar guerra', 'danger');
-              else actions += b('breakAlliance', '💔 Romper alianza') + b('declareWar', '⚔ Declarar guerra', 'danger');
+              else if (rel === 'war') actions += b('proposePeace', '🕊 Propose peace') + b('proposeAlliance', '🤝 Propose alliance');
+              else if (rel === 'peace') actions += b('proposeAlliance', '🤝 Propose alliance') + b('declareWar', '⚔ Declare war', 'danger');
+              else actions += b('breakAlliance', '💔 Break alliance') + b('declareWar', '⚔ Declare war', 'danger');
             }
-            const warText = war ? `<span class="dp-war">⚔ La guerra empieza en ${war.secondsLeft} s</span>` : '';
+            const warText = war ? `<span class="dp-war">⚔ War starts in ${war.secondsLeft} s</span>` : '';
             return `<div class="dp-row ${p.connected ? '' : 'off'}">
               <div class="dp-who"><i style="background:${p.color}"></i><b>${esc(p.name)}</b>
                 <span class="muted">${esc(FACTIONS[p.faction].name)}</span></div>
@@ -100,10 +100,10 @@ export class DiploPanel {
     const s = this.state;
     const name = (id: number) => esc(s.players.get(id)?.name ?? '?');
     const items = [
-      ...s.proposals.map((p) => `${name(p.from)} propone ${p.kind === 'alliance' ? 'una alianza' : 'la paz'} a ${name(p.to)} (${p.secondsLeft} s)`),
-      ...s.pendingWars.map((w) => `⚔ ${name(w.from)} → ${name(w.to)}: la guerra empieza en ${w.secondsLeft} s`),
+      ...s.proposals.map((p) => `${name(p.from)} proposes ${p.kind === 'alliance' ? 'an alliance' : 'peace'} to ${name(p.to)} (${p.secondsLeft} s)`),
+      ...s.pendingWars.map((w) => `⚔ ${name(w.from)} → ${name(w.to)}: war starts in ${w.secondsLeft} s`),
     ];
-    return items.length ? items.map((t) => `<div class="dp-row">${t}</div>`).join('') : '<p class="muted">Sin negociaciones en curso.</p>';
+    return items.length ? items.map((t) => `<div class="dp-row">${t}</div>`).join('') : '<p class="muted">No negotiations in progress.</p>';
   }
 
   /** Tabla "¿quién está con quién?": verde aliados, amarillo paz, rojo guerra. */
@@ -118,7 +118,7 @@ export class DiploPanel {
     const rows = ps
       .map((a) => `<tr><th class="left"><i style="background:${a.color}"></i>${esc(a.name)}</th>${ps.map((b) => cell(a.id, b.id)).join('')}</tr>`)
       .join('');
-    return `<h4>¿Quién está con quién?</h4><div class="dp-matrix"><table><tr><th></th>${head}</tr>${rows}</table></div>`;
+    return `<h4>Who is with whom?</h4><div class="dp-matrix"><table><tr><th></th>${head}</tr>${rows}</table></div>`;
   }
 }
 
@@ -178,7 +178,7 @@ export class ChatBox {
 
   private toggleScope(): void {
     this.scope = this.scope === 'all' ? 'allies' : 'all';
-    el('chat-scope').textContent = this.scope === 'all' ? 'Todos' : 'Aliados';
+    el('chat-scope').textContent = this.scope === 'all' ? 'All' : 'Allies';
     el('chat-scope').classList.toggle('allies', this.scope === 'allies');
   }
 
@@ -190,11 +190,11 @@ export class ChatBox {
     const key = `${this.state.chat.length}|${lines.length}|${open}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
-    const hint = this.canWrite() && !open ? '<div class="chat-hint">Enter: escribir un mensaje</div>' : '';
+    const hint = this.canWrite() && !open ? '<div class="chat-hint">Enter: write a message</div>' : '';
     el('chat-log').innerHTML =
       lines
         .map(
-          (c) => `<div class="chat-line">${c.to === 'allies' ? '<span class="chat-tag">[Aliados]</span> ' : ''}<b style="color:${c.color}">${esc(c.name)}:</b> ${esc(c.text)}</div>`,
+          (c) => `<div class="chat-line">${c.to === 'allies' ? '<span class="chat-tag">[Allies]</span> ' : ''}<b style="color:${c.color}">${esc(c.name)}:</b> ${esc(c.text)}</div>`,
         )
         .join('') + hint;
   }

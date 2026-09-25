@@ -118,10 +118,10 @@ export class Game {
       case 'build': {
         const def = BUILDING_DEFS[cmd.building];
         if (!def.buildable || workers.length === 0) return;
-        if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: necesitas la ${eraLabel(def.era)}`);
+        if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
         if (error) return w.notify(playerId, error);
-        if (!w.spend(playerId, def.cost)) return w.notify(playerId, 'Recursos insuficientes');
+        if (!w.spend(playerId, def.cost)) return w.notify(playerId, 'Not enough resources');
         const b = w.addBuilding(cmd.building, playerId, cmd.tx, cmd.ty, false)!;
         for (const u of workers) assignBuild(w, u, b);
         break;
@@ -140,12 +140,12 @@ export class Game {
         if (owner !== playerId && !isEnemy(w, playerId, owner)) {
           const name = w.players.get(owner)?.name ?? '';
           const rel = w.relation(playerId, owner);
-          return w.notify(playerId, rel === 'ally' ? `${name} es tu aliado: no puedes atacarlo` : `Estás en paz con ${name}: declárale la guerra primero`);
+          return w.notify(playerId, rel === 'ally' ? `${name} is your ally: you cannot attack them` : `You are at peace with ${name}: declare war first`);
         }
         if (owner === playerId) return;
         // A los aviones solo los alcanzan los ataques a distancia.
         const attackers = t.kind === 'unit' && w.statsOf(t.unit).flies ? units.filter((u) => canHitAir(w.statsOf(u).attack)) : units;
-        if (attackers.length === 0) return w.notify(playerId, 'Solo las unidades a distancia pueden atacar aviones');
+        if (attackers.length === 0) return w.notify(playerId, 'Only ranged units can attack airplanes');
         for (const u of attackers) assignAttack(u, cmd.targetId);
         break;
       }
@@ -179,7 +179,7 @@ export class Game {
       if (f && assignFarm(w, u, f)) continue;
       left++;
     }
-    if (left > 0) w.notify(farm.owner, 'Cada granja la trabaja un solo trabajador');
+    if (left > 0) w.notify(farm.owner, 'Each farm is worked by a single worker');
   }
 
   private deleteOwn(playerId: number, ids: number[]): void {

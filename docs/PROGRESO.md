@@ -86,7 +86,7 @@ Goal was < 1.5 Mbit/s per student: 0.14 Mbit/s achieved. If a student's connecti
 a message is skipped, the next one includes everything they missed (it never gets out of sync).
 The map travels compressed by runs (~50× smaller).
 
-**Rooms with a code**: the teacher opens `/profesor` (on the server computer with no PIN;
+**Rooms with a code**: the teacher opens `/teacher` (formerly `/profesor`, still accepted) (on the server computer with no PIN;
 from another one with the PIN shown in the console), chooses players, map size and duration,
 and receives a 4-letter code with no confusing letters (no O, I or L) plus a direct link.
 
@@ -135,8 +135,10 @@ cooldown against spam; the teacher can turn it off and sees every message.
 | Advance | Needs | Cost | Time |
 |---|---|---|---|
 | Tribal → Medieval | Barracks | 500 food, 150 metal | 60 s |
-| Medieval → Industrial | Tech center | 900 food, 250 stone, 350 metal | 90 s |
-| Industrial → Modern | Factory | 1400 food, 400 stone, 700 metal | 120 s |
+| Medieval → Industrial | Tech center | 1600 food, 500 stone, 800 metal | 180 s |
+| Industrial → Modern | Factory | 2000 food, 600 stone, 1000 metal | 150 s |
+
+The Medieval Age is meant to last: leaving it costs more than four times what entering it did.
 
 The whole class is told when someone advances; everyone sees the others' era (top bar and
 teacher table).
@@ -152,9 +154,10 @@ teacher table).
 
 Airplanes fly over water, walls and buildings; only ranged attacks can hit them.
 
-**New buildings**: Archery range, Stable, Tech center, Defensive tower (shoots, also at
-airplanes), Wall and Gate (1×1, placed in a row with Shift; the gate lets its owner and allies
-through but not enemies), Workshop (artillery), Factory (vehicles, tanks, airplanes).
+**New buildings**: Defensive tower (shoots, also at airplanes), Wall and Gate (1×1, placed in a
+row with Shift; the gate lets its owner and allies through but not enemies) — all three available
+from the **Tribal Age** —, Archery range, Stable, Tech center (Medieval), Workshop (artillery) and
+Factory (vehicles, tanks, airplanes) (Industrial).
 
 **Technologies** (each researched once; a gear in the queue): Tools, Wheelbarrow, Plow (Town
 Center); Forge, Armor, Masonry, Ballistics, Machinery, Plating (Tech center). They add to the
@@ -167,6 +170,21 @@ bullets or cannon shells depending on the unit.
 replacing units, every tech, per-unit bonuses, a 3 anti-tank vs. tank battle, towers, walls,
 gates for allies but not enemies, airplanes over water, who can hit airplanes, network
 encoding of research and eras).
+
+## Audit after Phase 5 (2026-09-24)
+
+- **All game texts are in English** (menus, buttons, notices, server messages, teacher panel,
+  console). The teacher panel is now at `/teacher` (`/profesor` still works).
+- Smaller top bar (52 → 38 px) and bottom bar (150 → 112 px, minimap 268×134 → 192×96).
+  With nothing selected, the action buttons use the whole bar, so "Advance to the … Age" is
+  visible even in narrow windows. Clicking the faction/age label in the top bar selects the
+  Town Center.
+- The published site (Render) was still running the Phase 4 build: that is why the age button
+  was not visible online.
+- New end-to-end test on a generated map: builds every building with real orders, advances
+  through the four ages, researches every technology and trains all 15 units.
+- 181 tests pass. Benchmark (16 players, 800 units): average step 1.7 ms, worst 8 ms (budget 100 ms);
+  2.3 Mbit/s total network for the class.
 
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.

@@ -37,19 +37,19 @@ describe('diplomacy', () => {
     run(g, 5);
     expect(friend.hp).toBe(unitStats('legion', 'worker').hp);
     expect(nearMyTc.hp).toBe(unitStats('legion', 'worker').hp);
-    expect(g.takeNotices(1).some((n) => n.includes('aliado'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('ally'))).toBe(true);
   });
 
   it('alliance: one proposes, the other accepts, and the whole class is informed', () => {
     const { g, w } = threePlayers();
     diplo(g, 3, 'proposeAlliance', 1);
     g.step();
-    expect(g.takeNotices(1).some((n) => n.includes('propone una alianza'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('proposes an alliance'))).toBe(true);
     expect(w.relation(1, 3)).toBe('war'); // until they accept
     diplo(g, 1, 'acceptAlliance', 3);
     g.step();
     expect(w.relation(1, 3)).toBe('ally');
-    for (const id of [1, 2, 3]) expect(g.takeNotices(id).some((n) => n.includes('ahora son aliados'))).toBe(true);
+    for (const id of [1, 2, 3]) expect(g.takeNotices(id).some((n) => n.includes('are now allies'))).toBe(true);
   });
 
   it('if both propose the same thing, it is accepted directly', () => {
@@ -66,13 +66,13 @@ describe('diplomacy', () => {
     diplo(g, 1, 'rejectAlliance', 3);
     g.step();
     expect(w.proposals).toHaveLength(0);
-    expect(g.takeNotices(3).some((n) => n.includes('rechazó'))).toBe(true);
+    expect(g.takeNotices(3).some((n) => n.includes('rejected'))).toBe(true);
     diplo(g, 3, 'proposePeace', 2);
     g.step();
     expect(w.proposals).toHaveLength(1);
     run(g, PROPOSAL_SEC + 1);
     expect(w.proposals).toHaveLength(0);
-    expect(g.takeNotices(3).some((n) => n.includes('no respondió'))).toBe(true);
+    expect(g.takeNotices(3).some((n) => n.includes('did not answer'))).toBe(true);
   });
 
   it(`declaring war on an ally: the alliance breaks at once and the war starts ${WAR_DELAY_SEC} s later`, () => {
@@ -82,7 +82,7 @@ describe('diplomacy', () => {
     diplo(g, 1, 'declareWar', 2);
     g.step();
     expect(w.relation(1, 2)).toBe('peace');
-    expect(g.takeNotices(3).some((n) => n.includes('declaró la guerra'))).toBe(true);
+    expect(g.takeNotices(3).some((n) => n.includes('declared war'))).toBe(true);
     run(g, WAR_DELAY_SEC - 2);
     expect(w.relation(1, 2)).toBe('peace');
     expect(a.hp + b.hp).toBe(2 * unitStats('legion', 'warrior').hp); // nobody attacked during the warning
@@ -116,7 +116,7 @@ describe('diplomacy', () => {
     g.step();
     expect(w.relation(1, 2)).toBe('ally');
     expect(w.proposals).toHaveLength(0);
-    expect(g.takeNotices(1).some((n) => n.includes('equipos son fijos'))).toBe(true);
+    expect(g.takeNotices(1).some((n) => n.includes('Teams are fixed'))).toBe(true);
   });
 
   it('everyone sees who is with whom; each player only sees their own proposals; the teacher sees all', () => {

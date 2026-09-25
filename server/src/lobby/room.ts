@@ -61,20 +61,20 @@ export class Room {
   /** Entrar (o volver) a la sala. Devuelve un mensaje de error o null. */
   join(conn: Conn, name: string, token?: string): string | null {
     const known = token ? this.members.find((m) => m.token === token) : undefined;
-    if (known?.kicked) return 'El profesor te sacó de esta partida.';
+    if (known?.kicked) return 'The teacher removed you from this game.';
     if (known) {
       // Vuelve a su puesto. Si tenía otra pestaña abierta, esa se cierra.
       const old = known.conn;
       if (old && old !== conn) {
-        old.send({ t: 'error', message: 'Abriste el juego en otra ventana.' });
+        old.send({ t: 'error', message: 'You opened the game in another window.' });
         this.detach(old);
         old.close();
       }
       this.attach(conn, known);
       return null;
     }
-    if (this.phase !== 'lobby') return 'La partida ya empezó. Pide ayuda al profesor.';
-    if (this.members.length >= this.settings.maxPlayers) return 'La partida está llena.';
+    if (this.phase !== 'lobby') return 'The game has already started. Ask your teacher for help.';
+    if (this.members.length >= this.settings.maxPlayers) return 'The game is full.';
     const member: Member = {
       id: this.nextMemberId++,
       name: this.uniqueName(name),
@@ -146,8 +146,8 @@ export class Room {
   choose(conn: Conn, faction?: FactionId, color?: string): string | null {
     const member = this.memberOf(conn);
     if (!member) return null;
-    if (this.phase !== 'lobby') return 'La partida ya empezó.';
-    if (color && this.members.some((m) => m !== member && m.color === color)) return 'Ese color ya lo eligió otro jugador.';
+    if (this.phase !== 'lobby') return 'The game has already started.';
+    if (color && this.members.some((m) => m !== member && m.color === color)) return 'Another player already chose that color.';
     if (faction) member.faction = faction;
     if (color) member.color = color;
     this.changed();
@@ -163,8 +163,8 @@ export class Room {
   // ---------- Profesor ----------
 
   setSettings(settings: RoomSettings): string | null {
-    if (this.phase !== 'lobby') return 'La partida ya empezó.';
-    if (settings.maxPlayers < this.members.length) return `Ya hay ${this.members.length} jugadores en la sala.`;
+    if (this.phase !== 'lobby') return 'The game has already started.';
+    if (settings.maxPlayers < this.members.length) return `There are already ${this.members.length} players in the room.`;
     this.settings = settings;
     this.changed();
     return null;
@@ -172,7 +172,7 @@ export class Room {
 
   /** El profesor arma los equipos en la sala de espera. */
   setTeam(memberId: number, team: number): string | null {
-    if (this.phase !== 'lobby') return 'Los equipos se arman antes de empezar.';
+    if (this.phase !== 'lobby') return 'Teams are set up before the game starts.';
     const member = this.members.find((m) => m.id === memberId);
     if (!member) return null;
     member.team = team;
@@ -187,9 +187,9 @@ export class Room {
   chat(conn: Conn, text: string, to: 'all' | 'allies'): string | null {
     const member = this.memberOf(conn);
     if (!member || member.kicked) return null;
-    if (!this.settings.chat) return 'El profesor desactivó el chat en esta partida.';
+    if (!this.settings.chat) return 'The teacher turned off chat in this game.';
     const now = Date.now();
-    if (now - member.lastChat < CHAT_COOLDOWN_MS) return 'Espera un momento antes de enviar otro mensaje.';
+    if (now - member.lastChat < CHAT_COOLDOWN_MS) return 'Wait a moment before sending another message.';
     member.lastChat = now;
     const world = this.game?.world;
     const friend = (m: Member) =>
@@ -206,7 +206,7 @@ export class Room {
     member.kicked = true;
     if (member.conn) {
       const conn = member.conn;
-      conn.send({ t: 'kicked', message: 'El profesor te sacó de la partida.' });
+      conn.send({ t: 'kicked', message: 'The teacher removed you from the game.' });
       this.detach(conn);
       conn.close();
     }
@@ -216,9 +216,9 @@ export class Room {
   }
 
   start(): string | null {
-    if (this.phase !== 'lobby') return 'La partida ya empezó.';
+    if (this.phase !== 'lobby') return 'The game has already started.';
     const players = this.members.filter((m) => !m.kicked);
-    if (players.length === 0) return 'No hay jugadores en la sala.';
+    if (players.length === 0) return 'There are no players in the room.';
     // Los jugadores quedan numerados 1..n en orden de llegada.
     players.forEach((m, i) => (m.id = i + 1));
     this.members = players;
@@ -261,7 +261,7 @@ export class Room {
   close(): void {
     for (const m of this.members)
       if (m.conn) {
-        m.conn.send({ t: 'kicked', message: 'El profesor cerró la partida.' });
+        m.conn.send({ t: 'kicked', message: 'The teacher closed the game.' });
         m.conn.room = null;
         m.conn.role = 'none';
       }
@@ -298,7 +298,7 @@ export class Room {
       sync.collect(frame);
       if (!conn.congested()) conn.send(sync.build(frame, game));
     }
-    if (limit > 0 && game.world.tick >= limit * TICK_RATE) this.end('¡Se acabó el tiempo!');
+    if (limit > 0 && game.world.tick >= limit * TICK_RATE) this.end('Time is up!');
   }
 
   /** Empieza a mandar la partida a una conexión: bienvenida + foto completa. */

@@ -14,7 +14,7 @@ function intEnv(name: string, fallback: number, min: number, max: number): numbe
   if (raw === undefined || raw.trim() === '') return fallback;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < min || n > max) {
-    console.warn(`  Aviso: ${name}="${raw}" no es válido (entero entre ${min} y ${max}). Se usa ${fallback}.`);
+    console.warn(`  Warning: ${name}="${raw}" is not valid (integer between ${min} and ${max}). Using ${fallback}.`);
     return fallback;
   }
   return n;
@@ -53,17 +53,17 @@ try {
   });
 } catch (err) {
   const code = (err as NodeJS.ErrnoException).code;
-  if (code === 'EADDRINUSE') console.error(`\n  El puerto ${port} ya está en uso (¿el servidor ya está abierto?). Prueba con otro: PORT=8081\n`);
+  if (code === 'EADDRINUSE') console.error(`\n  Port ${port} is already in use (is the server already open?). Try another one: PORT=8081\n`);
   else console.error(err);
   process.exit(1);
 }
 
 console.log('');
-console.log('  Servidor RTS en marcha');
+console.log('  Classroom Empires server running');
 console.log('');
-console.log(`  PROFESOR:     abre http://localhost:${server.port}/profesor en este computador`);
-console.log(`                (desde otro computador, la clave del profesor es: ${pin})`);
+console.log(`  TEACHER:      open http://localhost:${server.port}/teacher on this computer`);
+console.log(`                (from another computer, the teacher PIN is: ${pin})`);
 console.log('');
-if (publicUrl) console.log(`  EN INTERNET:  ${publicUrl}  (panel del profesor: ${publicUrl}/profesor)`);
-else for (const ip of lanAddresses()) console.log(`  ESTUDIANTES:  http://${ip}:${server.port}`);
+if (publicUrl) console.log(`  ON INTERNET:  ${publicUrl}  (teacher panel: ${publicUrl}/teacher)`);
+else for (const ip of lanAddresses()) console.log(`  STUDENTS:     http://${ip}:${server.port}`);
 console.log('');

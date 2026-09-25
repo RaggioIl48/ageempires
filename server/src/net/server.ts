@@ -142,7 +142,7 @@ export function startGameServer(opts: GameServerOptions): Promise<RunningServer>
       // Un fallo en un paso no debe detener la partida de toda la clase.
       if (Date.now() - lastErrorLog > 5000) {
         lastErrorLog = Date.now();
-        console.error('Error en el paso de simulación:', err);
+        console.error('Error in simulation step:', err);
       }
     }
   };
@@ -184,7 +184,7 @@ const MIME: Record<string, string> = {
 function serveStatic(dir: string | undefined, req: IncomingMessage, res: ServerResponse): void {
   if (!dir || !isFile(join(dir, 'index.html'))) {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Servidor de juego activo. Falta compilar el cliente: ejecuta "npm run build".');
+    res.end('Game server running. The client is not built yet: run "npm run build".');
     return;
   }
   const root = resolve(dir);

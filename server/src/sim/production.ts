@@ -26,13 +26,13 @@ function itemCost(item: QueueItem): Cost {
 /** Encarga una unidad. Devuelve un aviso si no se puede, o null si quedó en cola. */
 export function queueUnit(world: World, playerId: number, b: Building, unit: UnitType): string | null {
   if (b.owner !== playerId) return null; // edificio ajeno: se ignora en silencio
-  if (b.progress < 1) return 'El edificio aún no está terminado';
+  if (b.progress < 1) return 'The building is not finished yet';
   if (!BUILDING_DEFS[b.type].trains.includes(unit)) return null;
   const def = UNIT_DEFS[unit];
   if (!unitAvailable(unit, world.eraOf(playerId)))
-    return world.eraOf(playerId) < def.era ? `${def.label}: necesitas la ${eraLabel(def.era)}` : `${def.label} ya no se entrena en esta era`;
-  if (b.queue.length >= MAX_QUEUE) return `La cola está llena (máximo ${MAX_QUEUE})`;
-  if (!world.spend(playerId, def.cost)) return 'Recursos insuficientes';
+    return world.eraOf(playerId) < def.era ? `${def.label}: you need the ${eraLabel(def.era)}` : `${def.label} is no longer trained in this age`;
+  if (b.queue.length >= MAX_QUEUE) return `The queue is full (maximum ${MAX_QUEUE})`;
+  if (!world.spend(playerId, def.cost)) return 'Not enough resources';
   b.queue.push({ unit, progress: 0 });
   return null;
 }
@@ -52,28 +52,28 @@ function hasBuilding(world: World, playerId: number, type: Building['type']): bo
 /** Motivo por el que no se puede investigar ahora, o null si se puede (sin mirar recursos). */
 export function researchError(world: World, playerId: number, tech: TechId): string | null {
   const p = world.players.get(playerId);
-  if (!p) return 'Jugador desconocido';
+  if (!p) return 'Unknown player';
   const def = TECH_DEFS[tech];
-  if (hasTech(p.techs, tech)) return `${def.label}: ya está investigada`;
-  if (techQueued(world, playerId, tech)) return `${def.label}: ya se está investigando`;
+  if (hasTech(p.techs, tech)) return `${def.label}: already researched`;
+  if (techQueued(world, playerId, tech)) return `${def.label}: already being researched`;
   if (def.advancesTo !== undefined) {
-    if (p.era >= def.advancesTo) return 'Ya estás en esa era';
-    if (p.era < def.era) return `Primero avanza a la ${eraLabel(def.era)}`;
-  } else if (p.era < def.era) return `${def.label}: necesitas la ${eraLabel(def.era)}`;
+    if (p.era >= def.advancesTo) return 'You are already in that age';
+    if (p.era < def.era) return `First advance to the ${eraLabel(def.era)}`;
+  } else if (p.era < def.era) return `${def.label}: you need the ${eraLabel(def.era)}`;
   if (def.requires && !hasBuilding(world, playerId, def.requires))
-    return `${def.label}: necesitas un ${BUILDING_DEFS[def.requires].label} terminado`;
+    return `${def.label}: you need a finished ${BUILDING_DEFS[def.requires].label}`;
   return null;
 }
 
 /** Encarga una investigación. Devuelve un aviso si no se puede, o null si quedó en cola. */
 export function queueTech(world: World, playerId: number, b: Building, tech: TechId): string | null {
   if (b.owner !== playerId) return null;
-  if (b.progress < 1) return 'El edificio aún no está terminado';
+  if (b.progress < 1) return 'The building is not finished yet';
   if (!BUILDING_DEFS[b.type].researches.includes(tech)) return null;
   const error = researchError(world, playerId, tech);
   if (error) return error;
-  if (b.queue.length >= MAX_QUEUE) return `La cola está llena (máximo ${MAX_QUEUE})`;
-  if (!world.spend(playerId, TECH_DEFS[tech].cost)) return 'Recursos insuficientes';
+  if (b.queue.length >= MAX_QUEUE) return `The queue is full (maximum ${MAX_QUEUE})`;
+  if (!world.spend(playerId, TECH_DEFS[tech].cost)) return 'Not enough resources';
   b.queue.push({ tech, progress: 0 });
   return null;
 }
@@ -114,7 +114,7 @@ export function updateProduction(world: World, dt: number): void {
     const def = UNIT_DEFS[item.unit!];
     const pop = popOf(b.owner);
     if (pop.pop + def.pop > pop.popCap) {
-      if (!b.needsHouses) world.notify(b.owner, 'Población máxima: construye más casas');
+      if (!b.needsHouses) world.notify(b.owner, 'Population limit reached: build more houses');
       b.needsHouses = true;
       continue;
     }
@@ -140,8 +140,8 @@ export function completeTech(world: World, playerId: number, tech: TechId): void
   const def = TECH_DEFS[tech];
   if (def.advancesTo !== undefined) {
     p.era = Math.max(p.era, def.advancesTo);
-    world.announce(`${p.name} avanzó a la ${eraLabel(p.era)}`);
-  } else world.notify(playerId, `Investigación terminada: ${def.label}`);
+    world.announce(`${p.name} advanced to the ${eraLabel(p.era)}`);
+  } else world.notify(playerId, `Research complete: ${def.label}`);
 
   for (const u of world.units.values()) {
     if (u.owner !== playerId) continue;

@@ -19,19 +19,19 @@ export function showScreen(id: ScreenId): void {
   for (const s of SCREENS) el(s).classList.toggle('hidden', s !== id);
 }
 
-const MAP_LABEL = { small: 'pequeño', normal: 'normal', large: 'grande' } as const;
+const MAP_LABEL = { small: 'small', normal: 'normal', large: 'large' } as const;
 export function settingsText(s: RoomSettings): string {
   return [
-    `hasta ${s.maxPlayers} jugadores`,
-    `mapa ${MAP_LABEL[s.mapSize]}`,
-    s.durationMin ? `${s.durationMin} minutos` : 'sin límite de tiempo',
-    s.diplomacy === 'locked' ? 'equipos fijos' : 'diplomacia libre',
-    s.chat ? 'chat activado' : 'sin chat',
+    `up to ${s.maxPlayers} players`,
+    `${MAP_LABEL[s.mapSize]} map`,
+    s.durationMin ? `${s.durationMin} minutes` : 'no time limit',
+    s.diplomacy === 'locked' ? 'fixed teams' : 'free diplomacy',
+    s.chat ? 'chat on' : 'no chat',
   ].join(' · ');
 }
 
 export function teamText(team: number): string {
-  return team > 0 ? `Equipo ${team}` : 'Sin equipo';
+  return team > 0 ? `Team ${team}` : 'No team';
 }
 
 type Send = (m: ClientMessage) => void;
@@ -63,8 +63,8 @@ export class StartScreen {
     el('form-join').addEventListener('submit', (e) => {
       e.preventDefault();
       const n = name.value.trim(), c = code.value.trim().toUpperCase();
-      if (!n) return this.error('Escribe tu nombre.');
-      if (c.length !== CODE_LENGTH) return this.error(`El código tiene ${CODE_LENGTH} letras.`);
+      if (!n) return this.error('Type your name.');
+      if (c.length !== CODE_LENGTH) return this.error(`The code has ${CODE_LENGTH} letters.`);
       try {
         localStorage.setItem('rts.name', n);
       } catch {
@@ -117,8 +117,8 @@ export class LobbyScreen {
     const teacher = host || teacherPin() !== null;
     el('host-box').classList.toggle('hidden', !teacher);
     el('host-text').innerHTML = host
-      ? 'Estás en el <b>computador del profesor</b>: cuando estén todos, puedes iniciar la partida desde aquí.'
-      : 'Entraste como <b>profesor</b> en este navegador: cuando estén todos, puedes iniciar la partida desde aquí.';
+      ? 'You are on the <b>teacher computer</b>: when everyone is here, you can start the game from here.'
+      : 'You logged in as the <b>teacher</b> in this browser: when everyone is here, you can start the game from here.';
   }
 
   error(text: string): void {
@@ -129,12 +129,12 @@ export class LobbyScreen {
     this.room = room;
     el('lobby-code').textContent = room.code;
     el('lobby-status').textContent =
-      room.phase === 'lobby' ? `Esperando a que el profesor inicie la partida… (${settingsText(room.settings)})` : 'La partida está empezando…';
+      room.phase === 'lobby' ? `Waiting for the teacher to start the game… (${settingsText(room.settings)})` : 'The game is starting…';
     const mine = room.members.find((m) => m.id === this.me);
     el('lobby-members').innerHTML = room.members
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i>
-          <b>${esc(m.name)}</b>${m.id === this.me ? ' (tú)' : ''}<span class="muted"> · ${esc(FACTIONS[m.faction].name)}</span>${
+          <b>${esc(m.name)}</b>${m.id === this.me ? ' (you)' : ''}<span class="muted"> · ${esc(FACTIONS[m.faction].name)}</span>${
             m.team > 0 ? ` <span class="team-tag">${teamText(m.team)}</span>` : ''
           }</div>`,
       )
@@ -150,7 +150,7 @@ export class LobbyScreen {
       const owner = room.members.find((m) => m.color === c);
       const cls = owner?.id === this.me ? 'chosen' : owner ? 'taken' : '';
       return `<button type="button" class="swatch ${cls}" data-color="${c}" style="background:${c}"
-        title="${owner ? esc(owner.name) : 'Libre'}"></button>`;
+        title="${owner ? esc(owner.name) : 'Free'}"></button>`;
     }).join('');
   }
 
@@ -161,7 +161,7 @@ export class LobbyScreen {
 
 // ---------- Panel del profesor ----------
 
-const PHASE_TEXT = { lobby: 'En sala de espera', playing: 'Jugando', ended: 'Terminada' } as const;
+const PHASE_TEXT = { lobby: 'In the waiting room', playing: 'Playing', ended: 'Finished' } as const;
 
 export class TeacherScreen {
   private rooms = new Map<string, RoomView>();
@@ -212,10 +212,10 @@ export class TeacherScreen {
         case 'pause':
           return this.send({ t: 'pause', code, paused: btn.dataset.paused !== '1' });
         case 'end':
-          if (confirm('¿Terminar la partida para todos?')) this.send({ t: 'end', code });
+          if (confirm('End the game for everyone?')) this.send({ t: 'end', code });
           return;
         case 'close':
-          if (confirm('¿Cerrar la sala? Todos volverán a la pantalla de inicio.')) this.send({ t: 'closeRoom', code });
+          if (confirm('Close the room? Everyone will go back to the start screen.')) this.send({ t: 'closeRoom', code });
           return;
         case 'watch':
           return this.onWatch(code);
@@ -233,7 +233,7 @@ export class TeacherScreen {
           return;
         }
         case 'kick':
-          if (confirm(`¿Sacar a ${btn.dataset.name} de la partida?`)) this.send({ t: 'kick', code, memberId: Number(btn.dataset.id) });
+          if (confirm(`Remove ${btn.dataset.name} from the game?`)) this.send({ t: 'kick', code, memberId: Number(btn.dataset.id) });
           return;
       }
     });
@@ -294,50 +294,50 @@ export class TeacherScreen {
       .filter((r): r is RoomView => !!r)
       .reverse(); // la más nueva primero
     el('teacher-rooms').innerHTML =
-      list.length === 0 ? '<p class="muted">Todavía no hay partidas. Crea una arriba.</p>' : list.map((r) => this.roomHtml(r)).join('');
+      list.length === 0 ? '<p class="muted">No games yet. Create one above.</p>' : list.map((r) => this.roomHtml(r)).join('');
   }
 
   private roomHtml(r: RoomView): string {
-    const status = r.phase === 'playing' && r.paused ? 'En pausa' : PHASE_TEXT[r.phase];
+    const status = r.phase === 'playing' && r.paused ? 'Paused' : PHASE_TEXT[r.phase];
     const links = this.urls.map((u) => `<code>${esc(u)}/?c=${r.code}</code>`).join(' ');
     const members = r.members
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i><b>${esc(m.name)}</b>
-          <span class="muted">· ${esc(FACTIONS[m.faction].name)} ${m.connected ? '' : '· desconectado'}</span>
+          <span class="muted">· ${esc(FACTIONS[m.faction].name)} ${m.connected ? '' : '· disconnected'}</span>
           ${
             r.phase === 'lobby'
-              ? `<select class="tiny-select" data-team data-code="${r.code}" data-id="${m.id}" title="Equipo">${[0, 1, 2, 3, 4]
+              ? `<select class="tiny-select" data-team data-code="${r.code}" data-id="${m.id}" title="Team">${[0, 1, 2, 3, 4]
                   .map((t) => `<option value="${t}" ${t === m.team ? 'selected' : ''}>${teamText(t)}</option>`)
                   .join('')}</select>`
               : m.team > 0
                 ? `<span class="team-tag">${teamText(m.team)}</span>`
                 : ''
           }
-          <button class="tiny" data-act="kick" data-code="${r.code}" data-id="${m.id}" data-name="${esc(m.name)}">Sacar</button></div>`,
+          <button class="tiny" data-act="kick" data-code="${r.code}" data-id="${m.id}" data-name="${esc(m.name)}">Remove</button></div>`,
       )
       .join('');
     const b = (act: string, label: string, extra = '') => `<button data-act="${act}" data-code="${r.code}" ${extra}>${label}</button>`;
     let actions = '';
     if (r.phase === 'lobby')
       actions =
-        b('start', '▶ Iniciar partida', r.members.length === 0 ? 'disabled title="Primero debe entrar al menos un jugador"' : 'class="primary"') +
-        b('try', '🧪 Probar como estudiante', 'title="Abre una pestaña nueva como si fueras un estudiante"') +
-        (r.members.length > 1 ? b('teams2', '⚖ Repartir en 2 equipos') + b('ffa', 'Todos contra todos') : '') +
-        b('close', 'Cerrar sala');
+        b('start', '▶ Start game', r.members.length === 0 ? 'disabled title="At least one player must join first"' : 'class="primary"') +
+        b('try', '🧪 Try as a student', 'title="Opens a new tab as if you were a student"') +
+        (r.members.length > 1 ? b('teams2', '⚖ Split into 2 teams') + b('ffa', 'Everyone for themselves') : '') +
+        b('close', 'Close room');
     else if (r.phase === 'playing')
       actions =
-        b('watch', '👁 Ver partida', 'class="primary"') +
-        b('pause', r.paused ? '▶ Reanudar' : '⏸ Pausar', `data-paused="${r.paused ? 1 : 0}"`) +
-        b('end', '■ Terminar');
-    else actions = b('watch', '👁 Ver resultados') + b('close', 'Cerrar sala');
+        b('watch', '👁 Watch game', 'class="primary"') +
+        b('pause', r.paused ? '▶ Resume' : '⏸ Pause', `data-paused="${r.paused ? 1 : 0}"`) +
+        b('end', '■ End');
+    else actions = b('watch', '👁 See results') + b('close', 'Close room');
     return `<div class="room">
       <div class="room-head">
-        <div><div class="muted">Código</div><div class="code big-code">${r.code}</div></div>
-        <div class="room-info"><b>${status}</b> · ${r.members.length} jugador(es)<br>
+        <div><div class="muted">Code</div><div class="code big-code">${r.code}</div></div>
+        <div class="room-info"><b>${status}</b> · ${r.members.length} player(s)<br>
           <span class="muted">${settingsText(r.settings)}</span><br>
-          <span class="muted">Los estudiantes entran en:</span> ${links}</div>
+          <span class="muted">Students join at:</span> ${links}</div>
       </div>
-      <div class="members">${members || '<span class="muted">Nadie ha entrado todavía.</span>'}</div>
+      <div class="members">${members || '<span class="muted">Nobody has joined yet.</span>'}</div>
       <div class="room-actions">${actions}</div>
     </div>`;
   }

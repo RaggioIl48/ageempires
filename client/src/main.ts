@@ -9,7 +9,7 @@ import { Net } from './net.ts';
 import { el, esc, LobbyScreen, showScreen, StartScreen, TeacherScreen } from './screens.ts';
 import './style.css';
 
-const isTeacherPage = location.pathname.replace(/\/+$/, '') === '/profesor';
+const isTeacherPage = ['/teacher', '/profesor'].includes(location.pathname.replace(/\/+$/, ''));
 
 /**
  * Partida del estudiante, para volver tras un corte o una recarga.
@@ -77,7 +77,7 @@ const teacher = new TeacherScreen(
 game.hud.onTeacherAction = (a) => {
   if (!watching) return;
   if (a === 'pause' || a === 'resume') net.send({ t: 'pause', code: watching, paused: a === 'pause' });
-  else if (a === 'end' && confirm('¿Terminar la partida para todos?')) net.send({ t: 'end', code: watching });
+  else if (a === 'end' && confirm('End the game for everyone?')) net.send({ t: 'end', code: watching });
   else if (a === 'back') backToPanel();
 };
 // En un RTS el clic derecho es una orden: nunca debe abrir el menú del navegador.
@@ -154,17 +154,17 @@ function onMessage(msg: ServerMessage): void {
     case 'error': {
       const text = msg.message;
       if (isTeacherPage) {
-        if (/clave/i.test(text)) teacher.askPin(text);
+        if (/PIN/.test(text)) teacher.askPin(text);
         else teacher.error(text);
         return;
       }
-      if (/otra ventana/.test(text)) {
+      if (/another window/.test(text)) {
         // El juego se abrió en otra pestaña: esta deja de reconectarse (si no, se robarían el puesto).
         session = null;
         toStart(text);
         return;
       }
-      if (!pendingJoin && session && /No existe|sacó|ya empezó/.test(text)) {
+      if (!pendingJoin && session && /No game exists|removed you|already started/.test(text)) {
         // La partida guardada ya no sirve (sala cerrada, servidor reiniciado, expulsado): se olvida.
         saveSession(null);
         session = null;
@@ -250,10 +250,10 @@ function showEnd(reason: string, summary: PlayerSummary[]): void {
     )
     .join('');
   const box = el('ended');
-  box.innerHTML = `<h2>Fin de la partida</h2><p>${esc(reason)}</p>
-    <table class="eco"><tr><th>Jugador</th><th>Facción</th><th>Recolectado</th><th>Unidades</th><th>Edificios</th><th>Derribos</th><th>Era</th></tr>${rows}</table>
-    <p class="muted">La tabla de victoria llega en la Fase 6. Por ahora: ¿quién recolectó más?</p>
-    <button id="btn-end-close">${isTeacherPage ? 'Volver al panel' : 'Salir'}</button>`;
+  box.innerHTML = `<h2>Game over</h2><p>${esc(reason)}</p>
+    <table class="eco"><tr><th>Player</th><th>Faction</th><th>Gathered</th><th>Units</th><th>Buildings</th><th>Kills</th><th>Age</th></tr>${rows}</table>
+    <p class="muted">Victory conditions arrive in Phase 6. For now: who gathered the most?</p>
+    <button id="btn-end-close">${isTeacherPage ? 'Back to the panel' : 'Exit'}</button>`;
   box.classList.remove('hidden');
   el('btn-end-close').addEventListener('click', () => {
     if (isTeacherPage) backToPanel();

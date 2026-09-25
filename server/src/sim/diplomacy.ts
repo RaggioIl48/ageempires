@@ -50,7 +50,7 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
   const me = world.players.get(from), other = world.players.get(target);
   if (!me || !other || from === target) return;
   if (world.diploLocked) {
-    world.notify(from, 'En esta partida los equipos son fijos: no se puede cambiar la diplomacia');
+    world.notify(from, 'Teams are fixed in this game: diplomacy cannot be changed');
     return;
   }
   const rel = world.relation(from, target);
@@ -68,25 +68,25 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
     world.proposals.push({ from, to: target, kind, expires: world.tick + PROPOSAL_SEC * TICK_RATE });
     world.diploVersion++;
     world.notify(target, `${me.name} ${text}`);
-    world.notify(from, `Propuesta enviada a ${other.name}`);
+    world.notify(from, `Proposal sent to ${other.name}`);
   };
   const accept = (kind: Proposal['kind']) => {
     const p = find(kind, target, from);
-    if (!p) return world.notify(from, 'Esa propuesta ya no existe');
+    if (!p) return world.notify(from, 'That proposal no longer exists');
     remove(p);
     cancelWars(world, from, target);
     if (kind === 'alliance') {
       world.setRelation(from, target, 'ally');
-      world.announce(`📜 ${me.name} y ${other.name} ahora son aliados`);
+      world.announce(`📜 ${me.name} and ${other.name} are now allies`);
     } else {
       world.setRelation(from, target, 'peace');
-      world.announce(`🕊 ${me.name} y ${other.name} firmaron la paz`);
+      world.announce(`🕊 ${me.name} and ${other.name} made peace`);
     }
   };
 
   switch (action) {
     case 'proposeAlliance':
-      if (rel !== 'ally') propose('alliance', 'te propone una alianza');
+      if (rel !== 'ally') propose('alliance', 'proposes an alliance to you');
       return;
     case 'acceptAlliance':
       return accept('alliance');
@@ -94,14 +94,14 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
       const p = find('alliance', target, from);
       if (p) {
         remove(p);
-        world.notify(target, `${me.name} rechazó tu propuesta de alianza`);
+        world.notify(target, `${me.name} rejected your alliance proposal`);
       }
       return;
     }
     case 'breakAlliance':
       if (rel !== 'ally') return;
       world.setRelation(from, target, 'peace');
-      world.announce(`💔 ${me.name} rompió su alianza con ${other.name}`);
+      world.announce(`💔 ${me.name} broke their alliance with ${other.name}`);
       return;
     case 'declareWar': {
       if (rel === 'war' || world.pendingWars.some((w) => pair(w.from, w.to) === pair(from, target))) return;
@@ -109,11 +109,11 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
       for (const p of world.proposals.filter((q) => pair(q.from, q.to) === pair(from, target))) remove(p);
       world.pendingWars.push({ from, to: target, at: world.tick + WAR_DELAY_SEC * TICK_RATE });
       world.diploVersion++;
-      world.announce(`⚔ ${me.name} declaró la guerra a ${other.name}: empieza en ${WAR_DELAY_SEC} segundos`);
+      world.announce(`⚔ ${me.name} declared war on ${other.name}: it starts in ${WAR_DELAY_SEC} seconds`);
       return;
     }
     case 'proposePeace':
-      if (rel === 'war') propose('peace', 'te propone la paz');
+      if (rel === 'war') propose('peace', 'proposes peace to you');
       return;
     case 'acceptPeace':
       return accept('peace');
@@ -121,7 +121,7 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
       const p = find('peace', target, from);
       if (p) {
         remove(p);
-        world.notify(target, `${me.name} rechazó tu propuesta de paz`);
+        world.notify(target, `${me.name} rejected your peace proposal`);
       }
       return;
     }
@@ -137,7 +137,7 @@ export function updateDiplomacy(world: World): void {
       world.diploVersion++;
       for (const p of expired) {
         const other = world.players.get(p.to);
-        world.notify(p.from, `${other?.name ?? 'El otro jugador'} no respondió tu propuesta`);
+        world.notify(p.from, `${other?.name ?? 'The other player'} did not answer your proposal`);
       }
     }
   }
@@ -148,7 +148,7 @@ export function updateDiplomacy(world: World): void {
       for (const w of starting) {
         world.setRelation(w.from, w.to, 'war');
         const a = world.players.get(w.from)?.name, b = world.players.get(w.to)?.name;
-        world.announce(`⚔ Comenzó la guerra entre ${a} y ${b}`);
+        world.announce(`⚔ War has started between ${a} and ${b}`);
       }
     }
   }

@@ -1,4 +1,4 @@
-# Imperios del Aula
+# Classroom Empires
 
 A multiplayer real-time strategy (RTS) game for the browser, designed for classes.
 Inspired by how classic RTS games play (gathering, building, armies,
@@ -6,9 +6,10 @@ diplomacy), with **100% original** code, art and names.
 
 - The teacher runs the server on their computer.
 - Students open a URL in Chrome, Edge, Firefox or Safari (Windows or macOS). They install nothing.
-- No external services: it works on the school's local network.
+- No external services needed: it works on the school's local network (or online, on Render).
+- All game texts are in English.
 
-> Current status: **Phase 3 done** (rooms with a code, faction choice, reconnection, teacher panel and efficient network). See [docs/PROGRESO.md](docs/PROGRESO.md) and the [roadmap](docs/HOJA_DE_RUTA.md).
+> Current status: **Phase 5 done** (four ages, technologies, advanced units, walls and towers; teams and diplomacy from Phase 4). See [docs/PROGRESO.md](docs/PROGRESO.md) and the [roadmap](docs/HOJA_DE_RUTA.md).
 
 ## Requirements
 
@@ -27,31 +28,31 @@ npm start          # starts the server
 The console shows something like:
 
 ```
-  PROFESOR:     abre http://localhost:8080/profesor en este computador
-                (desde otro computador, la clave del profesor es: 4821)
+  TEACHER:      open http://localhost:8080/teacher on this computer
+                (from another computer, the teacher PIN is: 4821)
 
-  ESTUDIANTES:  http://192.168.1.20:8080
+  STUDENTS:     http://192.168.1.20:8080
 ```
 
 If Windows asks whether to allow Node.js on the network, answer **Allow** (private networks).
 
-**2. The teacher opens `http://localhost:8080/profesor`** and creates a game: number of
+**2. The teacher opens `http://localhost:8080/teacher`** (the old `/profesor` address still works) and creates a game: number of
 players (1–16), map size and duration. The panel shows a **4-letter code** (for example
 `KBTR`) and the direct link for the students (`http://192.168.1.20:8080/?c=KBTR`).
 
 **3. The students open the link** (or the address and type the code), type their
 name and choose their **faction** and **color** in the waiting lobby.
 
-**4. The teacher presses "Iniciar partida"**. From the panel they can also: watch the
+**4. The teacher presses "▶ Start game"**. From the panel they can also: watch the
 game (whole map and each student's economy), pause/resume, end, remove a student and
 close the room.
 
 If a student loses the connection or closes the tab, they only need to open the link
 again: **they come back to their same player** automatically.
 
-**Testing alone (without students):** in the panel press **"🧪 Probar como estudiante"**, type
+**Testing alone (without students):** in the panel press **"🧪 Try as a student"**, type
 a name and pick a faction. Since you are on the server computer, the waiting lobby shows the
-**"▶ Iniciar partida"** button: pressing it starts the game.
+**"▶ Start game"** button: pressing it starts the game.
 
 ### How students connect
 
@@ -87,7 +88,7 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
 | Build | With workers: **Q E R T F G Z X C V B N** in the order of the buttons (more buildings appear with each era; Shift: place several, e.g. walls) |
 | Train / research | With a building: the same keys, in the order of the buttons (units, technologies, advancing era) · click an item in the queue to cancel it (refunds the cost) |
-| Advance era | Select the Town Center and press the ★ button (needs a Barracks, then a Tech center, then a Factory) |
+| Advance age | Select the Town Center (**H**, the "⌂ Town Center" button, or click your faction/age in the top bar) and press **"Advance to the … Age"** (★). It needs a finished Barracks, then a Tech Center, then a Factory |
 | Delete | **Delete** key (an unfinished foundation refunds what is left to build) |
 | Camera | WASD or arrows · middle-button drag · minimap |
 | Zoom | Mouse wheel |

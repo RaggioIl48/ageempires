@@ -8,7 +8,8 @@
   --text: #f1e6cf;
   --muted: #bda882;
   --accent: #ffd479;
-  --bar-h: 150px;
+  --bar-h: 112px;
+  --top-h: 38px;
 }
 
 * {
@@ -78,41 +79,50 @@ button:disabled {
   top: 0;
   left: 0;
   right: 0;
-  height: 52px;
+  height: var(--top-h);
   overflow: hidden;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 6px 10px;
+  gap: 10px;
+  padding: 3px 8px;
   background: linear-gradient(var(--panel-2), var(--panel));
   border-bottom: 2px solid var(--edge);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 #resources {
   display: flex;
-  gap: 18px;
+  gap: 12px;
 }
 .res {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 96px;
+  gap: 4px;
+  min-width: 78px;
+  line-height: 1.05;
+}
+.res > .icon {
+  width: 18px;
+  height: 18px;
 }
 .res .amount {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .res .sub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
   white-space: nowrap;
 }
 #top-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+#topbar button {
+  padding: 2px 8px;
+  font-size: 12px;
 }
 #btn-idle.alert {
   border-color: var(--accent);
@@ -164,7 +174,7 @@ button:disabled {
 #info {
   position: fixed;
   left: 10px;
-  top: 64px;
+  top: calc(var(--top-h) + 8px);
   width: 230px;
 }
 #info h3 {
@@ -205,23 +215,27 @@ button:disabled {
   bottom: 0;
   height: var(--bar-h);
   display: flex;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 5px 8px;
   background: linear-gradient(var(--panel-2), var(--panel));
   border-top: 2px solid var(--edge);
   box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.5);
 }
 #selection-grid {
-  flex: 1 1 45%;
+  flex: 0 1 40%;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 4px;
   overflow: hidden;
 }
+/* Sin nada seleccionado, los botones usan todo el ancho. */
+#selection-grid:empty {
+  display: none;
+}
 .card {
-  width: 38px;
-  height: 42px;
+  width: 32px;
+  height: 36px;
   padding: 3px 3px 0;
   background: #1c150f;
   border: 1px solid var(--edge);
@@ -230,7 +244,7 @@ button:disabled {
 }
 .card svg {
   width: 100%;
-  height: 30px;
+  height: 25px;
 }
 .card .hp {
   height: 4px;
@@ -241,7 +255,7 @@ button:disabled {
   background: #3fb04f;
 }
 #actions {
-  flex: 1 1 35%;
+  flex: 1 1 60%;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
@@ -256,8 +270,9 @@ button:disabled {
 }
 #minimap {
   flex: none;
-  width: 268px;
-  height: 134px;
+  width: 192px;
+  height: 96px;
+  align-self: center;
   background: #0c0f13;
   border: 1px solid var(--edge);
   cursor: pointer;
@@ -269,21 +284,21 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  min-width: 104px;
-  padding: 5px 8px 5px 26px;
+  gap: 1px;
+  min-width: 96px;
+  padding: 3px 6px 3px 24px;
   text-align: left;
-  font-size: 12px;
+  font-size: 11px;
 }
 .act.small {
   min-width: 0;
-  padding: 5px 10px;
+  padding: 3px 8px;
   align-self: flex-start;
 }
 .act .key {
   position: absolute;
-  left: 5px;
-  top: 5px;
+  left: 4px;
+  top: 3px;
   width: 16px;
   height: 16px;
   border-radius: 3px;
@@ -351,6 +366,9 @@ b.down {
 }
 
 /* ---------- Eras y tecnologías ---------- */
+#faction {
+  cursor: pointer;
+}
 .era-tag {
   margin-left: 6px;
   padding: 1px 6px 1px 3px;
@@ -389,7 +407,7 @@ b.down {
 /* ---------- Avisos del juego ---------- */
 #notices {
   position: fixed;
-  top: 62px;
+  top: calc(var(--top-h) + 8px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -691,7 +709,7 @@ table.eco tr.me {
 }
 #paused {
   position: fixed;
-  top: 110px;
+  top: calc(var(--top-h) + 50px);
   left: 50%;
   transform: translateX(-50%);
   padding: 14px 28px;
@@ -738,7 +756,7 @@ table.eco tr.me {
 /* ---------- Diplomacia ---------- */
 #diplo-panel {
   position: fixed;
-  top: 60px;
+  top: calc(var(--top-h) + 8px);
   right: 10px;
   width: min(520px, calc(100vw - 20px));
   max-height: calc(100vh - 230px);
@@ -937,6 +955,10 @@ select.tiny-select {
 }
 
 @media (max-width: 900px) {
+  #minimap {
+    width: 140px;
+    height: 70px;
+  }
   #resources {
     gap: 8px;
   }

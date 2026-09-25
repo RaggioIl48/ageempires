@@ -1,93 +1,93 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Imperios del Aula</title>
+    <title>Classroom Empires</title>
   </head>
   <body>
-    <!-- Pantalla de inicio: el estudiante escribe su nombre y el código -->
+    <!-- Start screen: the student types their name and the code -->
     <section id="screen-start" class="screen hidden">
       <form id="form-join" class="box" autocomplete="off">
-        <h1>Imperios del Aula</h1>
-        <label>Tu nombre <input id="in-name" maxlength="20" required /></label>
-        <label>Código de la partida <input id="in-code" maxlength="4" required class="code-input" /></label>
-        <button type="submit" class="big">Entrar</button>
+        <h1>Classroom Empires</h1>
+        <label>Your name <input id="in-name" maxlength="20" required /></label>
+        <label>Game code <input id="in-code" maxlength="4" required class="code-input" /></label>
+        <button type="submit" class="big">Join</button>
         <p class="error" id="start-error"></p>
-        <p class="hint-box">El <b>código</b> te lo da tu profesor: primero crea la partida en su panel.</p>
-        <a class="small-link" href="/profesor">Soy el profesor →</a>
+        <p class="hint-box">Your teacher gives you the <b>code</b>: they create the game in their panel first.</p>
+        <a class="small-link" href="/teacher">I am the teacher →</a>
       </form>
     </section>
 
-    <!-- Sala de espera: elegir facción y color -->
+    <!-- Waiting room: choose faction and color -->
     <section id="screen-lobby" class="screen hidden">
       <div class="box wide">
         <div class="lobby-head">
           <div>
-            <h2>Partida <span id="lobby-code" class="code"></span></h2>
-            <p class="muted" id="lobby-status">Esperando a que el profesor inicie la partida…</p>
+            <h2>Game <span id="lobby-code" class="code"></span></h2>
+            <p class="muted" id="lobby-status">Waiting for the teacher to start the game…</p>
           </div>
-          <button id="btn-leave" title="Sales de la sala y liberas tu lugar">Salir de la sala</button>
+          <button id="btn-leave" title="Leave the room and free your place">Leave room</button>
         </div>
         <div id="host-box" class="host-box hidden">
           <p id="host-text"></p>
-          <button id="btn-start-host" class="big primary">▶ Iniciar partida</button>
+          <button id="btn-start-host" class="big primary">▶ Start game</button>
         </div>
-        <h3>Jugadores</h3>
+        <h3>Players</h3>
         <div id="lobby-members" class="members"></div>
-        <h3>Tu facción</h3>
+        <h3>Your faction</h3>
         <div id="lobby-factions" class="factions"></div>
-        <h3>Tu color</h3>
+        <h3>Your color</h3>
         <div id="lobby-colors" class="colors"></div>
         <p class="error" id="lobby-error"></p>
       </div>
     </section>
 
-    <!-- Panel del profesor -->
+    <!-- Teacher panel -->
     <section id="screen-teacher" class="screen hidden">
       <div class="box wide">
-        <h1>Panel del profesor</h1>
+        <h1>Teacher panel</h1>
         <form id="form-pin" class="hidden">
-          <p>Estás entrando desde <b>otro computador</b>, así que hace falta la clave del profesor.
-            Aparece en la ventana donde se inició el servidor, en la línea «PROFESOR».</p>
-          <p class="muted">En el computador del servidor no se pide clave: abre allí <b>http://localhost:8080/profesor</b>.</p>
-          <label>Clave <input id="in-pin" maxlength="12" /></label>
-          <button type="submit">Entrar</button>
+          <p>You are connecting from <b>another computer</b>, so the teacher PIN is needed.
+            It appears in the window where the server was started, on the "TEACHER" line (on Render: the TEACHER_PIN setting).</p>
+          <p class="muted">On the server computer no PIN is needed: open <b>http://localhost:8080/teacher</b> there.</p>
+          <label>PIN <input id="in-pin" maxlength="12" /></label>
+          <button type="submit">Enter</button>
         </form>
         <div id="teacher-main" class="hidden">
           <form id="form-room" class="new-room">
-            <h3>Nueva partida</h3>
-            <label>Jugadores <select id="in-max"></select></label>
-            <label>Mapa
+            <h3>New game</h3>
+            <label>Players <select id="in-max"></select></label>
+            <label>Map
               <select id="in-map">
-                <option value="small">Pequeño</option>
+                <option value="small">Small</option>
                 <option value="normal" selected>Normal</option>
-                <option value="large">Grande</option>
+                <option value="large">Large</option>
               </select>
             </label>
-            <label>Duración
+            <label>Duration
               <select id="in-duration">
-                <option value="0">Sin límite</option>
-                <option value="15">15 minutos</option>
-                <option value="30" selected>30 minutos</option>
-                <option value="45">45 minutos</option>
-                <option value="60">60 minutos</option>
-                <option value="90">90 minutos</option>
+                <option value="0">No limit</option>
+                <option value="15">15 minutes</option>
+                <option value="30" selected>30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">60 minutes</option>
+                <option value="90">90 minutes</option>
               </select>
             </label>
-            <label>Diplomacia
+            <label>Diplomacy
               <select id="in-diplo">
-                <option value="free" selected>Libre (alianzas y guerras cambian)</option>
-                <option value="locked">Fija (los equipos no cambian)</option>
+                <option value="free" selected>Free (alliances and wars can change)</option>
+                <option value="locked">Fixed (teams do not change)</option>
               </select>
             </label>
             <label>Chat
               <select id="in-chat">
-                <option value="1" selected>Activado</option>
-                <option value="0">Desactivado</option>
+                <option value="1" selected>On</option>
+                <option value="0">Off</option>
               </select>
             </label>
-            <button type="submit" class="big">Crear partida</button>
+            <button type="submit" class="big">Create game</button>
           </form>
           <div id="teacher-rooms"></div>
         </div>
@@ -95,18 +95,18 @@
       </div>
     </section>
 
-    <!-- Juego -->
+    <!-- Game -->
     <section id="screen-game" class="hidden">
       <canvas id="game"></canvas>
 
       <header id="topbar">
         <div id="resources"></div>
         <div id="top-right">
-          <div id="clock" title="Tiempo de partida"></div>
+          <div id="clock" title="Game time"></div>
           <div id="faction"></div>
-          <button id="btn-home" title="Centro Urbano (H)">⌂ Centro</button>
-          <button id="btn-idle" title="Siguiente trabajador inactivo (.)"></button>
-          <button id="btn-diplo">🤝 Diplomacia</button>
+          <button id="btn-home" title="Town Center (H): train workers and advance the age">⌂ Town Center</button>
+          <button id="btn-idle" title="Next idle worker (.)"></button>
+          <button id="btn-diplo">🤝 Diplomacy</button>
           <div id="players"></div>
         </div>
       </header>
@@ -116,8 +116,8 @@
       <aside id="diplo-panel" class="panel hidden"></aside>
       <div id="chat-log"></div>
       <form id="chat-form" class="hidden" autocomplete="off">
-        <button type="button" id="chat-scope" title="Tab: cambiar entre Todos y Aliados">Todos</button>
-        <input id="chat-input" placeholder="Escribe y presiona Enter (Esc para cerrar)" />
+        <button type="button" id="chat-scope" title="Tab: switch between All and Allies">All</button>
+        <input id="chat-input" placeholder="Type and press Enter (Esc to close)" />
       </form>
 
       <footer id="bottombar">
@@ -127,9 +127,9 @@
       </footer>
     </section>
 
-    <!-- Avisos que tapan la pantalla (conexión, pausa, fin de partida) -->
+    <!-- Screen overlays (connection, pause, end of game) -->
     <div id="overlay" class="hidden"></div>
-    <div id="paused" class="hidden">⏸ El profesor pausó la partida</div>
+    <div id="paused" class="hidden">⏸ The teacher paused the game</div>
     <div id="ended" class="hidden"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

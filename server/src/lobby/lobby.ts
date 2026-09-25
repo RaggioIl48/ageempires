@@ -32,9 +32,9 @@ export class Lobby {
         if (!room)
           return conn.send({
             t: 'error',
-            message: 'No existe una partida con ese código. Revisa las letras o pide el código a tu profesor.',
+            message: 'No game exists with that code. Check the letters or ask your teacher for the code.',
           });
-        if (conn.role === 'teacher') return conn.send({ t: 'error', message: 'Esta ventana es la del profesor.' });
+        if (conn.role === 'teacher') return conn.send({ t: 'error', message: 'This window is the teacher window.' });
         if (conn.room && conn.room !== room) conn.room.leave(conn);
         const error = room.join(conn, msg.name, msg.token);
         if (error) conn.send({ t: 'error', message: error });
@@ -71,7 +71,7 @@ export class Lobby {
         if (conn.role === 'student') {
           conn.pinFails++;
           if (conn.pinFails >= MAX_PIN_FAILS) conn.close();
-          return conn.send({ t: 'error', message: 'Clave de profesor incorrecta: no se puede iniciar.' });
+          return conn.send({ t: 'error', message: 'Wrong teacher PIN: the game cannot be started.' });
         }
         break; // si no, sigue abajo: solo el profesor
       }
@@ -85,7 +85,7 @@ export class Lobby {
           conn.send({ t: 'teacherOk', rooms: this.summaries(), urls: this.opts.urls() });
           for (const room of this.rooms.values()) conn.send({ t: 'room', room: room.view() });
         } else {
-          conn.send({ t: 'error', message: 'Clave de profesor incorrecta.' });
+          conn.send({ t: 'error', message: 'Wrong teacher PIN.' });
           if (++conn.pinFails >= MAX_PIN_FAILS) conn.close();
         }
         return;
@@ -93,7 +93,7 @@ export class Lobby {
     }
 
     // El resto es solo para el profesor.
-    if (conn.role !== 'teacher') return conn.send({ t: 'error', message: 'Solo el profesor puede hacer eso.' });
+    if (conn.role !== 'teacher') return conn.send({ t: 'error', message: 'Only the teacher can do that.' });
     if (msg.t === 'createRoom') {
       const code = this.newCode();
       const seed = this.opts.seed?.() ?? Math.floor(Math.random() * 1_000_000);
@@ -107,7 +107,7 @@ export class Lobby {
       return;
     }
     const room = this.rooms.get(msg.code);
-    if (!room) return conn.send({ t: 'error', message: 'Esa sala ya no existe.' });
+    if (!room) return conn.send({ t: 'error', message: 'That room no longer exists.' });
     let error: string | null = null;
     switch (msg.t) {
       case 'setSettings':
@@ -126,7 +126,7 @@ export class Lobby {
         room.setPaused(msg.paused);
         break;
       case 'end':
-        room.end('El profesor terminó la partida.');
+        room.end('The teacher ended the game.');
         break;
       case 'closeRoom':
         room.close();

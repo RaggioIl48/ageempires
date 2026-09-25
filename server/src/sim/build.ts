@@ -121,7 +121,7 @@ function repair(world: World, b: Building, builders: Unit[], amount: number): vo
     owed[r] -= charge[r]!;
   }
   if (!world.spend(b.owner, charge)) {
-    world.notify(b.owner, 'Recursos insuficientes para reparar');
+    world.notify(b.owner, 'Not enough resources to repair');
     for (const u of builders) stopWork(u);
     return;
   }

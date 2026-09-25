@@ -57,7 +57,7 @@ describe('teacher', () => {
     expect(local.last('teacherOk')).toBeDefined();
     const remote = new FakeConn(false);
     lobby.handle(remote, { t: 'teacher', pin: '0000' });
-    expect(remote.last('error')?.message).toMatch(/incorrecta/);
+    expect(remote.last('error')?.message).toMatch(/Wrong/);
     expect(remote.role).toBe('none');
     lobby.handle(remote, { t: 'teacher', pin: '4321' });
     expect(remote.role).toBe('teacher');
@@ -91,7 +91,7 @@ describe('teacher', () => {
     lobby.handle(t, { t: 'join', code, name: 'Teacher' });
     lobby.handle(t, { t: 'start', code, pin: '0000' });
     expect(room.phase).toBe('lobby');
-    expect(t.last('error')?.message).toMatch(/Clave/);
+    expect(t.last('error')?.message).toMatch(/PIN/);
     lobby.handle(t, { t: 'start', code });
     expect(room.phase).toBe('lobby');
     lobby.handle(t, { t: 'start', code, pin: '4321' });
@@ -112,11 +112,11 @@ describe('teacher', () => {
     const { send, code, student, room } = setup();
     const s = student('Ana');
     send(s, { t: 'createRoom', settings: SETTINGS });
-    expect(s.last('error')?.message).toMatch(/Solo el profesor/);
+    expect(s.last('error')?.message).toMatch(/Only the teacher/);
     send(s, { t: 'start', code });
-    expect(s.last('error')?.message).toMatch(/Clave de profesor incorrecta/);
+    expect(s.last('error')?.message).toMatch(/Wrong teacher PIN/);
     send(s, { t: 'end', code });
-    expect(s.last('error')?.message).toMatch(/Solo el profesor/);
+    expect(s.last('error')?.message).toMatch(/Only the teacher/);
     expect(room.phase).toBe('lobby');
   });
 
@@ -139,7 +139,7 @@ describe('students in the lobby', () => {
     expect(teacher.last('room')?.room.members).toHaveLength(1);
     const lost = new FakeConn();
     send(lost, { t: 'join', code: 'ZZZZ', name: 'Bruno' });
-    expect(lost.last('error')?.message).toMatch(/No existe/);
+    expect(lost.last('error')?.message).toMatch(/No game exists/);
   });
 
   it('repeated names get a number, and each one gets a different color', () => {
@@ -166,7 +166,7 @@ describe('students in the lobby', () => {
   it('when the room is full nobody else gets in', () => {
     const { student } = setup();
     for (const n of ['A', 'B', 'C', 'D']) student(n);
-    expect(student('E').last('error')?.message).toMatch(/llena/);
+    expect(student('E').last('error')?.message).toMatch(/full/);
   });
 
   it('leaving the lobby frees up the spot', () => {
@@ -214,7 +214,7 @@ describe('game', () => {
 
   it('after starting, nobody new joins; orders only move your own units', () => {
     const { student, room, send, ana, lobby } = started();
-    expect(student('Carla').last('error')?.message).toMatch(/ya empezó/);
+    expect(student('Carla').last('error')?.message).toMatch(/already started/);
     const w = room.game!.world;
     const mine = [...w.units.values()].find((u) => u.owner === 1)!;
     const theirs = [...w.units.values()].find((u) => u.owner === 2)!;
@@ -255,7 +255,7 @@ describe('game', () => {
     lobby.handle(teacher, { t: 'kick', code, memberId });
     const again = new FakeConn();
     lobby.handle(again, { t: 'join', code, name: 'Ana', token });
-    expect(again.last('error')?.message).toMatch(/sacó/);
+    expect(again.last('error')?.message).toMatch(/removed you/);
     expect(room.view().members.map((m) => m.name)).toEqual(['Bruno']);
   });
 
@@ -276,7 +276,7 @@ describe('game', () => {
     lobby.handle(teacher, { t: 'end', code });
     for (const c of [ana, bruno]) {
       const end = c.last('ended')!;
-      expect(end.reason).toMatch(/terminó/);
+      expect(end.reason).toMatch(/ended/);
       expect(end.summary.map((p) => p.name)).toEqual(['Ana', 'Bruno']);
     }
   });
@@ -288,7 +288,7 @@ describe('game', () => {
     s.send(s.teacher, { t: 'start', code: s.code });
     for (let i = 0; i < 601; i++) s.lobby.tickAll();
     expect(s.room.phase).toBe('ended');
-    expect(a.last('ended')?.reason).toMatch(/tiempo/);
+    expect(a.last('ended')?.reason).toMatch(/Time is up/);
     expect(a.all('d').some((d) => d.clk && d.clk[1] === 60)).toBe(true);
   });
 
@@ -320,7 +320,7 @@ describe('game', () => {
   it('closing the room sends everyone back to the start screen', () => {
     const { lobby, teacher, code, ana } = started();
     lobby.handle(teacher, { t: 'closeRoom', code });
-    expect(ana.last('kicked')?.message).toMatch(/cerró/);
+    expect(ana.last('kicked')?.message).toMatch(/closed/);
     expect(lobby.rooms.has(code)).toBe(false);
   });
 });
@@ -370,10 +370,10 @@ describe('teams and chat (Phase 4)', () => {
     const a = student('Ana');
     lobby.handle(a, { t: 'chat', text: 'uno', to: 'all' });
     lobby.handle(a, { t: 'chat', text: 'dos', to: 'all' });
-    expect(a.last('error')?.message).toMatch(/Espera/);
+    expect(a.last('error')?.message).toMatch(/Wait/);
     lobby.handle(teacher, { t: 'setSettings', code, settings: { ...SETTINGS, chat: false } });
     (lobby.rooms.get(code)!.members[0] as { lastChat: number }).lastChat = 0;
     lobby.handle(a, { t: 'chat', text: 'tres', to: 'all' });
-    expect(a.last('error')?.message).toMatch(/desactivó el chat/);
+    expect(a.last('error')?.message).toMatch(/turned off chat/);
   });
 });

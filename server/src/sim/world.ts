@@ -301,8 +301,8 @@ export class World {
     const s = BUILDING_DEFS[type].size;
     for (let y = ty; y < ty + s; y++)
       for (let x = tx; x < tx + s; x++) {
-        if (!this.inBounds(x, y)) return 'No se puede construir fuera del mapa';
-        if (!this.isFree(x, y)) return 'No se puede construir ahí';
+        if (!this.inBounds(x, y)) return 'You cannot build outside the map';
+        if (!this.isFree(x, y)) return 'You cannot build there';
       }
     return null;
   }

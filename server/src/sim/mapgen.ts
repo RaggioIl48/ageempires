@@ -76,7 +76,7 @@ export function generateWorld(opts: MapOptions): World {
     const world = tryGenerate(opts, opts.seed + attempt * 7919);
     if (world) return world;
   }
-  throw new Error('No se pudo generar un mapa válido');
+  throw new Error('Could not generate a valid map');
 }
 
 function tryGenerate(opts: MapOptions, seed: number): World | null {
@@ -126,7 +126,7 @@ function tryGenerate(opts: MapOptions, seed: number): World | null {
     const s = starts[i];
     const playerId = i + 1;
     const setup = opts.players?.[i];
-    world.addPlayer(playerId, setup?.name ?? `Jugador ${playerId}`, setup?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length], s.pos, setup?.faction);
+    world.addPlayer(playerId, setup?.name ?? `Player ${playerId}`, setup?.color ?? PLAYER_COLORS[i % PLAYER_COLORS.length], s.pos, setup?.faction);
     if (!world.addBuilding('town_center', playerId, s.pos.x - 1, s.pos.y - 1)) return null;
 
     const fx = Math.cos(s.angle), fy = Math.sin(s.angle); // hacia afuera

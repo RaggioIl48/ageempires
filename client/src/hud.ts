@@ -58,14 +58,14 @@ function queueIcon(q: { unit?: UnitType; tech?: TechId }): string {
 }
 
 const STATE_TEXT: Record<UnitView['state'], string> = {
-  idle: 'Inactivo',
-  moving: 'Caminando',
-  toResource: 'Yendo a recolectar',
-  gathering: 'Recolectando',
-  returning: 'Llevando carga al depósito',
-  toBuild: 'Yendo a construir',
-  building: 'Construyendo',
-  attacking: 'Atacando',
+  idle: 'Idle',
+  moving: 'Walking',
+  toResource: 'Going to gather',
+  gathering: 'Gathering',
+  returning: 'Carrying resources to a drop-off',
+  toBuild: 'Going to build',
+  building: 'Building',
+  attacking: 'Attacking',
 };
 
 function esc(s: string): string {
@@ -139,14 +139,16 @@ export class Hud {
     });
     el('btn-idle').addEventListener('click', () => this.input.nextIdleWorker());
     el('btn-home').addEventListener('click', () => this.input.goHome());
+    // La era se avanza en el Centro Urbano: pulsar la facción/era lleva allí.
+    el('faction').addEventListener('click', () => this.input.goHome());
   }
 
   setStatus(s: NetStatus): void {
     const overlay = el('overlay');
     const text: Record<NetStatus, string> = {
-      connecting: 'Conectando con el servidor…',
+      connecting: 'Connecting to the server…',
       online: '',
-      offline: 'Se perdió la conexión. Reintentando…',
+      offline: 'Connection lost. Retrying…',
     };
     overlay.textContent = text[s];
     overlay.classList.toggle('hidden', s === 'online');
@@ -169,11 +171,11 @@ export class Hud {
     if (limit > 0) {
       const left = Math.max(0, limit - elapsed);
       setHtml(box, `⏱ ${fmt(left)}`);
-      box.title = 'Tiempo que queda';
+      box.title = 'Time left';
       box.classList.toggle('warn', left <= 120);
     } else {
       setHtml(box, `⏱ ${fmt(elapsed)}`);
-      box.title = 'Tiempo de partida';
+      box.title = 'Game time';
     }
   }
 
@@ -183,8 +185,8 @@ export class Hud {
     if (spectating) {
       setHtml(
         el('resources'),
-        `<div class="spectating">👁 Observando la partida <b>${esc(this.spectator?.code ?? '')}</b>
-          <span class="muted">(ves todo el mapa; no das órdenes)</span></div>`,
+        `<div class="spectating">👁 Watching game <b>${esc(this.spectator?.code ?? '')}</b>
+          <span class="muted">(you see the whole map; you give no orders)</span></div>`,
       );
       this.renderPlayerDots();
       return;
@@ -199,12 +201,12 @@ export class Hud {
       </div>`,
     ).join('');
     const full = e.pop >= e.popCap;
-    const pop = `<div class="res ${full ? 'warn' : ''}" title="Población: unidades / máximo (construye casas para subirlo)"><span class="icon">${ICONS.pop}</span>
-      <div><div class="amount">${e.pop}/${e.popCap}</div><div class="sub">Población</div></div></div>`;
+    const pop = `<div class="res ${full ? 'warn' : ''}" title="Population: units / limit (build houses to raise it)"><span class="icon">${ICONS.pop}</span>
+      <div><div class="amount">${e.pop}/${e.popCap}</div><div class="sub">Population</div></div></div>`;
     setHtml(el('resources'), res + pop);
 
     const idle = el('btn-idle');
-    setHtml(idle, `<span class="icon mini">${ICONS.worker}</span> Inactivos: ${e.workers.idle}`);
+    setHtml(idle, `<span class="icon mini">${ICONS.worker}</span> Idle: ${e.workers.idle}`);
     idle.classList.toggle('alert', e.workers.idle > 0);
 
     const me = this.state.players.get(this.state.you);
@@ -213,8 +215,9 @@ export class Hud {
       const era = this.state.eraOf(me.id);
       const techs = techsOf(this.state.techsOf(me.id)).filter((t) => !TECH_DEFS[t].advancesTo);
       const tip =
-        `${f.name}: «${f.motto}»\n\nFuerte en:\n• ${f.strengths.join('\n• ')}\n\nDébil en:\n• ${f.weaknesses.join('\n• ')}` +
-        `\n\n${eraLabel(era)}\nTecnologías: ${techs.length ? techs.map((t) => TECH_DEFS[t].label).join(', ') : 'ninguna todavía'}`;
+        `${f.name}: «${f.motto}»\n\nStrong in:\n• ${f.strengths.join('\n• ')}\n\nWeak in:\n• ${f.weaknesses.join('\n• ')}` +
+        `\n\n${eraLabel(era)}\nTechnologies: ${techs.length ? techs.map((t) => TECH_DEFS[t].label).join(', ') : 'none yet'}` +
+        '\n\nClick: go to your Town Center (you advance the age there)';
       const box = el('faction');
       setHtml(box, `<i style="background:${me.color}"></i>${esc(f.name)} <span class="era-tag"><span class="icon mini">${ICONS.era}</span>${ERAS[era - 1].short}</span>`);
       box.title = tip;
@@ -232,7 +235,7 @@ export class Hud {
         .map(
           (p) =>
             `<i class="dot ${p.connected ? '' : 'off'} ${p.id === this.state.you ? 'me' : ''}" style="background:${p.color}"
-              title="${esc(p.name)}${p.id === this.state.you ? ' (tú)' : ''} · ${esc(FACTIONS[p.faction].name)} · ${eraLabel(this.state.eraOf(p.id))} · ${p.connected ? 'conectado' : 'sin conectar'}"></i>`,
+              title="${esc(p.name)}${p.id === this.state.you ? ' (you)' : ''} · ${esc(FACTIONS[p.faction].name)} · ${eraLabel(this.state.eraOf(p.id))} · ${p.connected ? 'connected' : 'not connected'}"></i>`,
         )
         .join('');
     setHtml(el('players'), players);
@@ -254,7 +257,7 @@ export class Hud {
         const k = UNIT_DEFS[u.type].label;
         groups[k] = (groups[k] ?? 0) + 1;
       }
-      html = `<h3>${units.length} unidades</h3>` + Object.entries(groups).map(([k, n]) => `<div class="row">${esc(k)}: <b>${n}</b></div>`).join('');
+      html = `<h3>${units.length} units</h3>` + Object.entries(groups).map(([k, n]) => `<div class="row">${esc(k)}: <b>${n}</b></div>`).join('');
     } else if (sel.building !== null) {
       const b = this.state.buildings.get(sel.building);
       if (b) html = this.buildingInfo(b);
@@ -263,7 +266,7 @@ export class Hud {
       if (n) {
         const def = NODE_DEFS[n.type];
         html = `<h3>${def.label}</h3><div class="row"><span class="icon mini">${ICONS[def.resource]}</span>
-          Quedan <b>${n.amount}</b> de ${RESOURCE_LABELS[def.resource]}</div>`;
+          <b>${n.amount}</b> ${RESOURCE_LABELS[def.resource]} left</div>`;
       }
     }
     setHtml(box, html);
@@ -277,19 +280,19 @@ export class Hud {
     const doing = u.state === 'gathering' || u.state === 'toResource' ? STATE_TEXT[u.state] + task : STATE_TEXT[u.state];
     const carry =
       u.carryType && u.carryAmount
-        ? `<div class="row"><span class="icon mini">${ICONS[u.carryType]}</span>Carga: ${u.carryAmount}/${carryCapacity(this.state.techsOf(u.owner))}</div>`
+        ? `<div class="row"><span class="icon mini">${ICONS[u.carryType]}</span>Carrying: ${u.carryAmount}/${carryCapacity(this.state.techsOf(u.owner))}</div>`
         : '';
     // Comparación con la unidad "base": muestra la ventaja o desventaja de la facción.
     const mark = (val: number, base: number, fmt = (v: number) => String(Math.round(v * 10) / 10)) =>
       val > base + 1e-6 ? `<b class="up">${fmt(val)} ▲</b>` : val < base - 1e-6 ? `<b class="down">${fmt(val)} ▼</b>` : `<b>${fmt(val)}</b>`;
-    const range = st.attack.type === 'ranged' ? `alcance ${mark(st.attack.range, def.attack.range)}` : 'cuerpo a cuerpo';
+    const range = st.attack.type === 'ranged' ? `range ${mark(st.attack.range, def.attack.range)}` : 'melee';
     return `<h3>${def.label}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
       <div class="row">${doing}</div>${carry}
       <div class="stats">
-        <div>Ataque ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
-        <div>Armadura ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
-        <div>Velocidad ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · Vida ${mark(st.hp, def.hp)}</div>
-        <div class="muted">${CATEGORY_LABELS[st.category]}${st.flies ? ' (vuela)' : ''} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
+        <div>Attack ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
+        <div>Armor ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
+        <div>Speed ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · Health ${mark(st.hp, def.hp)}</div>
+        <div class="muted">${CATEGORY_LABELS[st.category]}${st.flies ? ' (flies)' : ''} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
       </div>`;
   }
 
@@ -297,19 +300,19 @@ export class Hud {
     const def = BUILDING_DEFS[b.type];
     const max = this.state.maxHpOf(b);
     let html = `<h3>${def.label}</h3>${this.ownerLine(b.owner)}${hpBar(b.hp, max)}`;
-    if (b.progress < 1) return html + `<div class="row">En construcción: <b>${Math.floor(b.progress * 100)}%</b></div>`;
+    if (b.progress < 1) return html + `<div class="row">Under construction: <b>${Math.floor(b.progress * 100)}%</b></div>`;
     html += `<div class="row muted">${esc(def.description)}</div>`;
-    if (b.type === 'farm') html += `<div class="row"><span class="icon mini">${ICONS.food}</span>Quedan <b>${b.food ?? 0}</b> de Comida</div>`;
-    if (def.popProvided) html += `<div class="row">Población: +${def.popProvided}</div>`;
-    if (def.attack) html += `<div class="row">Dispara: ${def.attack.damage} de daño, alcance ${def.attack.range} (también a aviones)</div>`;
-    if (b.type === 'gate') html += '<div class="row">Tus unidades y las de tus aliados pasan; los enemigos no.</div>';
+    if (b.type === 'farm') html += `<div class="row"><span class="icon mini">${ICONS.food}</span><b>${b.food ?? 0}</b> Food left</div>`;
+    if (def.popProvided) html += `<div class="row">Population: +${def.popProvided}</div>`;
+    if (def.attack) html += `<div class="row">Shoots: ${def.attack.damage} damage, range ${def.attack.range} (airplanes too)</div>`;
+    if (b.type === 'gate') html += '<div class="row">Your units and your allies pass through; enemies do not.</div>';
     return html;
   }
 
   private ownerLine(owner: number): string {
     const p = this.state.players.get(owner);
     if (!p) return '';
-    const who = owner === this.state.you ? 'Tuyo' : esc(p.name);
+    const who = owner === this.state.you ? 'Yours' : esc(p.name);
     const rel = this.state.spectator || owner === this.state.you ? '' : ` · <span class="rel ${this.state.relation(this.state.you, owner)}">${RELATION_LABELS[this.state.relation(this.state.you, owner)]}</span>`;
     return `<div class="row owner"><i style="background:${p.color}"></i>${who} · ${esc(FACTIONS[p.faction].name)}${rel}</div>`;
   }
@@ -350,15 +353,15 @@ export class Hud {
       })
       .join('');
     const head = RESOURCE_TYPES.map((r) => `<th title="${RESOURCE_LABELS[r]}"><span class="icon mini">${ICONS[r]}</span></th>`).join('');
-    return `<table class="eco"><tr><th>Jugador</th>${head}<th>Pobl.</th><th title="Trabajadores inactivos">Inact.</th><th>Era</th></tr>${rows}</table>`;
+    return `<table class="eco"><tr><th>Player</th>${head}<th>Pop.</th><th title="Idle workers">Idle</th><th>Age</th></tr>${rows}</table>`;
   }
 
   private teacherActions(): string {
     const paused = this.spectator?.paused;
-    return `<button class="act small" data-action="teacher" data-arg="${paused ? 'resume' : 'pause'}">${paused ? '▶ Reanudar' : '⏸ Pausar'}</button>
-      <button class="act small" data-action="teacher" data-arg="end">■ Terminar partida</button>
-      <button class="act small" data-action="teacher" data-arg="back">← Volver al panel</button>
-      <p class="hint">Haz clic en unidades o edificios para ver su información. Arrastra el minimapa para recorrer el mapa.</p>`;
+    return `<button class="act small" data-action="teacher" data-arg="${paused ? 'resume' : 'pause'}">${paused ? '▶ Resume' : '⏸ Pause'}</button>
+      <button class="act small" data-action="teacher" data-arg="end">■ End game</button>
+      <button class="act small" data-action="teacher" data-arg="back">← Back to the panel</button>
+      <p class="hint">Click units or buildings to see their information. Drag on the minimap to move around the map.</p>`;
   }
 
   private actionsHtml(b: BuildingView | undefined): string {
@@ -367,8 +370,8 @@ export class Hud {
     const workers = this.input.ownWorkersSelected();
     if (this.input.ghost) {
       const def = BUILDING_DEFS[this.input.ghost.type];
-      return `<p class="hint"><b>Colocando: ${def.label}</b>. Clic izquierdo para construir (Mayús: varios).
-        Clic derecho o Esc para cancelar. Verde = se puede, rojo = no.</p>`;
+      return `<p class="hint"><b>Placing: ${def.label}</b>. Left click to build (Shift: several).
+        Right click or Esc to cancel. Green = OK, red = not allowed.</p>`;
     }
     if (workers.length > 0) {
       const menu = this.input.buildMenu();
@@ -380,31 +383,31 @@ export class Hud {
       }).join('');
       const next = BUILD_MENU.filter((t) => !menu.includes(t)).map((t) => BUILDING_DEFS[t]);
       const locked = next.length
-        ? `<p class="hint">En la ${eraLabel(next[0].era)}: ${next.filter((d) => d.era === next[0].era).map((d) => d.label).join(', ')}.</p>`
+        ? `<p class="hint">In the ${eraLabel(next[0].era)}: ${next.filter((d) => d.era === next[0].era).map((d) => d.label).join(', ')}.</p>`
         : '';
-      return `${buttons}<button class="act small" data-action="stop" title="Detener">■ Detener</button>${locked}
-        <button class="act small" data-action="delete" title="Eliminar (Supr)">✖ Eliminar</button>
-        <p class="hint">Clic derecho: recurso = recolectar · enemigo = atacar · cimiento o edificio dañado = construir/reparar.</p>`;
+      return `${buttons}<button class="act small" data-action="stop" title="Stop">■ Stop</button>${locked}
+        <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
+        <p class="hint">Right click: resource = gather · enemy = attack · foundation or damaged building = build/repair.</p>`;
     }
     if (own.length > 0) {
-      return `<button class="act small" data-action="stop">■ Detener</button>
-        <button class="act small" data-action="delete" title="Eliminar (Supr)">✖ Eliminar</button>
-        <p class="hint">Clic derecho sobre un enemigo para atacar, o en el suelo para mover.
-        Las tropas quietas atacan solas a los enemigos que ven.</p>`;
+      return `<button class="act small" data-action="stop">■ Stop</button>
+        <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
+        <p class="hint">Right click an enemy to attack, or the ground to move.
+        Idle troops attack the enemies they see on their own.</p>`;
     }
     if (b) {
       const def = BUILDING_DEFS[b.type];
       if (b.progress < 1)
-        return `<button class="act small" data-action="delete" title="Cancelar y recuperar lo que falta por construir">✖ Cancelar construcción</button>
-          <p class="hint">Selecciona trabajadores y haz clic derecho sobre el cimiento para ayudar.</p>`;
+        return `<button class="act small" data-action="delete" title="Cancel and get back what was not built yet">✖ Cancel construction</button>
+          <p class="hint">Select workers and right click the foundation to help.</p>`;
       const actions = this.input.buildingActions(b);
       const buttons = actions.map((a, i) => (a.kind === 'train' ? this.trainButton(a.unit, i) : this.researchButton(a.tech, i))).join('');
-      const rally = actions.some((a) => a.kind === 'train') ? '<p class="hint">Clic derecho en el mapa: punto de reunión (sobre un recurso, los trabajadores nuevos van a recolectar).</p>' : '';
-      const warn = b.needsHouses ? '<p class="warn-text">⚠ Población máxima: construye más casas.</p>' : '';
-      return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete">✖ Eliminar</button>' : ''}${warn}${rally}`;
+      const rally = actions.some((a) => a.kind === 'train') ? '<p class="hint">Right click on the map: rally point (on a resource, new workers go gather it).</p>' : '';
+      const warn = b.needsHouses ? '<p class="warn-text">⚠ Population limit reached: build more houses.</p>' : '';
+      return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete">✖ Delete</button>' : ''}${warn}${rally}`;
     }
-    return `<p class="hint">Arrastra para seleccionar. <b>H</b>: Centro Urbano · <b>.</b>: trabajador inactivo ·
-      <b>WASD</b>/flechas: cámara · rueda: zoom · <b>Q E R T</b>…: construir / entrenar / investigar.</p>`;
+    return `<p class="hint">Drag to select. <b>H</b>: Town Center (advance age there) · <b>.</b>: idle worker ·
+      <b>WASD</b>/arrows: camera · wheel: zoom · <b>Q E R T</b>…: build / train / research.</p>`;
   }
 
   private trainButton(type: UnitType, i: number): string {
@@ -412,7 +415,7 @@ export class Hud {
     const u = UNIT_DEFS[type];
     const st = this.state.statsOf(this.state.you, type);
     const ok = !have || canAfford(have, u.cost);
-    const tip = `${u.label}: ${u.strong}. ${u.weak}.\nVida ${st.hp} · Ataque ${st.attack.damage} · Velocidad ${st.speed.toFixed(1)} · ${u.trainTime} s`;
+    const tip = `${u.label}: ${u.strong}. ${u.weak}.\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
     return `<button class="act with-icon" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${ICONS[type]}</span>
       <b>${u.label}</b><span class="costs">${costHtml(u.cost, have)}</span></button>`;
@@ -423,10 +426,10 @@ export class Hud {
     const t = TECH_DEFS[tech];
     const missing = t.requires && !this.input.hasFinished(t.requires) ? BUILDING_DEFS[t.requires].label : '';
     const ok = !missing && (!have || canAfford(have, t.cost));
-    const tip = `${t.label}: ${t.description}\n${t.time} s${missing ? `\nNecesitas un ${missing} terminado.` : ''}`;
+    const tip = `${t.label}: ${t.description}\n${t.time} s${missing ? `\nYou need a finished ${missing}.` : ''}`;
     return `<button class="act with-icon ${t.advancesTo ? 'era-btn' : 'tech-btn'}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit">${t.advancesTo ? ICONS.era : ICONS.tech}</span>
-      <b>${t.label}</b><span class="costs">${missing ? `<span class="cost short">Falta: ${esc(missing)}</span>` : costHtml(t.cost, have)}</span></button>`;
+      <b>${t.label}</b><span class="costs">${missing ? `<span class="cost short">Needs: ${esc(missing)}</span>` : costHtml(t.cost, have)}</span></button>`;
   }
 
   /** Cola de producción del edificio elegido: clic en un elemento para cancelarlo. */
@@ -434,7 +437,7 @@ export class Hud {
     if (!b.queue || b.queue.length === 0) return '';
     return b.queue
       .map(
-        (q, i) => `<button class="card queue" data-action="cancel" data-arg="${i}" title="Clic para cancelar (devuelve el costo)"
+        (q, i) => `<button class="card queue" data-action="cancel" data-arg="${i}" title="Click to cancel (refunds the cost)"
           style="color:${this.state.color(this.state.you)}">${queueIcon(q)}
           <div class="hp prog"><div style="width:${Math.round(q.progress * 100)}%"></div></div></button>`,
       )

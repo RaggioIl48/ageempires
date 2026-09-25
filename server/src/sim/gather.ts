@@ -115,7 +115,7 @@ function stepGathering(world: World, u: Unit, dt: number): void {
     if (src.kind === 'node') world.removeNode(src.node.id);
     else {
       world.removeBuilding(src.farm.id);
-      world.notify(u.owner, 'Una granja se agotó: construye otra');
+      world.notify(u.owner, 'A farm ran out: build another one');
     }
   }
   if (u.carryAmount >= capacity) startReturn(world, u);
@@ -234,7 +234,7 @@ function startReturn(world: World, u: Unit): void {
   const drop = nearestDropoff(world, u);
   const path = drop ? pathToRect(world, u, drop.tx, drop.ty, drop.size) : null;
   if (!path) {
-    if (!drop) world.notify(u.owner, 'No tienes dónde descargar recursos');
+    if (!drop) world.notify(u.owner, 'You have nowhere to drop off resources');
     stopWork(u);
     return;
   }
