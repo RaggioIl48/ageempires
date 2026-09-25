@@ -4,10 +4,15 @@
 
 import { ERAS, FACTIONS } from '../../shared/data.ts';
 import type { PlayerSummary, ServerMessage } from '../../shared/protocol.ts';
+import { loadArt } from './art.ts';
+import { setupCredits } from './credits.ts';
 import { GameView } from './game.ts';
 import { Net } from './net.ts';
 import { el, esc, LobbyScreen, showScreen, StartScreen, TeacherScreen } from './screens.ts';
 import './style.css';
+
+void loadArt();
+setupCredits();
 
 const isTeacherPage = ['/teacher', '/profesor'].includes(location.pathname.replace(/\/+$/, ''));
 

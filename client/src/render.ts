@@ -17,7 +17,9 @@ import {
   hash,
   healthBar,
   outlineFootprint,
+  unitTop,
 } from './sprites.ts';
+import { drawDyingUnit } from './art.ts';
 import type { ClientState } from './state.ts';
 import { Camera, TILE_H, TILE_W, worldToPx } from './view.ts';
 
@@ -106,10 +108,13 @@ export interface Ghost {
 }
 
 type Drawable =
-  | { depth: number; k: 'unit'; u: UnitView; x: number; y: number }
+  | { depth: number; k: 'unit'; u: UnitView; x: number; y: number; face: number }
   | { depth: number; k: 'node'; n: NodeView }
   | { depth: number; k: 'building'; b: BuildingView }
   | { depth: number; k: 'mountain'; tx: number; ty: number };
+
+/** Cuánto quedan los caídos en el suelo (ms). */
+const CORPSE_MS = 4000;
 
 /** Duración de cada efecto (ms). */
 const EFFECT_MS = { shot: 300, hit: 180, death: 900, destroyed: 1200 } as const;
@@ -181,7 +186,7 @@ export class Renderer {
       const p = state.unitPos(cu, now);
       // Los aviones se dibujan encima de todo.
       const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y });
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y, face: cu.face });
     }
     list.sort((a, b) => a.depth - b.depth);
 
@@ -205,6 +210,17 @@ export class Renderer {
       if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
     }
 
+    // Caídos en combate: su animación de morir, y se desvanecen.
+    state.corpses = state.corpses.filter((c) => now - c.t0 < CORPSE_MS);
+    for (const c of state.corpses) {
+      const age = (now - c.t0) / 1000;
+      const p = worldToPx(c.v.x, c.v.y);
+      if (!inView(c.v.x, c.v.y)) continue;
+      ctx.globalAlpha = Math.min(1, (CORPSE_MS / 1000 - age) / 1.2);
+      drawDyingUnit(ctx, c.v, p.px, p.py, state.color(c.v.owner), state.faction(c.v.owner), c.face, age);
+      ctx.globalAlpha = 1;
+    }
+
     for (const d of list) {
       switch (d.k) {
         case 'mountain': {
@@ -225,7 +241,7 @@ export class Renderer {
         }
         case 'unit': {
           const p = worldToPx(d.x, d.y);
-          drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)));
+          drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)), d.face);
           break;
         }
       }
@@ -237,7 +253,7 @@ export class Renderer {
         const max = state.statsOf(d.u.owner, d.u.type).hp;
         if (d.u.hp < max || sel.units.has(d.u.id)) {
           const p = worldToPx(d.x, d.y);
-          healthBar(ctx, p.px, p.py - UNIT_LOOK[d.u.type].top - 4, d.u.hp / max);
+          healthBar(ctx, p.px, p.py - unitTop(d.u.type, state.faction(d.u.owner)) - 4, d.u.hp / max);
         }
       } else if (d.k === 'building') {
         const max = state.maxHpOf(d.b);

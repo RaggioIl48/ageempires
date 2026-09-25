@@ -1,8 +1,11 @@
 // Arte original hecho con formas simples: unidades, edificios y recursos.
+// Las unidades que tienen hoja de sprites (art.ts) se dibujan con ella; estas
+// formas quedan para el resto y mientras las imágenes cargan.
 // Todo se dibuja en "px del mundo" (la cámara ya está aplicada).
 
 import { BUILDING_DEFS, type FactionId, type ResourceType, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
+import { drawSpriteUnit, spriteTop } from './art.ts';
 import { worldToPx } from './view.ts';
 
 export const RESOURCE_COLORS: Record<ResourceType, string> = {
@@ -938,6 +941,11 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
 /** Altura de vuelo de los aviones (px). */
 export const FLY_HEIGHT = 40;
 
+/** Altura de la figura sobre los pies (px del mundo): la del sprite si tiene. */
+export function unitTop(type: UnitType, faction: FactionId): number {
+  return Math.max(UNIT_LOOK[type].top, spriteTop(faction, type) ?? 0);
+}
+
 /**
  * Dibuja una unidad. `faction` cambia el aspecto (ropa, casco, escudo,
  * caballo) y `elite` marca con una estrella dorada a las unidades mejoradas.
@@ -951,7 +959,24 @@ export function drawUnit(
   now: number,
   faction?: FactionId,
   elite = false,
+  face = Math.PI / 2,
 ): void {
+  // Primero el arte de sprites (proyectos abiertos); si no hay, las formas de abajo.
+  const art = faction && u.type !== 'airplane' ? drawSpriteUnit(ctx, u, x, y, color, now, faction, face, UNIT_LOOK[u.type].half) : null;
+  if (art) {
+    if (u.carryType && u.carryAmount) {
+      ctx.fillStyle = RESOURCE_COLORS[u.carryType];
+      const sz = 2 + Math.min(4, u.carryAmount / 3);
+      ctx.fillRect(x - 7 - sz, y - 14, sz, sz + 2);
+    }
+    if (!art.team) {
+      // Estandarte con el color del jugador (las máquinas no traen color de equipo).
+      line(ctx, x + 12, y - 6, x + 12, y - 26, '#3a3a3a', 1.5);
+      poly(ctx, [x + 12, y - 26, x + 22, y - 23, x + 12, y - 20], color);
+    }
+    if (elite) star(ctx, x, y - art.top - 2, 3.2);
+    return;
+  }
   drawUnitBody(ctx, u, x, y, color, now, lookOf(faction));
   if (elite) {
     const top = u.type === 'airplane' ? y - FLY_HEIGHT - 12 : y - UNIT_LOOK[u.type].top + 1;

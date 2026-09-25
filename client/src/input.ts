@@ -25,7 +25,7 @@ import { hasTech } from '../../shared/stats.ts';
 import { wallLine } from '../../shared/wall.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
-import { buildingHeight, UNIT_LOOK } from './sprites.ts';
+import { buildingHeight, UNIT_LOOK, unitTop } from './sprites.ts';
 import type { ClientState } from './state.ts';
 import { Camera, worldToPx } from './view.ts';
 
@@ -51,7 +51,8 @@ export function pick(state: ClientState, cam: Camera, sx: number, sy: number, no
   for (const cu of state.units.values()) {
     const p = state.unitPos(cu, now);
     const w = worldToPx(p.x, p.y);
-    const { half, top } = UNIT_LOOK[cu.v.type];
+    const { half } = UNIT_LOOK[cu.v.type];
+    const top = unitTop(cu.v.type, state.faction(cu.v.owner));
     const depth = p.x + p.y + (cu.v.type === 'airplane' ? 10_000 : 0); // los aviones van encima
     if (px >= w.px - half && px <= w.px + half && py >= w.py - top && py <= w.py + 5 && depth > bestDepth) {
       best = { kind: 'unit', id: cu.v.id };

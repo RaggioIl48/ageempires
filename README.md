@@ -2,7 +2,8 @@
 
 A multiplayer real-time strategy (RTS) game for the browser, designed for classes.
 Inspired by how classic RTS games play (gathering, building, armies,
-diplomacy), with **100% original** code, art and names.
+diplomacy), with **original** code and names. Unit art comes from **open-licensed**
+projects (LPC and OpenGameArt), with credits inside the game (*Art credits*).
 
 - The teacher runs the server on their computer.
 - Students open a URL in Chrome, Edge, Firefox or Safari (Windows or macOS). They install nothing.
@@ -105,7 +106,25 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 npm run dev        # server (restarts on save) + client with hot reload at http://localhost:5173
 npm test           # automated tests
 npm run typecheck  # type checking
+npm run art        # rebuild the unit art in client/public/art (downloads what it needs)
 ```
+
+### Unit art
+
+Units are drawn with sprite sheets built by `tools/art/build.mjs` from open projects:
+
+- [Universal LPC Spritesheet Character Generator](https://github.com/liberatedpixelcup/Universal-LPC-Spritesheet-Character-Generator)
+  (soldiers and workers: body, clothes, helmets, shields, weapons and tools per people),
+- [[LPC] Horses](https://opengameart.org/content/lpc-horses) and
+  [[LPC] Horse Riding](https://opengameart.org/content/lpc-horse-riding-updated-091) (cavalry),
+- [[LPC] Siege Weapons](https://opengameart.org/content/lpc-siege-weapons) (scorpion and artillery).
+
+Each people's look is described in `tools/art/recipes.mjs`. The build writes the sheets,
+`units.json` (animations, directions, team-color cut-outs) and `credits.json` (authors,
+licenses, links). A test (`server/test/art.test.ts`) fails if an image has no credits or
+if its license is not compatible with all its pieces. The combined images are shared under
+CC-BY-SA 4.0 (see `client/public/art/LICENSE.txt`). Units without art yet (modern era,
+trebuchet, war chariot) keep the drawn shapes.
 
 ## Architecture
 
@@ -119,6 +138,8 @@ server/    Authoritative server (Node.js + ws)
   src/net/   HTTP + WebSocket and sync by changes (sync.ts)
   test/      Tests (Vitest)
 client/    Browser (TypeScript + Canvas 2D, isometric view)
+  public/art/  Unit sprite sheets, manifest and credits (generated)
+tools/art/ Builds the unit art from open-licensed sources
 ```
 
 Key rules:

@@ -126,6 +126,7 @@ export class GuidePanel {
       </details>
       <div class="g-tabs">${tabs}</div>
       <p class="muted">${eraLabel(this.tab)}${this.tab > s.eraOf(s.you) ? ' — not reached yet' : ''}</p>
-      <div class="g-list">${cards || '<p class="muted">No units.</p>'}</div>`;
+      <div class="g-list">${cards || '<p class="muted">No units.</p>'}</div>
+      <p class="muted">Unit art from open projects — <a href="#" data-credits>see the credits</a>.</p>`;
   }
 }

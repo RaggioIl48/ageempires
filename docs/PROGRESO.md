@@ -287,6 +287,36 @@ Technologies are now stored as a hexadecimal text (no limit on how many there ar
 
 **Tests**: 214.
 
+## Unit art from open projects (2026-09-25)
+
+Decision in [ADR-001](adr/ADR-001-arte-de-unidades.md) (accepted): the art may be original **or**
+open-licensed with visible credits, mixing several projects.
+
+**What changed on screen**
+
+- Soldiers, workers, cavalry and two siege machines are now pixel-art sprites instead of shapes,
+  with **walk, attack and death animations** in 4 directions (siege: 8).
+- **Each people looks different** (Total War / AoE references), for example:
+  Romans with bronze legion helmets and *scutum*; Legionaries with segmented armour and red crest;
+  Mongols with pointed helmets, braids and **recurve bows** (also on horseback); Gauls with long red
+  hair, moustaches, long swords and long shields; Germans blond and bearded with round shields and
+  maces; Visigoths and Ostrogoths with conical helmets, mail and heater/kite shields; Vikings with
+  spectacle helmets, axes and round shields, bare-chested Berserkers and hooded Ulfhednar.
+- **Team color**: tunics, capes and shields take each player's color.
+- **Workers** swing an axe (wood), a pickaxe (stone and metal), a hoe (food) and a hammer (building).
+- Units **face** where they walk, their target, or the resource they gather.
+- Fallen soldiers play their death animation and fade.
+- Units without art yet (Industrial/Modern Age, Trebuchet, War Chariot) keep the drawn shapes; if an
+  image fails to load the shapes are used too.
+- **Art credits** screen (start screen and army guide) with every author, license and link.
+
+**How it is built**: `npm run art` (`tools/art/`) downloads only the needed layers (a fixed version
+of the LPC generator, ~320 small PNGs, plus 3 OpenGameArt packs), recolors them per people, marks
+the team-color parts, mounts riders on horses, cuts and packs the animations. Result: 62 sheets,
+2 MB in total (palette PNGs); each client only downloads the sheets of the peoples and units it sees.
+
+**Tests**: 222 (license and coverage check of the art, unit facing and fallen units).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

@@ -1,0 +1,24 @@
+Unit art of Classroom Empires
+=============================
+
+The images in this folder (units/*.png) are combinations of open-licensed artwork:
+
+  - Universal LPC Spritesheet Character Generator
+    https://github.com/liberatedpixelcup/Universal-LPC-Spritesheet-Character-Generator
+  - [LPC] Horses, by bluecarrot16
+    https://opengameart.org/content/lpc-horses
+  - [LPC] Horse Riding, by bigbeargames (based on the horses by bluecarrot16)
+    https://opengameart.org/content/lpc-horse-riding-updated-091
+  - [LPC] Siege Weapons, by bluecarrot16 and Herodom
+    https://opengameart.org/content/lpc-siege-weapons
+
+The full list of works, authors, licenses and links is in credits.json, and each image
+lists the works it uses in units.json ("credits"). The game shows these credits on the
+"Art credits" screen.
+
+Each combined image is shared under the license written in units.json ("license"),
+currently Creative Commons Attribution-ShareAlike 4.0 (CC-BY-SA 4.0):
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The images were built with tools/art/build.mjs (recolored, combined in layers, cut into
+animation frames and packed). The game code is not covered by this file: it is CC0.

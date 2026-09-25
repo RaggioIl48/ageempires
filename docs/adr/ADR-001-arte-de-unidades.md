@@ -1,6 +1,6 @@
 # ADR-001: Arte de unidades con recursos de código abierto
 
-**Estado:** Propuesto
+**Estado:** Aceptado (2026-09-25)
 **Fecha:** 2026-09-25
 **Decide:** Andrés (profesor, dueño del proyecto)
 
@@ -111,7 +111,7 @@ la cobertura es parcial.
 - **Riesgo de trabajo:** 0 A.D. da el mejor resultado pero es lo más caro y necesita
   instalar programas grandes. LPC permite probar rápido y sin instalar nada.
 
-## Decisión (propuesta)
+## Decisión
 
 1. **Preparar el juego para arte real, sin cambiar lo que ya funciona:**
    - hojas de sprites con varias direcciones y animaciones;
@@ -143,14 +143,26 @@ la cobertura es parcial.
 
 ## Acciones
 
-1. [ ] **Aprobar el cambio de regla:** de "arte 100 % original" a "original o con
+1. [x] **Aprobar el cambio de regla:** de "arte 100 % original" a "original o con
        licencia abierta (CC0, CC-BY, OGA-BY, CC-BY-SA, GPL) y créditos visibles".
-2. [ ] **Autorizar la descarga** solo de las capas PNG necesarias del proyecto LPC y de
+2. [x] **Autorizar la descarga** solo de las capas PNG necesarias del proyecto LPC y de
        su `CREDITS.csv` (unas decenas de imágenes, estimado 5–15 MB; **no** el
        repositorio completo de ~1,5 GB).
-3. [ ] Programar el soporte de sprites (direcciones, animaciones, respaldo, manifiesto,
+3. [x] Programar el soporte de sprites (direcciones, animaciones, respaldo, manifiesto,
        prueba de licencias, pantalla de Créditos).
-4. [ ] Piloto LPC: infantería y trabajadores de romanos y vikingos; revisarlo jugando.
+4. [x] LPC para infantería y trabajadores de **los 7 pueblos** (no solo el piloto), más jinetes con [LPC] Horses + [LPC] Horse Riding y asedio con [LPC] Siege Weapons.
 5. [ ] (Opcional) Prueba con 0 A.D. para caballería y asedio; requiere aprobar
        instalar Blender (~300 MB) y bajar datos de 0 A.D. (varios GB).
 6. [ ] Decidir la fuente definitiva y extenderla a los demás pueblos.
+
+## Resultado (2026-09-25)
+
+El dueño del proyecto aprobó ambas acciones y amplió el alcance: se pueden usar **varios proyectos**
+abiertos a la vez, siempre con créditos, y las unidades siguen siendo 2D.
+
+- Se hizo el soporte completo (tools/art, client/src/art.ts, créditos en el juego, prueba de licencias).
+- En vez del piloto de 2 pueblos se armaron los 7: 62 hojas (infantería, trabajadores, caballería,
+  balista y cañón), 2 MB en total.
+- Cada imagen combinada se publica con CC-BY-SA 4.0; la prueba comprueba que todas sus piezas lo permiten.
+- Siguen con formas: era industrial y moderna (salvo el cañón), Fundíbulo y Carro de guerra, y los edificios.
+- La prueba con 0 A.D. (Blender) queda pendiente y opcional.

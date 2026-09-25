@@ -1,0 +1,1388 @@
+{
+ "note": "Unit art built from open-licensed projects. Each image lists the works it uses; see units.json.",
+ "packs": {
+  "lpc": {
+   "title": "Universal LPC Spritesheet Character Generator",
+   "url": "https://github.com/liberatedpixelcup/Universal-LPC-Spritesheet-Character-Generator",
+   "version": "4963a69795255fb15a934c47f478a8bdcf3668f5"
+  },
+  "lpc-horses": {
+   "title": "[LPC] Horses",
+   "url": "https://opengameart.org/content/lpc-horses"
+  },
+  "lpc-horse-riding": {
+   "title": "[LPC] Horse Riding (0.9.0)",
+   "url": "https://opengameart.org/content/lpc-horse-riding-updated-091"
+  },
+  "lpc-siege-weapons": {
+   "title": "[LPC] Siege Weapons",
+   "url": "https://opengameart.org/content/lpc-siege-weapons"
+  }
+ },
+ "items": {
+  "lpc:arms/armour/plate/male": {
+   "pack": "lpc",
+   "title": "Armour",
+   "authors": [
+    "Michael Whitlock (bigbeargames)",
+    "Matthew Krohn (makrohn)",
+    "Johannes Sjölund (wulax)",
+    "bluecarrot16",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "http://opengameart.org/content/lpc-clothing-updates"
+   ],
+   "notes": "original by wulax, recolors by bigbeargames; adapted to v3 bases and further recolors by bluecarrot16, climb/emote/jump by JaidynReiman"
+  },
+  "lpc:beards/beard/basic": {
+   "pack": "lpc",
+   "title": "Basic Beard",
+   "authors": [
+    "JaidynReiman",
+    "Carlo Enrico Victoria (Nemisys)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-white-beard"
+   ],
+   "notes": "Original by Nemisys, repositioning by JaidynReiman."
+  },
+  "lpc:beards/beard/medium": {
+   "pack": "lpc",
+   "title": "Medium Beard",
+   "authors": [
+    "ElizaWy"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Hair",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more"
+   ],
+   "notes": ""
+  },
+  "lpc:beards/beard/trimmed": {
+   "pack": "lpc",
+   "title": "Trimmed Beard",
+   "authors": [
+    "ElizaWy"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Hair",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more"
+   ],
+   "notes": ""
+  },
+  "lpc:beards/beard/winter": {
+   "pack": "lpc",
+   "title": "Winter Beard",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-santa"
+   ],
+   "notes": ""
+  },
+  "lpc:beards/mustache/basic": {
+   "pack": "lpc",
+   "title": "Mustache",
+   "authors": [
+    "JaidynReiman",
+    "Carlo Enrico Victoria (Nemisys)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-brunet-mustache"
+   ],
+   "notes": "Original by Nemisys, repositioning by JaidynReiman."
+  },
+  "lpc:beards/mustache/bigstache": {
+   "pack": "lpc",
+   "title": "Big Mustache",
+   "authors": [
+    "JaidynReiman",
+    "Thane Brimhall (pennomi)",
+    "laetissima"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-base-character-expressions"
+   ],
+   "notes": "Original by Pennomi, repositioning by JaidynReiman."
+  },
+  "lpc:body/bodies/male": {
+   "pack": "lpc",
+   "title": "Body Color",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Benjamin K. Smith (BenCreating)",
+    "Evert",
+    "Eliza Wyatt (ElizaWy)",
+    "TheraHedwig",
+    "MuffinElZangano",
+    "Durrani",
+    "Johannes Sjölund (wulax)",
+    "Stephen Challener (Redshrike)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-male-jumping-animation-by-durrani",
+    "https://opengameart.org/content/lpc-runcycle-and-diagonal-walkcycle",
+    "https://opengameart.org/content/lpc-revised-character-basics",
+    "https://opengameart.org/content/lpc-be-seated",
+    "https://opengameart.org/content/lpc-runcycle-for-male-muscular-and-pregnant-character-bases-with-modular-heads",
+    "https://opengameart.org/content/lpc-jump-expanded",
+    "https://opengameart.org/content/lpc-character-bases"
+   ],
+   "notes": "see details at https://opengameart.org/content/lpc-character-bases; 'Thick' Male Revised Run/Climb by JaidynReiman (based on ElizaWy's LPC Revised)"
+  },
+  "lpc:body/bodies/muscular": {
+   "pack": "lpc",
+   "title": "Body Color",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Evert",
+    "TheraHedwig",
+    "MuffinElZangano",
+    "Durrani",
+    "Sander Frenken (castelonia)",
+    "Benjamin K. Smith (BenCreating)",
+    "Eliza Wyatt (ElizaWy)",
+    "dalonedrau",
+    "Stephen Challener (Redshrike)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-barbarian-sprite-base",
+    "https://opengameart.org/content/lpc-muscular-swing-animation",
+    "https://opengameart.org/content/lpc-muscular-hurt-animation",
+    "https://opengameart.org/content/lpc-jump-expanded",
+    "https://opengameart.org/content/lpc-revised-character-basics",
+    "https://opengameart.org/content/lpc-be-seated",
+    "https://opengameart.org/content/lpc-jump-expanded",
+    "https://opengameart.org/content/lpc-character-bases",
+    "https://opengameart.org/content/lpc-male-jumping-animation-by-durrani"
+   ],
+   "notes": "see details at https://opengameart.org/content/lpc-character-bases"
+  },
+  "lpc:cape/solid/bg": {
+   "pack": "lpc",
+   "title": "Solid",
+   "authors": [
+    "Nila122",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more",
+    "https://opengameart.org/content/lpc-roman-armor"
+   ],
+   "notes": ""
+  },
+  "lpc:cape/solid/fg": {
+   "pack": "lpc",
+   "title": "Solid",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more",
+    "https://opengameart.org/content/lpc-roman-armor",
+    "http://opengameart.org/content/lpc-clothing-updates"
+   ],
+   "notes": ""
+  },
+  "lpc:cape/tattered/bg": {
+   "pack": "lpc",
+   "title": "Tattered",
+   "authors": [
+    "Nila122",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more",
+    "https://opengameart.org/content/lpc-roman-armor"
+   ],
+   "notes": ""
+  },
+  "lpc:cape/tattered/fg": {
+   "pack": "lpc",
+   "title": "Tattered",
+   "authors": [
+    "Nila122",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more",
+    "https://opengameart.org/content/lpc-roman-armor"
+   ],
+   "notes": ""
+  },
+  "lpc:feet/armour/plate": {
+   "pack": "lpc",
+   "title": "Armour",
+   "authors": [
+    "Matthew Krohn (makrohn)",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites"
+   ],
+   "notes": "original by wulax, recolors by bigbeargames, edits for v3 base and recolors by bluecarrot16"
+  },
+  "lpc:feet/boots/basic": {
+   "pack": "lpc",
+   "title": "Basic Boots",
+   "authors": [
+    "JaidynReiman",
+    "bluecarrot16",
+    "Nila122"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-clothes-and-hair",
+    "https://opengameart.org/content/lpc-expanded-socks-shoes"
+   ],
+   "notes": "original by Nila122, edited for male and v3 bases by bluecarrot16, Jump/Sit/Emote/Run/Revised Combat by JaidynReiman"
+  },
+  "lpc:feet/sandals": {
+   "pack": "lpc",
+   "title": "Sandals",
+   "authors": [
+    "Nila122",
+    "JaidynReiman",
+    "Matthew Krohn (makrohn)",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-roman-armor",
+    "http://opengameart.org/content/lpc-clothing-updates",
+    "https://opengameart.org/content/lpc-expanded-socks-shoes"
+   ],
+   "notes": "edited for v3 bases by bluecarrot16, Jump/Sit/Emote/Run/Revised Combat by JaidynReiman"
+  },
+  "lpc:feet/shoes": {
+   "pack": "lpc",
+   "title": "Basic Shoes",
+   "authors": [
+    "JaidynReiman",
+    "bluecarrot16",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "http://opengameart.org/content/lpc-clothing-updates",
+    "https://opengameart.org/content/lpc-expanded-socks-shoes"
+   ],
+   "notes": "original by wulax, edited for v3 base by bluecarrot16, Jump/Sit/Emote/Run/Revised Combat by JaidynReiman"
+  },
+  "lpc:hair/braid": {
+   "pack": "lpc",
+   "title": "Braid",
+   "authors": [
+    "Nila122",
+    "ElizaWy"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0",
+    "GPL 2.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/3-hairs-for-lpc",
+    "https://opengameart.org/content/lpc-hair"
+   ],
+   "notes": ""
+  },
+  "lpc:hair/buzzcut": {
+   "pack": "lpc",
+   "title": "Buzzcut",
+   "authors": [
+    "ElizaWy"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-hair"
+   ],
+   "notes": ""
+  },
+  "lpc:hair/long": {
+   "pack": "lpc",
+   "title": "Long",
+   "authors": [
+    "JaidynReiman",
+    "Manuel Riecke (MrBeast)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-expanded-hair"
+   ],
+   "notes": ""
+  },
+  "lpc:hair/long_messy": {
+   "pack": "lpc",
+   "title": "Long messy",
+   "authors": [
+    "Mandi Paugh",
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "GPL 2.0",
+    "GPL 3.0",
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/puck-overland",
+    "https://opengameart.org/content/lpc-hair"
+   ],
+   "notes": "(puck)"
+  },
+  "lpc:hair/loose": {
+   "pack": "lpc",
+   "title": "Loose",
+   "authors": [
+    "JaidynReiman",
+    "Manuel Riecke (MrBeast)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-expanded-hair"
+   ],
+   "notes": ""
+  },
+  "lpc:hair/parted": {
+   "pack": "lpc",
+   "title": "Parted",
+   "authors": [
+    "JaidynReiman",
+    "Joe White",
+    "Manuel Riecke (MrBeast)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://github.com/jrconway3/Universal-LPC-spritesheet/commit/46ddcf05a0e43e7aa6ffd47d350eef0eb529ac24",
+    "https://opengameart.org/content/lpc-expanded-hair"
+   ],
+   "notes": "down 4 and 5 added by JaidynReiman; recolors by Joe White; original by Manuel Riecke (MrBeast)"
+  },
+  "lpc:hat/accessory/plumage_centurion": {
+   "pack": "lpc",
+   "title": "Centurion Plumage",
+   "authors": [
+    "bluecarrot16",
+    "DCSS authors"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "http://opengameart.org/content/dungeon-crawl-32x32-tiles",
+    "https://opengameart.org/content/cc0-headgear-icons",
+    "https://opengameart.org/content/lpc-helmets-mega-pack",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:hat/accessory/plumage_legion": {
+   "pack": "lpc",
+   "title": "Legion Plumage",
+   "authors": [
+    "bluecarrot16",
+    "Nila122",
+    "JaidynReiman",
+    "Matthew Krohn (makrohn)",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-roman-armor",
+    "https://opengameart.org/content/lpc-helmets-mega-pack",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:hat/cloth/hood": {
+   "pack": "lpc",
+   "title": "Hood",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "Brown hood by Wulax, original black/white recolors by ??, mapped to idle/run/jump/revised combat by JaidynReiman, along with additional recolors."
+  },
+  "lpc:hat/cloth/leather_cap": {
+   "pack": "lpc",
+   "title": "Leather Cap",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "Matthew Krohn (Makrohn)",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "original by Johannes Sjölund (wulax), female by Matthew Krohn, mapped to all frames w/recolors by JaidynReiman"
+  },
+  "lpc:hat/helmet/barbarian": {
+   "pack": "lpc",
+   "title": "Barbarian",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Napsio (Vitruvian Studio)"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-helmets",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "original version by bluecarrot16, color reduction by Napsio (Vitruvian Studio)"
+  },
+  "lpc:hat/helmet/barbarian_nasal": {
+   "pack": "lpc",
+   "title": "Barbarian nasal",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Napsio (Vitruvian Studio)"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-helmets",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "original version by bluecarrot16, color reduction by Napsio (Vitruvian Studio)"
+  },
+  "lpc:hat/helmet/legion": {
+   "pack": "lpc",
+   "title": "Legion",
+   "authors": [
+    "bluecarrot16",
+    "Nila122",
+    "JaidynReiman",
+    "Matthew Krohn (makrohn)",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-roman-armor",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:hat/helmet/nasal": {
+   "pack": "lpc",
+   "title": "Nasal helm",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-helmets",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:hat/helmet/norman": {
+   "pack": "lpc",
+   "title": "Norman helm",
+   "authors": [
+    "ElizaWy",
+    "Sander Frenken (castelonia)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 4.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-realistic-helmet-pack",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:hat/helmet/pointed": {
+   "pack": "lpc",
+   "title": "Pointed helm",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-helmets",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "original version by bluecarrot16, color reduction by JaidynReiman"
+  },
+  "lpc:hat/helmet/spangenhelm": {
+   "pack": "lpc",
+   "title": "Spangenhelm",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-helmets",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:hat/helmet/spangenhelm_viking": {
+   "pack": "lpc",
+   "title": "Viking spangenhelm",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-helmets",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": ""
+  },
+  "lpc:head/heads/human/male": {
+   "pack": "lpc",
+   "title": "Human Male",
+   "authors": [
+    "bluecarrot16",
+    "Benjamin K. Smith (BenCreating)",
+    "Stephen Challener (Redshrike)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-character-bases"
+   ],
+   "notes": "original head by Redshrike, tweaks by BenCreating, modular version by bluecarrot16"
+  },
+  "lpc:legs/pants/male": {
+   "pack": "lpc",
+   "title": "Pants",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "ElizaWy",
+    "Matthew Krohn (makrohn)",
+    "Johannes Sjölund (wulax)",
+    "Stephen Challener (Redshrike)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "GPL 3.0",
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-expanded-pants"
+   ],
+   "notes": "original male pants by wulax, recolors and edits to v3 base by bluecarrot16, climb/jump/run/sit/emotes/revised combat by JaidynReiman based on ElizaWy's LPC Revised"
+  },
+  "lpc:legs/skirts/legion": {
+   "pack": "lpc",
+   "title": "Legion skirt",
+   "authors": [
+    "bluecarrot16",
+    "Nila122",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-roman-armor",
+    "http://opengameart.org/content/lpc-clothing-updates",
+    "https://opengameart.org/content/lpc-expanded-armour"
+   ],
+   "notes": "original by Nila122 to legion, adapted to v3 bases by bluecarrot16, climb/jump/sit/run by JaidynReiman"
+  },
+  "lpc:shield": {
+   "pack": "lpc",
+   "title": "Scutum shield trim",
+   "authors": [
+    "bluecarrot16",
+    "Sander Frenken (castelonia)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-shields"
+   ],
+   "notes": ""
+  },
+  "lpc:shield/heater/revised/paint": {
+   "pack": "lpc",
+   "title": "Revised Heater Shield Paint",
+   "authors": [
+    "bluecarrot16",
+    "ElizaWy",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Shield%2001%20-%20Heater%20Shield",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more"
+   ],
+   "notes": "original by ElizaWy, extended to all animation frames and v3 character base by bluecarrot16, adjusted postioning by JaidynReiman"
+  },
+  "lpc:shield/heater/revised/trim": {
+   "pack": "lpc",
+   "title": "Revised Heater Shield Trim",
+   "authors": [
+    "bluecarrot16",
+    "Sander Frenken (castelonia)",
+    "ElizaWy",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-shields"
+   ],
+   "notes": ""
+  },
+  "lpc:shield/heater/revised/wood": {
+   "pack": "lpc",
+   "title": "Revised Heater Shield Base",
+   "authors": [
+    "bluecarrot16",
+    "Sander Frenken (castelonia)",
+    "ElizaWy",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-shields"
+   ],
+   "notes": ""
+  },
+  "lpc:shield/round": {
+   "pack": "lpc",
+   "title": "Round Shield",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "Michael Whitlock (bigbeargames)",
+    "DarkwallLKE",
+    "Tuomo Untinen (reemax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-shields-pack"
+   ],
+   "notes": ""
+  },
+  "lpc:shield/scutum": {
+   "pack": "lpc",
+   "title": "Scutum shield",
+   "authors": [
+    "bluecarrot16",
+    "Sander Frenken (castelonia)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-shields"
+   ],
+   "notes": ""
+  },
+  "lpc:shoulders/legion": {
+   "pack": "lpc",
+   "title": "Legion",
+   "authors": [
+    "Nila122"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-roman-armor"
+   ],
+   "notes": ""
+  },
+  "lpc:tools/axe": {
+   "pack": "lpc",
+   "title": "Axe",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Pierre Vigier (pvigier)",
+    "Tuomo Untinen (reemax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY 4.0",
+    "CC-BY-SA 3.0",
+    "CC-BY-SA 4.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-hand-tools"
+   ],
+   "notes": "original by bluecarrot16, color reduced by JaidynReiman"
+  },
+  "lpc:tools/hammer": {
+   "pack": "lpc",
+   "title": "Hammer",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Pierre Vigier (pvigier)",
+    "Tuomo Untinen (reemax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY 4.0",
+    "CC-BY-SA 3.0",
+    "CC-BY-SA 4.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-hand-tools"
+   ],
+   "notes": "original by bluecarrot16, color reduced by JaidynReiman"
+  },
+  "lpc:tools/hoe": {
+   "pack": "lpc",
+   "title": "Hoe",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Pierre Vigier (pvigier)",
+    "Johannes Sjölund (wulax)",
+    "Inboxninja"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-hand-tools"
+   ],
+   "notes": "original by bluecarrot16, color reduced by JaidynReiman"
+  },
+  "lpc:tools/pickaxe": {
+   "pack": "lpc",
+   "title": "Pickaxe",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "Pierre Vigier (pvigier)",
+    "Tuomo Untinen (reemax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY 4.0",
+    "CC-BY-SA 3.0",
+    "CC-BY-SA 4.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-hand-tools"
+   ],
+   "notes": "original by bluecarrot16, color reduced by JaidynReiman"
+  },
+  "lpc:torso/armour/leather": {
+   "pack": "lpc",
+   "title": "Leather",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "bluecarrot16",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-clothing-updates",
+    "https://opengameart.org/content/lpc-expanded-armor"
+   ],
+   "notes": "adapted to v3 bases by bluecarrot16, reduced colors and climb/emote/jump by JaidynReiman"
+  },
+  "lpc:torso/armour/legion": {
+   "pack": "lpc",
+   "title": "Legion",
+   "authors": [
+    "Napsio (Vitruvian Studio)",
+    "JaidynReiman",
+    "bluecarrot16",
+    "Nila122"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-roman-armor"
+   ],
+   "notes": "adapted to v3 bases by bluecarrot16, jump/run/sit/combat and teen by JaidynReiman, color reduction to 6 colors inspired by Napsio (Vitruvian Studio)"
+  },
+  "lpc:torso/armour/plate/male": {
+   "pack": "lpc",
+   "title": "Plate",
+   "authors": [
+    "Napsio (Vitruvian Studio)",
+    "JaidynReiman",
+    "bluecarrot16",
+    "Michael Whitlock (bigbeargames)",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-combat-armor-for-women"
+   ],
+   "notes": "original by wulax, recolor by bigbeargames, color reduced to 7 colors and adapted to v3 bases by bluecarrot16, run/jump/sit/climb/revised combat by JaidynReiman, reduced colors to 6 (based on Napsio's Vitruvian)"
+  },
+  "lpc:torso/chainmail": {
+   "pack": "lpc",
+   "title": "Chainmail",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "Napsio (Vitruvian Studio)",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites"
+   ],
+   "notes": "minor edits by bluecarrot16, reduced colors by Napsio, adjusted Male colors and Idle/Sit/Emote/Climb/Run by JaidynReiman"
+  },
+  "lpc:torso/clothes/longsleeve/longsleeve/male": {
+   "pack": "lpc",
+   "title": "Longsleeve",
+   "authors": [
+    "JaidynReiman",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "http://opengameart.org/content/lpc-clothing-updates",
+    "https://opengameart.org/content/lpc-revised-character-basics",
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Clothing",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more",
+    "https://opengameart.org/content/lpc-expanded-simple-shirts"
+   ],
+   "notes": "original by wulax; tweaks and further recolors by bluecarrot16; cleanup and climb/jump/run/sit/emote/revised combat adapted from LPC Revised by JaidynReiman"
+  },
+  "lpc:torso/clothes/shortsleeve/shortsleeve/male": {
+   "pack": "lpc",
+   "title": "Shortsleeve",
+   "authors": [
+    "bluecarrot16",
+    "ElizaWy",
+    "JaidynReiman",
+    "Stephen Challener (Redshrike)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "http://opengameart.org/content/lpc-revised-character-basics",
+    "http://opengameart.org/content/lpc-clothing-updates",
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Clothing",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more",
+    "https://opengameart.org/content/lpc-expanded-simple-shirts"
+   ],
+   "notes": "original by ElizaWy walkcycle only; extended to all animations by adapting from longsleeve, edited to v3 bases by bluecarrot16; cleanup and climb/jump/run/sit/emote/revised combat adapted from LPC Revised by JaidynReiman"
+  },
+  "lpc:torso/clothes/sleeveless/sleeveless2": {
+   "pack": "lpc",
+   "title": "Sleeveless 2",
+   "authors": [
+    "ElizaWy",
+    "JaidynReiman",
+    "Stephen Challener (Redshrike)",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "http://opengameart.org/content/lpc-revised-character-basics",
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Clothing",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more",
+    "https://opengameart.org/content/lpc-expanded-simple-shirts"
+   ],
+   "notes": "original by ElizaWy; sleeveless adapted from original by JaidynReiman"
+  },
+  "lpc:torso/jacket/tabard": {
+   "pack": "lpc",
+   "title": "Tabard",
+   "authors": [
+    "bluecarrot16",
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "http://opengameart.org/content/lpc-clothing-updates"
+   ],
+   "notes": "original by wulax, edited to v3 base by bluecarrot16"
+  },
+  "lpc:torso/waist/belt_leather": {
+   "pack": "lpc",
+   "title": "Leather Belt",
+   "authors": [
+    "bluecarrot16",
+    "Johannes Sjölund (wulax)",
+    "Matthew Krohn (makrohn)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-combat-armor-for-women",
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": ""
+  },
+  "lpc:torso/waist/sash": {
+   "pack": "lpc",
+   "title": "Sash",
+   "authors": [
+    "bluecarrot16",
+    "Nila122"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "GPL 2.0",
+    "GPL 3.0",
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/more-lpc-clothes-and-hair",
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": ""
+  },
+  "lpc:weapon/blunt/mace": {
+   "pack": "lpc",
+   "title": "Mace",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-extended-weapon-animations"
+   ],
+   "notes": ""
+  },
+  "lpc:weapon/blunt/waraxe": {
+   "pack": "lpc",
+   "title": "Waraxe",
+   "authors": [
+    "Benjamin K. Smith (BenCreating)",
+    "bluecarrot16",
+    "Sander Frenken (castelonia)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-weapons"
+   ],
+   "notes": ""
+  },
+  "lpc:weapon/polearm/longspear": {
+   "pack": "lpc",
+   "title": "Long spear",
+   "authors": [
+    "Pierre Vigier (pvigier)",
+    "Johannes Sjölund (wulax)",
+    "Inboxninja"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites"
+   ],
+   "notes": "original by wulax from expansion_pack-0.04 walk animations adapted from those by pvigier, split into layers and tweaked for v3 character bases by bluecarrot16"
+  },
+  "lpc:weapon/polearm/spear": {
+   "pack": "lpc",
+   "title": "Spear",
+   "authors": [
+    "Pierre Vigier (pvigier)",
+    "Johannes Sjölund (wulax)",
+    "Inboxninja"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-spear-and-shovel-reworked"
+   ],
+   "notes": "original by wulax, walk animations redone by pvigier, split into layers and tweaked for v3 character bases by bluecarrot16"
+  },
+  "lpc:weapon/ranged/bow/arrow": {
+   "pack": "lpc",
+   "title": "Ammo",
+   "authors": [
+    "Johannes Sjölund (wulax)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites"
+   ],
+   "notes": ""
+  },
+  "lpc:weapon/ranged/bow/normal": {
+   "pack": "lpc",
+   "title": "Normal",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "Pierre Vigier (pvigier)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "GPL 3.0",
+    "CC-BY 4.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-walk-animations-for-bows"
+   ],
+   "notes": "original by wulax, walk animations by pvigier, split into layers and tweaked for v3 character bases by bluecarrot16. pvigier has agreed to license this sheet as OGA-BY 3.0+."
+  },
+  "lpc:weapon/ranged/bow/recurve": {
+   "pack": "lpc",
+   "title": "Recurve",
+   "authors": [
+    "Daniel Eddeland (daneeklu)",
+    "gr3yh47",
+    "Johannes Sjölund (wulax)",
+    "Pierre Vigier (pvigier)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-weapons-two-bows-a-spear-and-a-trident",
+    "https://opengameart.org/content/lpc-walk-animations-for-bows"
+   ],
+   "notes": "modified by daneeklu, from \"normal\" bow by wulax; walk animations by pvigier; split into layers and tweaked for v3 character bases by bluecarrot16"
+  },
+  "lpc:weapon/sword/arming": {
+   "pack": "lpc",
+   "title": "Arming Sword",
+   "authors": [
+    "ElizaWy; walk and down by JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword",
+    "https://opengameart.org/content/lpc-expanded-sit-run-jump-more"
+   ],
+   "notes": ""
+  },
+  "lpc:weapon/sword/longsword": {
+   "pack": "lpc",
+   "title": "Longsword",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-extended-weapon-animations"
+   ],
+   "notes": ""
+  },
+  "lpc:weapon/sword/saber": {
+   "pack": "lpc",
+   "title": "Saber",
+   "authors": [
+    "Daniel Eddeland (daneeklu)",
+    "Johannes Sjölund (wulax)",
+    "gr3yh47",
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-extended-weapon-animations"
+   ],
+   "notes": ""
+  },
+  "oga:lpc-horse-riding": {
+   "pack": "lpc-horse-riding",
+   "title": "[LPC] Horse Riding (0.9.0)",
+   "authors": [
+    "bigbeargames",
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "GPL 3.0",
+    "GPL 2.0",
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-horse-riding-updated-091"
+   ],
+   "notes": "Horse cut-outs (front and back) and rider offsets, based on [LPC] Horses by bluecarrot16."
+  },
+  "oga:lpc-horses": {
+   "pack": "lpc-horses",
+   "title": "[LPC] Horses",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY 3.0",
+    "GPL 3.0",
+    "GPL 2.0",
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-horses"
+   ],
+   "notes": ""
+  },
+  "oga:lpc-siege-weapons": {
+   "pack": "lpc-siege-weapons",
+   "title": "[LPC] Siege Weapons",
+   "authors": [
+    "bluecarrot16",
+    "Herodom"
+   ],
+   "licenses": [
+    "CC-BY 4.0",
+    "CC-BY 3.0",
+    "GPL 3.0",
+    "GPL 2.0",
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-siege-weapons"
+   ],
+   "notes": ""
+  }
+ }
+}

@@ -22,6 +22,15 @@ export interface ClientUnit {
   v: UnitView;
   prevX: number;
   prevY: number;
+  /** Hacia dónde mira (ángulo en pantalla, y hacia abajo; π/2 = hacia la cámara). */
+  face: number;
+}
+
+/** Unidad recién caída (para animar su muerte unos segundos). */
+export interface Corpse {
+  v: UnitView;
+  face: number;
+  t0: number;
 }
 
 /** Propuesta diplomática pendiente. */
@@ -70,6 +79,7 @@ export class ClientState {
   /** Sube cada vez que cambian los nodos o edificios (para redibujar el minimapa). */
   nodesVersion = 0;
   effects: Effect[] = [];
+  corpses: Corpse[] = [];
   /** Avisos recibidos que la interfaz todavía no mostró. */
   notices: string[] = [];
   // Diplomacia (la decide el servidor; aquí solo se muestra).
@@ -125,6 +135,7 @@ export class ClientState {
         this.economy = null;
         this.economies.clear();
         this.effects = [];
+        this.corpses = [];
         this.rel.clear();
         this.proposals = [];
         this.pendingWars = [];
@@ -160,14 +171,25 @@ export class ClientState {
       const v = decodeUnit(t);
       const old = this.units.get(v.id);
       if (old) old.v = v;
-      else this.units.set(v.id, { v, prevX: v.x, prevY: v.y });
+      else this.units.set(v.id, { v, prevX: v.x, prevY: v.y, face: Math.PI / 2 });
     }
     const p = d.p ?? [];
     for (let i = 0; i + 2 < p.length; i += 3) {
       const cu = this.units.get(p[i]);
       if (cu) cu.v = { ...cu.v, x: p[i + 1] / 100, y: p[i + 2] / 100 };
     }
-    for (const id of d.ur ?? []) this.units.delete(id);
+    for (const cu of this.units.values()) this.updateFace(cu);
+    const events = (d.e ?? []).map(decodeEvent);
+    const deaths = events.filter((e) => e.k === 'death');
+    for (const id of d.ur ?? []) {
+      const cu = this.units.get(id);
+      // Si cayó en combate (hay un evento de muerte donde estaba), queda en el suelo un momento.
+      if (cu && deaths.some((e) => Math.abs(e.x - cu.v.x) < 0.8 && Math.abs(e.y - cu.v.y) < 0.8)) {
+        this.corpses.push({ v: cu.v, face: cu.face, t0: now });
+        if (this.corpses.length > 150) this.corpses.shift();
+      }
+      this.units.delete(id);
+    }
 
     let structural = false;
     for (const t of d.b ?? []) {
@@ -189,7 +211,7 @@ export class ClientState {
     }
     if (structural) this.nodesVersion++;
 
-    for (const e of d.e ?? []) this.effects.push({ e: decodeEvent(e), t0: now });
+    for (const e of events) this.effects.push({ e, t0: now });
     if (d.eco) this.economy = d.eco;
     if (d.ecoAll) this.economies = new Map(Object.entries(d.ecoAll).map(([id, e]) => [Number(id), e]));
     if (d.no) this.notices.push(...d.no);
@@ -217,6 +239,45 @@ export class ClientState {
     }
     this.tick = d.k;
     this.lastStateAt = now;
+  }
+
+  /**
+   * Hacia dónde mira una unidad: hacia donde camina; si pelea o construye, hacia su
+   * objetivo; si recolecta, hacia el recurso de al lado.
+   */
+  private updateFace(cu: ClientUnit): void {
+    const v = cu.v;
+    let dx = v.x - cu.prevX, dy = v.y - cu.prevY;
+    if (!v.walk) {
+      let t: { x: number; y: number } | null = null;
+      if (v.targetId !== undefined && (v.state === 'attacking' || v.state === 'building')) t = this.targetPos(v.targetId);
+      else if (v.state === 'gathering') t = this.nodeNear(v.x, v.y);
+      if (t) [dx, dy] = [t.x - v.x, t.y - v.y];
+    }
+    // Casillas → pantalla (isométrica 2:1).
+    if (dx * dx + dy * dy > 1e-4) cu.face = Math.atan2((dx + dy) * 0.5, dx - dy);
+  }
+
+  private targetPos(id: number): { x: number; y: number } | null {
+    const u = this.units.get(id);
+    if (u) return { x: u.v.x, y: u.v.y };
+    const b = this.buildings.get(id);
+    if (!b) return null;
+    const s = BUILDING_DEFS[b.type].size;
+    return { x: b.tx + s / 2, y: b.ty + s / 2 };
+  }
+
+  /** Centro del recurso más cercano en las casillas vecinas. */
+  private nodeNear(x: number, y: number): { x: number; y: number } | null {
+    let best: { x: number; y: number } | null = null, bd = Infinity;
+    const cx = Math.floor(x), cy = Math.floor(y);
+    for (let ty = cy - 1; ty <= cy + 1; ty++)
+      for (let tx = cx - 1; tx <= cx + 1; tx++) {
+        if (tx < 0 || ty < 0 || tx >= this.size || ty >= this.size || !this.nodeIndex.has(ty * this.size + tx)) continue;
+        const d = (tx + 0.5 - x) ** 2 + (ty + 0.5 - y) ** 2;
+        if (d < bd) [bd, best] = [d, { x: tx + 0.5, y: ty + 0.5 }];
+      }
+    return best;
   }
 
   /** Posición dibujada: interpola entre el estado anterior y el último. */
