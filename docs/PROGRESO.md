@@ -255,6 +255,38 @@ people's strengths, weaknesses and abilities and a short explanation of how comb
 
 **Tests**: 212 (upgrades, 53-bit tech masks, charge, healing, build/train speed, Market, counters).
 
+## More units per people and cost technologies (2026-09-25)
+
+**A third unique unit for each people** (Medieval Age, trained at its unique building, with its own
+elite upgrade):
+
+| People | New unit | Role |
+|---|---|---|
+| Romans | Triarius | Veteran spear line: stops any charge |
+| Mongols | Trebuchet | Huge range, destroys walls and forts; almost useless against units |
+| Gauls | War Chariot | Scythed wheels: crushes infantry and archers |
+| Germans | Chosen Axeman | Breaks shields and gates |
+| Visigoths | Javelin Rider | Mounted skirmisher against other riders |
+| Ostrogoths | Gothic Warband | Cheap and quick to train |
+| Vikings | Ulfhednar | Wolf warriors: raid archers, workers and siege |
+
+**Cost technologies** (units and buildings get cheaper; the server charges the reduced price and a
+cancelled order refunds exactly what was paid):
+
+| Technology | Where | Effect |
+|---|---|---|
+| Supplies | Barracks | Infantry −20% food |
+| Horse Breeding | Stable | Cavalry −20% food |
+| Woodworking Guild | Tech Center | All units −20% wood |
+| Standardized Arms | Tech Center | All units −20% metal |
+| Masons' Guild | Storehouse | Buildings, walls and towers −25% stone |
+| Iron Casting (Industrial) | Workshop | Siege −25% metal and wood |
+| Mass Production (Industrial) | Tech Center | All units −15% wood and metal |
+
+Technologies are now stored as a hexadecimal text (no limit on how many there are; there are 54).
+
+**Tests**: 214.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

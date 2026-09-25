@@ -16,7 +16,7 @@ import {
   type ServerMessage,
   type UnitView,
 } from '../../shared/protocol.ts';
-import { buildingMaxHp, unitLabel, unitStats, type UnitStats } from '../../shared/stats.ts';
+import { NO_TECHS, buildingMaxHp, unitLabel, unitStats, type TechMask, type UnitStats } from '../../shared/stats.ts';
 
 export interface ClientUnit {
   v: UnitView;
@@ -82,7 +82,7 @@ export class ClientState {
   chat: ChatLine[] = [];
   /** Era y tecnologías (máscara) de cada jugador. */
   eras = new Map<number, number>();
-  techs = new Map<number, number>();
+  techs = new Map<number, TechMask>();
   /** Sube cuando alguien cambia de era o investiga algo. */
   techVersion = 0;
   /** Precios del Mercado [comida, madera, piedra], en metal por lote. */
@@ -210,8 +210,8 @@ export class ClientState {
     if (d.mk) this.market = d.mk;
     if (d.pt) {
       for (let i = 0; i + 2 < d.pt.length; i += 3) {
-        this.eras.set(d.pt[i], d.pt[i + 1]);
-        this.techs.set(d.pt[i], d.pt[i + 2]);
+        this.eras.set(Number(d.pt[i]), Number(d.pt[i + 1]));
+        this.techs.set(Number(d.pt[i]), String(d.pt[i + 2]));
       }
       this.techVersion++;
     }
@@ -237,8 +237,8 @@ export class ClientState {
     return this.eras.get(playerId) ?? 1;
   }
 
-  techsOf(playerId: number): number {
-    return this.techs.get(playerId) ?? 0;
+  techsOf(playerId: number): TechMask {
+    return this.techs.get(playerId) ?? NO_TECHS;
   }
 
   /** Estadísticas reales de una unidad (facción y tecnologías de su dueño). */

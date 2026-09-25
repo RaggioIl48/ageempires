@@ -25,7 +25,7 @@ import {
 } from '../../../shared/data.ts';
 import type { GameEvent, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
-import { buildingMaxHp, canAfford, unitStats, type UnitStats } from '../../../shared/stats.ts';
+import { NO_TECHS, buildingMaxHp, canAfford, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
 
 /** Valor de `solid` para las puertas: bloquean solo a quien no es aliado. */
 export const GATE = 2;
@@ -79,6 +79,8 @@ export interface QueueItem {
   unit?: UnitType;
   tech?: TechId;
   progress: number;
+  /** Lo que se cobró al encargarla (se devuelve igual si se cancela). */
+  paid?: Cost;
 }
 
 export interface Building {
@@ -123,8 +125,8 @@ export interface Player {
   kills: number;
   /** Era actual (1 = Tribal … 4 = Moderna). */
   era: number;
-  /** Tecnologías investigadas (máscara de bits, ver stats.ts). */
-  techs: number;
+  /** Tecnologías investigadas (máscara en hexadecimal, ver stats.ts). */
+  techs: TechMask;
 }
 
 export class World {
@@ -216,7 +218,7 @@ export class World {
       gathered: 0,
       kills: 0,
       era: 1,
-      techs: 0,
+      techs: NO_TECHS,
     };
     this.players.set(id, p);
     return p;
@@ -408,8 +410,8 @@ export class World {
   }
 
   /** Tecnologías investigadas por un jugador (máscara). */
-  techsOf(playerId: number): number {
-    return this.players.get(playerId)?.techs ?? 0;
+  techsOf(playerId: number): TechMask {
+    return this.players.get(playerId)?.techs ?? NO_TECHS;
   }
 
   eraOf(playerId: number): number {

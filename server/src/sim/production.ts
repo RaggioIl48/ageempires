@@ -15,13 +15,13 @@ import {
   type TechId,
   type UnitType,
 } from '../../../shared/data.ts';
-import { addTech, buildingMaxHp, hasTech, trainSpeed, unitStats } from '../../../shared/stats.ts';
+import { addTech, buildingMaxHp, hasTech, trainSpeed, unitCost, unitStats } from '../../../shared/stats.ts';
 import { assignGather } from './gather.ts';
 import { moveGroup } from './movement.ts';
 import { freeTilesAround, type Building, type QueueItem, type World } from './world.ts';
 
 function itemCost(item: QueueItem): Cost {
-  return item.tech ? TECH_DEFS[item.tech].cost : UNIT_DEFS[item.unit!].cost;
+  return item.paid ?? (item.tech ? TECH_DEFS[item.tech].cost : UNIT_DEFS[item.unit!].cost);
 }
 
 /** Encarga una unidad. Devuelve un aviso si no se puede, o null si quedó en cola. */
@@ -34,8 +34,9 @@ export function queueUnit(world: World, playerId: number, b: Building, unit: Uni
   if (!unitAvailable(unit, world.eraOf(playerId), world.factionOf(playerId)))
     return world.eraOf(playerId) < def.era ? `${def.label}: you need the ${eraLabel(def.era)}` : `${def.label} is no longer trained in this age`;
   if (b.queue.length >= MAX_QUEUE) return `The queue is full (maximum ${MAX_QUEUE})`;
-  if (!world.spend(playerId, def.cost)) return 'Not enough resources';
-  b.queue.push({ unit, progress: 0 });
+  const cost = unitCost(unit, world.techsOf(playerId));
+  if (!world.spend(playerId, cost)) return 'Not enough resources';
+  b.queue.push({ unit, progress: 0, paid: cost });
   return null;
 }
 

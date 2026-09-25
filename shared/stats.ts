@@ -2,10 +2,10 @@
 // las tecnologías que ya investigó. Las usan el servidor (para simular) y el
 // cliente (para mostrarlas), así ambos siempre coinciden.
 //
-// Las tecnologías de un jugador se guardan como una "máscara" de bits: un
-// número donde cada bit dice si una tecnología ya está investigada. Se usan
-// potencias de 2 con aritmética normal (no `|`/`&`, que solo llegan a 32 bits):
-// así caben hasta 53 tecnologías.
+// Las tecnologías de un jugador se guardan como una "máscara" de bits escrita
+// en hexadecimal (un texto como "1a3f"): cada bit dice si una tecnología ya
+// está investigada. Así no hay límite de tecnologías (un número normal solo
+// guarda 53 bits) y viaja por la red como texto.
 
 import {
   BUILDING_DEFS,
@@ -32,27 +32,42 @@ import {
 } from './data.ts';
 
 export const TECH_IDS = Object.keys(TECH_DEFS) as TechId[];
-if (TECH_IDS.length > 53) throw new Error('Too many technologies for a numeric mask');
-const TECH_BIT = new Map(TECH_IDS.map((t, i) => [t, 2 ** i]));
+const TECH_INDEX = new Map(TECH_IDS.map((t, i) => [t, BigInt(i)]));
 
-export function techBit(t: TechId): number {
-  return TECH_BIT.get(t) ?? 0;
+/** Tecnologías investigadas, en hexadecimal ("0" = ninguna). */
+export type TechMask = string;
+export const NO_TECHS: TechMask = '0';
+
+const toBits = (mask: TechMask): bigint => BigInt('0x' + (mask || '0'));
+const ONE = BigInt(1);
+
+// Leer una máscara es frecuente: se recuerda la lista de cada máscara ya vista.
+const decoded = new Map<TechMask, { list: TechId[]; set: Set<TechId> }>();
+function decode(mask: TechMask) {
+  let d = decoded.get(mask);
+  if (!d) {
+    const bits = toBits(mask);
+    const list = TECH_IDS.filter((t) => ((bits >> TECH_INDEX.get(t)!) & ONE) === ONE);
+    d = { list, set: new Set(list) };
+    decoded.set(mask, d);
+  }
+  return d;
 }
-export function hasTech(mask: number, t: TechId): boolean {
-  const bit = techBit(t);
-  return bit > 0 && Math.floor(mask / bit) % 2 === 1;
+
+export function hasTech(mask: TechMask, t: TechId): boolean {
+  return decode(mask).set.has(t);
 }
 /** Máscara con una tecnología más. */
-export function addTech(mask: number, t: TechId): number {
-  return hasTech(mask, t) ? mask : mask + techBit(t);
+export function addTech(mask: TechMask, t: TechId): TechMask {
+  return (toBits(mask) | (ONE << TECH_INDEX.get(t)!)).toString(16);
 }
 /** Máscara con todas estas tecnologías. */
-export function maskOf(techs: readonly TechId[]): number {
-  return techs.reduce((m, t) => addTech(m, t), 0);
+export function maskOf(techs: readonly TechId[]): TechMask {
+  return techs.reduce((m, t) => addTech(m, t), NO_TECHS);
 }
 /** Tecnologías de una máscara, en orden. */
-export function techsOf(mask: number): TechId[] {
-  return TECH_IDS.filter((t) => hasTech(mask, t));
+export function techsOf(mask: TechMask): TechId[] {
+  return decode(mask).list;
 }
 
 export interface UnitStats {
@@ -70,7 +85,7 @@ export interface UnitStats {
 }
 
 /** Suma las mejoras de la facción, las tecnologías y las evoluciones para un tipo de unidad. */
-function modsFor(faction: FactionId, type: UnitType, mask: number): Required<StatMods> {
+function modsFor(faction: FactionId, type: UnitType, mask: TechMask): Required<StatMods> {
   const cat = UNIT_DEFS[type].category;
   const out = { hp: 1, attack: 1, speed: 1, armor: 0, range: 0, regen: 0 };
   const add = (m: StatMods | undefined) => {
@@ -84,8 +99,7 @@ function modsFor(faction: FactionId, type: UnitType, mask: number): Required<Sta
   };
   add(FACTIONS[faction].units[cat]);
   out.regen += FACTIONS[faction].traits?.regen?.[cat] ?? 0;
-  if (mask)
-    for (const t of techsOf(mask)) {
+  for (const t of techsOf(mask)) {
       add(TECH_DEFS[t].units?.[cat]);
       add(TECH_DEFS[t].unitMods?.[type]);
     }
@@ -95,7 +109,7 @@ function modsFor(faction: FactionId, type: UnitType, mask: number): Required<Sta
 const unitCache = new Map<string, UnitStats>();
 
 /** Estadísticas de un tipo de unidad para una facción (con sus ventajas, desventajas y tecnologías). */
-export function unitStats(faction: FactionId, type: UnitType, mask = 0): UnitStats {
+export function unitStats(faction: FactionId, type: UnitType, mask: TechMask = NO_TECHS): UnitStats {
   const key = `${faction}:${type}:${mask}`;
   let s = unitCache.get(key);
   if (!s) {
@@ -122,15 +136,15 @@ export function unitStats(faction: FactionId, type: UnitType, mask = 0): UnitSta
 }
 
 /** Nombre de la unidad según sus evoluciones (Lancero → Piquero, élites…). */
-export function unitLabel(type: UnitType, mask = 0): string {
+export function unitLabel(type: UnitType, mask: TechMask = NO_TECHS): string {
   let label = UNIT_DEFS[type].label;
-  if (mask) for (const t of techsOf(mask)) label = TECH_DEFS[t].rename?.[type] ?? label;
+  for (const t of techsOf(mask)) label = TECH_DEFS[t].rename?.[type] ?? label;
   return label;
 }
 
 /** ¿Ya evolucionó esta unidad (alguna mejora propia investigada)? */
-export function isUpgraded(type: UnitType, mask = 0): boolean {
-  return mask > 0 && techsOf(mask).some((t) => TECH_DEFS[t].unitMods?.[type] !== undefined);
+export function isUpgraded(type: UnitType, mask: TechMask = NO_TECHS): boolean {
+  return techsOf(mask).some((t) => TECH_DEFS[t].unitMods?.[type] !== undefined);
 }
 
 /** Multiplicador de la carga de caballería de un pueblo. */
@@ -148,27 +162,26 @@ export function buildSpeed(faction: FactionId): number {
   return FACTIONS[faction].traits?.buildSpeed ?? 1;
 }
 
-export function buildingMaxHp(faction: FactionId, type: BuildingType, mask = 0): number {
+export function buildingMaxHp(faction: FactionId, type: BuildingType, mask: TechMask = NO_TECHS): number {
   let f = FACTIONS[faction].buildingHp ?? 1;
-  if (mask) for (const t of techsOf(mask)) f *= TECH_DEFS[t].buildingHp ?? 1;
+  for (const t of techsOf(mask)) f *= TECH_DEFS[t].buildingHp ?? 1;
   return Math.round(BUILDING_DEFS[type].hp * f);
 }
 
 /** Recurso por segundo que recolecta un trabajador de esta facción. */
-export function gatherRate(faction: FactionId, resource: ResourceType, fromFarm = false, mask = 0): number {
+export function gatherRate(faction: FactionId, resource: ResourceType, fromFarm = false, mask: TechMask = NO_TECHS): number {
   let rate = (fromFarm ? FARM_GATHER_RATE : WORKER_GATHER_RATE[resource]) * (FACTIONS[faction].gather?.[resource] ?? 1);
-  if (mask)
-    for (const t of techsOf(mask)) {
-      rate *= TECH_DEFS[t].gather?.[resource] ?? 1;
-      if (fromFarm) rate *= TECH_DEFS[t].farm ?? 1;
-    }
+  for (const t of techsOf(mask)) {
+    rate *= TECH_DEFS[t].gather?.[resource] ?? 1;
+    if (fromFarm) rate *= TECH_DEFS[t].farm ?? 1;
+  }
   return rate;
 }
 
 /** Cuánto carga un trabajador antes de volver al depósito. */
-export function carryCapacity(mask = 0): number {
+export function carryCapacity(mask: TechMask = NO_TECHS): number {
   let c = WORKER_CARRY_CAPACITY;
-  if (mask) for (const t of techsOf(mask)) c += TECH_DEFS[t].carry ?? 0;
+  for (const t of techsOf(mask)) c += TECH_DEFS[t].carry ?? 0;
   return c;
 }
 
@@ -191,6 +204,30 @@ export function damage(
 /** ¿Puede este ataque alcanzar a una unidad que vuela? Solo los ataques a distancia. */
 export function canHitAir(attack: AttackDef): boolean {
   return attack.type === 'ranged';
+}
+
+/** Costo real de una unidad con las tecnologías de eficiencia (Armas estandarizadas…). */
+export function unitCost(type: UnitType, mask: TechMask = NO_TECHS): Cost {
+  const d = UNIT_DEFS[type];
+  const out: Cost = { ...d.cost };
+  for (const t of techsOf(mask)) {
+    const m = TECH_DEFS[t].unitCost;
+    if (!m || (m.cats && !m.cats.includes(d.category))) continue;
+    for (const r of RESOURCE_TYPES) if (out[r] && m.res[r]) out[r] = out[r]! * m.res[r]!;
+  }
+  for (const r of RESOURCE_TYPES) if (out[r]) out[r] = Math.round(out[r]!);
+  return out;
+}
+
+/** Costo real de un edificio con las tecnologías de eficiencia (Gremio de canteros…). */
+export function buildingCost(type: BuildingType, mask: TechMask = NO_TECHS): Cost {
+  const out: Cost = { ...BUILDING_DEFS[type].cost };
+  for (const t of techsOf(mask)) {
+    const m = TECH_DEFS[t].buildingCost;
+    if (m) for (const r of RESOURCE_TYPES) if (out[r] && m[r]) out[r] = out[r]! * m[r]!;
+  }
+  for (const r of RESOURCE_TYPES) if (out[r]) out[r] = Math.max(1, Math.round(out[r]!));
+  return out;
 }
 
 export function canAfford(res: Resources, cost: Cost): boolean {

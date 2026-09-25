@@ -184,7 +184,7 @@ export class ClientSync {
     // Era y tecnologías de todos (se ven las eras de los rivales, como en los RTS clásicos).
     if (w.techVersion !== this.lastTech) {
       this.lastTech = w.techVersion;
-      const pt: number[] = [];
+      const pt: (number | string)[] = [];
       for (const pl of w.players.values()) pt.push(pl.id, pl.era, pl.techs);
       msg.pt = pt;
     }

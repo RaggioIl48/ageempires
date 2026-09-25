@@ -9,7 +9,7 @@ import {
   RESOURCE_TYPES,
   type Cost,
 } from '../../../shared/data.ts';
-import { buildSpeed } from '../../../shared/stats.ts';
+import { buildSpeed, buildingCost } from '../../../shared/stats.ts';
 import { assignFarm, farmTaken, stopWork } from './gather.ts';
 import { pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Unit, type World } from './world.ts';
@@ -112,7 +112,7 @@ export function updateBuilders(world: World, dt: number): void {
 function repair(world: World, b: Building, builders: Unit[], amount: number): void {
   const dhp = Math.min(b.maxHp - b.hp, amount);
   if (dhp <= 0) return;
-  const cost = BUILDING_DEFS[b.type].cost;
+  const cost = buildingCost(b.type, world.techsOf(b.owner));
   const frac = (dhp / b.maxHp) * REPAIR_COST_FACTOR;
   const charge: Cost = {};
   const owed = { ...b.repairOwed };

@@ -14,7 +14,7 @@ import {
   type FactionId,
 } from '../../shared/data.ts';
 import { parseClientMessage } from '../../shared/protocol.ts';
-import { addTech, gatherRate, hasTech, isUpgraded, maskOf, techBit, unitLabel, unitStats } from '../../shared/stats.ts';
+import { NO_TECHS, addTech, gatherRate, hasTech, isUpgraded, maskOf, unitLabel, unitStats } from '../../shared/stats.ts';
 import { completeTech } from '../src/sim/production.ts';
 import { flatGame, run, runUntil } from './helpers.ts';
 
@@ -32,14 +32,16 @@ function game(factions: [FactionId, FactionId] = ['romans', 'vikings'], era = 2)
 }
 
 describe('technology masks', () => {
-  it('more than 32 technologies fit in the mask (no 32-bit overflow)', () => {
+  it('any number of technologies fits in the mask (it is a hexadecimal text)', () => {
     const all = Object.keys(TECH_DEFS) as (keyof typeof TECH_DEFS)[];
-    expect(all.length).toBeGreaterThan(32);
+    expect(all.length).toBeGreaterThan(53);
     const m = maskOf(all);
+    expect(typeof m).toBe('string');
     for (const t of all) expect(hasTech(m, t), t).toBe(true);
     const last = all[all.length - 1];
-    expect(hasTech(techBit(last), all[0])).toBe(false);
-    expect(addTech(addTech(0, last), last)).toBe(techBit(last)); // adding twice changes nothing
+    expect(hasTech(maskOf([last]), all[0])).toBe(false);
+    expect(addTech(addTech(NO_TECHS, last), last)).toBe(maskOf([last])); // adding twice changes nothing
+    expect(hasTech(NO_TECHS, 'tools')).toBe(false);
   });
 });
 
@@ -210,5 +212,36 @@ describe('unit guide counters', () => {
     expect(goodAgainst('rifleman').join()).toMatch(/Aircraft/);
     expect(weakAgainst('tank').join()).toMatch(/Anti-tank/);
     expect(weakAgainst('airplane').join()).toMatch(/only ranged/);
+  });
+});
+
+describe('cost technologies (units and buildings get cheaper)', () => {
+  it('Standardized Arms: units cost 20% less metal; Woodworking: 20% less wood; they stack with Mass Production', async () => {
+    const { unitCost, buildingCost } = await import('../../shared/stats.ts');
+    expect(unitCost('knight', maskOf(['standard_arms'])).metal).toBe(Math.round(UNIT_DEFS.knight.cost.metal! * 0.8));
+    expect(unitCost('archer', maskOf(['woodworking'])).wood).toBe(Math.round(UNIT_DEFS.archer.cost.wood! * 0.8));
+    expect(unitCost('archer', maskOf(['woodworking', 'mass_production'])).wood).toBe(Math.round(UNIT_DEFS.archer.cost.wood! * 0.8 * 0.85));
+    // Supplies only for infantry; Horse Breeding only for cavalry.
+    expect(unitCost('spearman', maskOf(['supplies'])).food).toBe(Math.round(UNIT_DEFS.spearman.cost.food! * 0.8));
+    expect(unitCost('knight', maskOf(['supplies'])).food).toBe(UNIT_DEFS.knight.cost.food);
+    expect(unitCost('knight', maskOf(['horse_breeding'])).food).toBe(Math.round(UNIT_DEFS.knight.cost.food! * 0.8));
+    // Masons' Guild: buildings, walls and towers need less stone.
+    expect(buildingCost('tower', maskOf(['masons_guild'])).stone).toBe(Math.round(BUILDING_DEFS.tower.cost.stone! * 0.75));
+  });
+
+  it('the server charges the reduced price and refunds exactly what was paid', () => {
+    const { g, w } = game(['romans', 'vikings']);
+    const stable = w.addBuilding('stable', 1, 12, 12)!;
+    const center = w.addBuilding('tech_center', 1, 16, 12)!;
+    g.enqueue(1, { kind: 'research', buildingId: center.id, tech: 'standard_arms' });
+    run(g, TECH_DEFS.standard_arms.time + 1);
+    const p = w.players.get(1)!;
+    const metal = p.resources.metal;
+    g.enqueue(1, { kind: 'train', buildingId: stable.id, unit: 'knight' });
+    g.step();
+    expect(p.resources.metal).toBe(metal - Math.round(UNIT_DEFS.knight.cost.metal! * 0.8));
+    g.enqueue(1, { kind: 'cancelTrain', buildingId: stable.id, index: 0 });
+    g.step();
+    expect(p.resources.metal).toBe(metal);
   });
 });

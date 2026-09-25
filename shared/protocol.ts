@@ -254,8 +254,8 @@ export interface DeltaMessage {
   clk?: [number, number];
   /** Diplomacia (solo cuando cambia, o cada segundo si hay plazos corriendo). */
   dip?: DiploView;
-  /** Era y tecnologías de cada jugador: [id, era, máscara, …] (cuando cambian). */
-  pt?: number[];
+  /** Era y tecnologías de cada jugador: [id, era, máscara (hexadecimal), …] (cuando cambian). */
+  pt?: (number | string)[];
   /** Precios del Mercado [comida, madera, piedra] (cuando cambian). */
   mk?: number[];
 }

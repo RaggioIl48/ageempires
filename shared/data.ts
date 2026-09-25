@@ -109,7 +109,8 @@ export type UnitType =
   | 'chosen_spearman' | 'axe_thrower'
   | 'gothic_knight' | 'armored_archer'
   | 'gothic_lancer' | 'heavy_spearman'
-  | 'berserker' | 'huscarl';
+  | 'berserker' | 'huscarl'
+  | 'triarius' | 'trebuchet' | 'war_chariot' | 'chosen_axeman' | 'javelin_rider' | 'gothic_warband' | 'ulfhednar';
 
 export interface UnitDef {
   label: string;
@@ -311,6 +312,49 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     bonus: { infantry: 1.4, building: 2 },
     strong: 'Elite guard with a great axe', weak: 'Expensive',
   },
+
+  // ---- Third unique unit of each people ----
+  triarius: {
+    label: 'Triarius', hp: 95, speed: 1.1, sight: 4, pop: 1, cost: { food: 70, metal: 50 }, trainTime: 24,
+    attack: melee(8, 1.6), armor: { melee: 3, ranged: 3 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans',
+    bonus: { cavalry: 2.5 },
+    strong: 'Veteran spear line: stops any charge', weak: 'Very slow',
+  },
+  trebuchet: {
+    label: 'Trebuchet', shot: 'shell', hp: 120, speed: 0.6, sight: 9, pop: 1, cost: { wood: 250, metal: 150 }, trainTime: 45,
+    attack: ranged(90, 11, 7), armor: { melee: 1, ranged: 5 }, category: 'siege', era: 2, untilEra: 2, faction: 'mongols',
+    bonus: { building: 4, infantry: 0.4, cavalry: 0.4, ranged: 0.4, worker: 0.4 },
+    strong: 'Huge range: flattens walls and forts', weak: 'Almost useless against units; very slow',
+  },
+  war_chariot: {
+    label: 'War Chariot', hp: 140, speed: 2.4, sight: 6, pop: 1, cost: { food: 90, wood: 60, metal: 30 }, trainTime: 26,
+    attack: melee(10, 1.6), armor: { melee: 2, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'gauls',
+    bonus: { infantry: 1.5, ranged: 1.5, worker: 1.5 },
+    strong: 'Scythed wheels crash through infantry and archers', weak: 'Loses to spearmen',
+  },
+  chosen_axeman: {
+    label: 'Chosen Axeman', hp: 75, speed: 1.35, sight: 4, pop: 1, cost: { food: 65, metal: 35 }, trainTime: 20,
+    attack: melee(11), armor: { melee: 1, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'germans',
+    bonus: { infantry: 1.4, building: 2 },
+    strong: 'Axes break shields and gates', weak: 'Loses to archers',
+  },
+  javelin_rider: {
+    label: 'Javelin Rider', hp: 85, speed: 2.5, sight: 6, pop: 1, cost: { food: 70, wood: 40, metal: 30 }, trainTime: 22,
+    attack: ranged(8, 4, 2), armor: { melee: 1, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
+    bonus: { cavalry: 1.5, ranged: 1.5 },
+    strong: 'Mounted skirmisher: javelins hurt other riders', weak: 'Short range; loses to spearmen',
+  },
+  gothic_warband: {
+    label: 'Gothic Warband', hp: 60, speed: 1.45, sight: 4, pop: 1, cost: { food: 45, wood: 15 }, trainTime: 11,
+    attack: melee(8), armor: { melee: 1, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, faction: 'ostrogoths',
+    strong: 'Cheap and quick to train: fills the ranks', weak: 'Light armor',
+  },
+  ulfhednar: {
+    label: 'Ulfhednar', hp: 60, speed: 1.9, sight: 5, pop: 1, cost: { food: 60, wood: 25 }, trainTime: 15,
+    attack: melee(10, 1.3), armor: { melee: 0, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
+    bonus: { ranged: 1.6, worker: 2, siege: 1.6 },
+    strong: 'Wolf warriors: raid archers, workers and siege', weak: 'No armor; loses to cavalry',
+  },
 };
 
 /** Economía del trabajador: cuánto carga y a qué ritmo recolecta (unidades/seg). */
@@ -383,7 +427,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   storehouse: {
     label: 'Storehouse', description: 'Resource drop-off. Build it near forests and mines to save walking.',
     size: 2, hp: 800, cost: { wood: 60 }, buildTime: 25, popProvided: 0, dropoff: RESOURCE_TYPES, trains: [],
-    researches: ['double_axe', 'stone_mining', 'metal_mining', 'horse_collar', 'bow_saw', 'shaft_mining'],
+    researches: ['double_axe', 'stone_mining', 'metal_mining', 'horse_collar', 'masons_guild', 'bow_saw', 'shaft_mining'],
     armor: DEFENSE, sight: 3, solid: true, buildable: true, era: 1,
   },
   farm: {
@@ -394,7 +438,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
     size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['warrior', 'scout', 'spearman', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'veteran_riflemen'],
+    trains: ['warrior', 'scout', 'spearman', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 1,
   },
   archery_range: {
@@ -404,13 +448,13 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   },
   stable: {
     label: 'Stable', description: 'Trains scouts and knights.',
-    size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [], trains: ['scout', 'knight'], researches: ['light_cavalry', 'cavalier'],
+    size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [], trains: ['scout', 'knight'], researches: ['light_cavalry', 'cavalier', 'horse_breeding'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 2,
   },
   tech_center: {
     label: 'Tech Center', description: 'Researches military and economic upgrades. Needed for the Industrial Age.',
     size: 3, hp: 1400, cost: { wood: 200, stone: 100 }, buildTime: 50, popProvided: 0, dropoff: [], trains: [],
-    researches: ['forge', 'armor_tech', 'masonry', 'ballistics', 'machinery', 'plating'],
+    researches: ['forge', 'armor_tech', 'masonry', 'woodworking', 'standard_arms', 'ballistics', 'machinery', 'mass_production', 'plating'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 2,
   },
   tower: {
@@ -431,7 +475,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   workshop: {
     label: 'Workshop', description: 'Builds artillery.',
     size: 3, hp: 1400, cost: { wood: 200, metal: 100 }, buildTime: 50, popProvided: 0, dropoff: [],
-    trains: ['artillery', 'heavy_artillery'], researches: [],
+    trains: ['artillery', 'heavy_artillery'], researches: ['iron_casting'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 3,
   },
   factory: {
@@ -449,45 +493,45 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
 
   // ---- Unique buildings (Medieval Age) ----
   castrum: {
-    label: 'Castrum', description: 'Roman fort: shoots arrows. Trains Legionaries and Scorpions.',
+    label: 'Castrum', description: 'Roman fort: shoots arrows. Trains Legionaries, Scorpions and Triarii.',
     size: 3, hp: 2200, cost: { wood: 150, stone: 150 }, buildTime: 60, popProvided: 0, dropoff: [],
-    trains: ['legionary', 'scorpion'], researches: ['elite_legionary', 'elite_scorpion'],
+    trains: ['legionary', 'scorpion', 'triarius'], researches: ['elite_legionary', 'elite_scorpion', 'elite_triarius'],
     armor: { melee: 3, ranged: 7 }, sight: 7, attack: ranged(6, 6, 2), solid: true, buildable: true, era: 2, faction: 'romans',
   },
   ordu: {
-    label: 'Ordu', description: "The Khan's camp: +10 population. Trains Horse Archers and Keshig.",
+    label: 'Ordu', description: "The Khan's camp: +10 population. Trains Horse Archers, Keshig and Trebuchets.",
     size: 3, hp: 1000, cost: { wood: 120, food: 80 }, buildTime: 35, popProvided: 10, dropoff: [],
-    trains: ['horse_archer', 'keshig'], researches: ['elite_horse_archer', 'elite_keshig'],
+    trains: ['horse_archer', 'keshig', 'trebuchet'], researches: ['elite_horse_archer', 'elite_keshig', 'elite_trebuchet'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'mongols',
   },
   nemeton: {
-    label: 'Nemeton', description: 'Sacred grove of the druids: heals your units nearby. Built with wood only. Trains Naked Fanatics and Chosen Swordsmen.',
+    label: 'Nemeton', description: 'Sacred grove of the druids: heals your units nearby. Built with wood only. Trains Naked Fanatics, Chosen Swordsmen and War Chariots.',
     size: 3, hp: 1100, cost: { wood: 220 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['fanatic', 'chosen_swordsman'], researches: ['elite_fanatic', 'elite_chosen_swordsman'],
+    trains: ['fanatic', 'chosen_swordsman', 'war_chariot'], researches: ['elite_fanatic', 'elite_chosen_swordsman', 'elite_war_chariot'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'gauls', healAura: { radius: 6, hps: 2 },
   },
   war_hall: {
-    label: 'War Hall', description: 'Hall of the war chiefs: food and wood drop-off. Trains Chosen Spearmen and Axe Throwers.',
+    label: 'War Hall', description: 'Hall of the war chiefs: food and wood drop-off. Trains Chosen Spearmen, Axe Throwers and Chosen Axemen.',
     size: 3, hp: 1300, cost: { wood: 200 }, buildTime: 45, popProvided: 0, dropoff: ['food', 'wood'],
-    trains: ['chosen_spearman', 'axe_thrower'], researches: ['elite_chosen_spearman', 'elite_axe_thrower'],
+    trains: ['chosen_spearman', 'axe_thrower', 'chosen_axeman'], researches: ['elite_chosen_spearman', 'elite_axe_thrower', 'elite_chosen_axeman'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'germans',
   },
   royal_hall: {
-    label: 'Royal Hall', description: 'Court of the Visigoth kings: drop-off for all resources. Trains Gothic Knights and Armored Archers.',
+    label: 'Royal Hall', description: 'Court of the Visigoth kings: drop-off for all resources. Trains Gothic Knights, Armored Archers and Javelin Riders.',
     size: 3, hp: 1500, cost: { wood: 150, stone: 100 }, buildTime: 50, popProvided: 0, dropoff: RESOURCE_TYPES,
-    trains: ['gothic_knight', 'armored_archer'], researches: ['elite_gothic_knight', 'elite_armored_archer'],
+    trains: ['gothic_knight', 'armored_archer', 'javelin_rider'], researches: ['elite_gothic_knight', 'elite_armored_archer', 'elite_javelin_rider'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'visigoths',
   },
   royal_palace: {
-    label: 'Royal Palace', description: "Theodoric's palace: +5 population and stone/metal drop-off. Trains Gothic Lancers and Heavy Spearmen.",
+    label: 'Royal Palace', description: "Theodoric's palace: +5 population and stone/metal drop-off. Trains Gothic Lancers, Heavy Spearmen and Gothic Warbands.",
     size: 3, hp: 1500, cost: { wood: 150, stone: 120 }, buildTime: 50, popProvided: 5, dropoff: ['stone', 'metal'],
-    trains: ['gothic_lancer', 'heavy_spearman'], researches: ['elite_gothic_lancer', 'elite_heavy_spearman'],
+    trains: ['gothic_lancer', 'heavy_spearman', 'gothic_warband'], researches: ['elite_gothic_lancer', 'elite_heavy_spearman', 'elite_gothic_warband'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'ostrogoths',
   },
   mead_hall: {
-    label: 'Mead Hall', description: 'Great longhouse: +5 population and food/wood drop-off. Trains Berserkers and Huscarls.',
+    label: 'Mead Hall', description: 'Great longhouse: +5 population and food/wood drop-off. Trains Berserkers, Huscarls and Ulfhednar.',
     size: 3, hp: 1300, cost: { wood: 200 }, buildTime: 45, popProvided: 5, dropoff: ['food', 'wood'],
-    trains: ['berserker', 'huscarl'], researches: ['elite_berserker', 'elite_huscarl'],
+    trains: ['berserker', 'huscarl', 'ulfhednar'], researches: ['elite_berserker', 'elite_huscarl', 'elite_ulfhednar'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'vikings',
   },
 };
@@ -556,6 +600,7 @@ export interface StatMods {
 export const UNIQUE_UNITS = [
   'legionary', 'scorpion', 'horse_archer', 'keshig', 'fanatic', 'chosen_swordsman', 'chosen_spearman',
   'axe_thrower', 'gothic_knight', 'armored_archer', 'gothic_lancer', 'heavy_spearman', 'berserker', 'huscarl',
+  'triarius', 'trebuchet', 'war_chariot', 'chosen_axeman', 'javelin_rider', 'gothic_warband', 'ulfhednar',
 ] as const;
 export type UniqueUnitType = (typeof UNIQUE_UNITS)[number];
 
@@ -564,7 +609,8 @@ type BaseTechId =
   | 'tools' | 'wheelbarrow' | 'plow' | 'hand_cart'
   | 'double_axe' | 'stone_mining' | 'metal_mining' | 'horse_collar' | 'bow_saw' | 'shaft_mining'
   | 'forge' | 'armor_tech' | 'masonry' | 'ballistics' | 'machinery' | 'plating'
-  | 'man_at_arms' | 'pikeman' | 'crossbow' | 'light_cavalry' | 'cavalier' | 'veteran_riflemen' | 'armored_cars';
+  | 'man_at_arms' | 'pikeman' | 'crossbow' | 'light_cavalry' | 'cavalier' | 'veteran_riflemen' | 'armored_cars'
+  | 'supplies' | 'horse_breeding' | 'woodworking' | 'standard_arms' | 'masons_guild' | 'iron_casting' | 'mass_production';
 export type TechId = BaseTechId | `elite_${UniqueUnitType}`;
 
 export interface TechDef {
@@ -589,6 +635,10 @@ export interface TechDef {
   farm?: number;
   carry?: number;
   buildingHp?: number;
+  /** Abarata las unidades: multiplica su costo (`cats`: solo esos tipos; si falta, todas). */
+  unitCost?: { cats?: Category[]; res: Partial<Record<ResourceType, number>> };
+  /** Abarata los edificios: multiplica su costo. */
+  buildingCost?: Partial<Record<ResourceType, number>>;
 }
 
 const BASE_TECHS: Record<BaseTechId, TechDef> = {
@@ -670,6 +720,35 @@ const BASE_TECHS: Record<BaseTechId, TechDef> = {
   plating: {
     label: 'Plating', description: 'Tanks and airplanes: +15% hit points and +2 armor.',
     cost: { metal: 400 }, time: 75, era: 4, units: { armor: { hp: 1.15, armor: 2 }, air: { hp: 1.15, armor: 2 } },
+  },
+  // ---- Eficiencia: unidades y edificios más baratos ----
+  supplies: {
+    label: 'Supplies', description: 'Infantry costs 20% less food.',
+    cost: { food: 150, wood: 100 }, time: 35, era: 2, unitCost: { cats: ['infantry'], res: { food: 0.8 } },
+  },
+  horse_breeding: {
+    label: 'Horse Breeding', description: 'Cavalry costs 20% less food.',
+    cost: { food: 150, wood: 150 }, time: 40, era: 2, unitCost: { cats: ['cavalry'], res: { food: 0.8 } },
+  },
+  woodworking: {
+    label: 'Woodworking Guild', description: 'All units cost 20% less wood (bows, spears, siege engines).',
+    cost: { food: 150, wood: 100 }, time: 40, era: 2, unitCost: { res: { wood: 0.8 } },
+  },
+  standard_arms: {
+    label: 'Standardized Arms', description: 'All units cost 20% less metal.',
+    cost: { food: 250, wood: 150 }, time: 50, era: 2, unitCost: { res: { metal: 0.8 } },
+  },
+  masons_guild: {
+    label: "Masons' Guild", description: 'All buildings, walls and towers cost 25% less stone.',
+    cost: { food: 150, wood: 100 }, time: 40, era: 2, buildingCost: { stone: 0.75 },
+  },
+  iron_casting: {
+    label: 'Iron Casting', description: 'Siege and artillery cost 25% less metal and wood.',
+    cost: { food: 200, metal: 100 }, time: 45, era: 3, unitCost: { cats: ['siege'], res: { metal: 0.75, wood: 0.75 } },
+  },
+  mass_production: {
+    label: 'Mass Production', description: 'All units cost 15% less wood and metal.',
+    cost: { wood: 300, metal: 300 }, time: 60, era: 3, unitCost: { res: { wood: 0.85, metal: 0.85 } },
   },
   // ---- Evoluciones de unidades (como en AoE) ----
   man_at_arms: {

@@ -21,11 +21,11 @@ function medievalGame(factions: [FactionId, FactionId] = ['romans', 'vikings']) 
 }
 
 describe('historical peoples', () => {
-  it('there are 7 peoples, each with 2 unique Medieval units and 1 unique building', () => {
+  it('there are 7 peoples, each with 3 unique Medieval units and 1 unique building', () => {
     expect(FACTION_ORDER).toEqual(['romans', 'mongols', 'gauls', 'germans', 'visigoths', 'ostrogoths', 'vikings']);
     for (const f of FACTION_ORDER) {
       const u = uniquesOf(f);
-      expect(u.units, f).toHaveLength(2);
+      expect(u.units, f).toHaveLength(3);
       expect(u.building, f).toBeDefined();
       const b = BUILDING_DEFS[u.building!];
       expect(b.era).toBe(2);

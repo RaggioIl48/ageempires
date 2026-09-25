@@ -11,7 +11,7 @@ import type {
   PlayerView,
   UnitView,
 } from '../../../shared/protocol.ts';
-import { canHitAir, scaleCost } from '../../../shared/stats.ts';
+import { buildingCost, canHitAir, scaleCost } from '../../../shared/stats.ts';
 import { wallLine } from '../../../shared/wall.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
 import { assignAttack, removeDead, targetOf, updateCombat } from './combat.ts';
@@ -135,14 +135,14 @@ export class Game {
         if (cmd.building === 'gate') {
           const old = w.buildings.get(w.inBounds(cmd.tx, cmd.ty) ? w.occupant[cmd.ty * w.size + cmd.tx] : 0);
           if (old && old.owner === playerId && old.type === 'wall') {
-            if (!w.canAfford(playerId, def.cost)) return w.notify(playerId, 'Not enough resources');
+            if (!w.canAfford(playerId, buildingCost('gate', w.techsOf(playerId)))) return w.notify(playerId, 'Not enough resources');
             w.removeBuilding(old.id);
           }
         }
         if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
         if (error) return w.notify(playerId, error);
-        if (!w.spend(playerId, def.cost)) return w.notify(playerId, 'Not enough resources');
+        if (!w.spend(playerId, buildingCost(cmd.building, w.techsOf(playerId)))) return w.notify(playerId, 'Not enough resources');
         const b = w.addBuilding(cmd.building, playerId, cmd.tx, cmd.ty, false)!;
         for (const u of workers) assignBuild(w, u, b);
         break;
@@ -155,7 +155,7 @@ export class Game {
         let poor = false;
         for (const t of wallLine(cmd.x0, cmd.y0, cmd.x1, cmd.y1)) {
           if (w.placementError('wall', t.x, t.y)) continue; // lo ocupado se salta
-          if (!w.spend(playerId, def.cost)) {
+          if (!w.spend(playerId, buildingCost('wall', w.techsOf(playerId)))) {
             poor = true;
             break;
           }
@@ -231,7 +231,7 @@ export class Game {
       const b = w.buildings.get(id);
       if (b && b.owner === playerId) {
         // Un cimiento sin terminar devuelve lo que falta por construir.
-        if (b.progress < 1) w.refund(playerId, scaleCost(BUILDING_DEFS[b.type].cost, 1 - b.progress));
+        if (b.progress < 1) w.refund(playerId, scaleCost(buildingCost(b.type, w.techsOf(playerId)), 1 - b.progress));
         b.hp = 0;
       }
     }

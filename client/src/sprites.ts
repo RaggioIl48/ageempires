@@ -20,7 +20,7 @@ export function hash(x: number, y: number): number {
 
 // ---------- Estilo de cada pueblo ----------
 
-type Helmet = 'cone' | 'round' | 'hood' | 'crest' | 'bare' | 'fur' | 'mongol' | 'straw';
+type Helmet = 'cone' | 'round' | 'hood' | 'crest' | 'bare' | 'fur' | 'wolf' | 'mongol' | 'straw';
 
 /**
  * Aspecto de cada pueblo: ropa, casco y escudo de sus soldados, color de sus
@@ -927,6 +927,13 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   heavy_spearman: { half: 10, top: 34, ring: 11 },
   berserker: { half: 10, top: 28, ring: 10 },
   huscarl: { half: 10, top: 30, ring: 11 },
+  triarius: { half: 10, top: 38, ring: 11 },
+  trebuchet: { half: 20, top: 52, ring: 20 },
+  war_chariot: { half: 18, top: 32, ring: 17 },
+  chosen_axeman: { half: 10, top: 30, ring: 10 },
+  javelin_rider: { half: 13, top: 34, ring: 13 },
+  gothic_warband: { half: 9, top: 28, ring: 10 },
+  ulfhednar: { half: 10, top: 30, ring: 10 },
 };
 /** Altura de vuelo de los aviones (px). */
 export const FLY_HEIGHT = 40;
@@ -1115,6 +1122,36 @@ function drawUnitBody(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: 
       axe(ctx, x - 5, y - 13 - bob, Math.PI - a, 9);
       return;
     }
+    case 'triarius': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#9b2d20', 'crest');
+      spear(ctx, x, y, bob, t, attacking, 1.2);
+      shieldOf(ctx, x - 6, y - 12 - bob, LOOKS.romans, color);
+      return;
+    }
+    case 'trebuchet':
+      return drawTrebuchet(ctx, x, y, color, t, attacking);
+    case 'war_chariot':
+      return drawChariot(ctx, x, y, color, t, walking, attacking);
+    case 'chosen_axeman': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#6b5a3a', 'bare');
+      axe(ctx, x + 5, y - 13 - bob, attacking ? Math.sin(t * 7) * 1.2 - 0.9 : -1.3, 12);
+      shieldOf(ctx, x - 6, y - 12 - bob, LOOKS.germans, color);
+      return;
+    }
+    case 'javelin_rider':
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, false, 'javelin', '#3e3530', 'cone');
+    case 'gothic_warband': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#8a6a20', 'cone');
+      stab(ctx, x, y, bob, t, attacking, 10);
+      shieldOf(ctx, x - 6, y - 12 - bob, LOOKS.ostrogoths, color);
+      return;
+    }
+    case 'ulfhednar': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#d9a47a', 'wolf');
+      const a = attacking ? Math.sin(t * 10) * 1.3 - 0.6 : -1.2;
+      axe(ctx, x + 5, y - 13 - bob, a, 9);
+      return;
+    }
     case 'huscarl': {
       const bob = soldier(ctx, x, y, color, t, walking, '#6f757d', 'cone');
       axe(ctx, x + 5, y - 13 - bob, attacking ? Math.sin(t * 6) * 1.2 - 0.9 : -1.4, 14);
@@ -1123,6 +1160,71 @@ function drawUnitBody(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: 
       return;
     }
   }
+}
+
+/** Fundíbulo (trebuchet) mongol: armazón de madera, brazo largo y contrapeso. */
+function drawTrebuchet(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, t: number, attacking: boolean): void {
+  ellipse(ctx, x, y, 18, 6, 'rgba(0,0,0,0.3)');
+  // Base y ruedas
+  line(ctx, x - 16, y - 4, x + 14, y - 4, '#6b4a2b', 3);
+  ellipse(ctx, x - 12, y - 3, 3, 3, '#3b2818');
+  ellipse(ctx, x + 10, y - 3, 3, 3, '#3b2818');
+  // Armazón en A
+  line(ctx, x - 8, y - 4, x, y - 30, '#7d5431', 2.5);
+  line(ctx, x + 8, y - 4, x, y - 30, '#7d5431', 2.5);
+  // Brazo: descansa inclinado; al disparar gira
+  const cycle = attacking ? (t % 7) / 7 : 0;
+  const a = attacking && cycle < 0.15 ? -2.3 + cycle * 10 : -2.3;
+  const long = 26, short = 9;
+  const ex = x + Math.cos(a) * long, ey = y - 30 + Math.sin(a) * long;
+  const cx = x - Math.cos(a) * short, cy = y - 30 - Math.sin(a) * short;
+  line(ctx, cx, cy, ex, ey, '#8b6a3e', 2.5);
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(cx - 5, cy - 1, 10, 9); // contrapeso
+  line(ctx, ex, ey, ex + 3, ey + 9, '#3b2818', 1); // honda
+  ellipse(ctx, ex + 3, ey + 10, 2, 2, '#8a8a8a');
+  // Estandarte del jugador
+  line(ctx, x + 14, y - 4, x + 14, y - 22, '#3a3a3a', 1.5);
+  poly(ctx, [x + 14, y - 22, x + 24, y - 19, x + 14, y - 16], color);
+}
+
+/** Carro de guerra galo: caballo, carro con ruedas de cuchillas, auriga y guerrero. */
+function drawChariot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, t: number, walking: boolean, attacking: boolean): void {
+  const gallop = walking ? Math.sin(t * 14) : 0;
+  ellipse(ctx, x, y, 17, 5, 'rgba(0,0,0,0.3)');
+  // Caballo (adelante, a la derecha)
+  ctx.strokeStyle = '#5b3a24';
+  ctx.lineWidth = 2;
+  for (const [dx, ph] of [[4, 0], [7, 1.5], [12, 3], [15, 4.5]]) {
+    const sw = walking ? Math.sin(t * 14 + ph) * 2.5 : 0;
+    ctx.beginPath();
+    ctx.moveTo(x + dx, y - 8);
+    ctx.lineTo(x + dx + sw, y - 1);
+    ctx.stroke();
+  }
+  ellipse(ctx, x + 10, y - 10 - gallop * 0.8, 8, 4.5, '#8a5a3b');
+  poly(ctx, [x + 15, y - 13 - gallop, x + 21, y - 18 - gallop, x + 22, y - 15 - gallop, x + 17, y - 9 - gallop], '#7a4d31');
+  line(ctx, x + 3, y - 10, x - 3, y - 9, '#6b4a2b', 1.5); // lanza del tiro
+  // Carro con la rueda de cuchillas
+  poly(ctx, [x - 14, y - 16, x - 3, y - 16, x - 3, y - 8, x - 14, y - 8], '#7d5431');
+  ctx.fillStyle = color;
+  ctx.fillRect(x - 14, y - 13, 11, 2.5);
+  const spin = walking ? t * 12 : 0;
+  ellipse(ctx, x - 8, y - 6, 5, 5, '#3b2818');
+  for (let i = 0; i < 4; i++) {
+    const a = spin + (i * Math.PI) / 2;
+    line(ctx, x - 8, y - 6, x - 8 + Math.cos(a) * 5, y - 6 + Math.sin(a) * 5, '#8b6a3e', 1);
+  }
+  line(ctx, x - 13, y - 6, x - 20, y - 5, '#cfd3d8', 1.5); // cuchilla
+  // Auriga y guerrero
+  for (const [dx, h] of [[-5, 0], [-11, 2]]) {
+    ctx.fillStyle = '#4e7a3a';
+    ctx.fillRect(x + dx - 2.5, y - 24 - h, 5, 8);
+    ellipse(ctx, x + dx, y - 26.5 - h, 2.5, 2.5, '#e2b68c');
+    headgear(ctx, x + dx, y - 26.5 - h, 'bare');
+  }
+  const thrust = attacking ? Math.max(0, Math.sin(t * 8)) * 4 : 0;
+  line(ctx, x - 13 + thrust, y - 20, x + 3 + thrust, y - 33, '#8b6a3e', 1.5);
 }
 
 /** Espada corta que se clava al atacar. */
@@ -1243,6 +1345,7 @@ function headgear(ctx: CanvasRenderingContext2D, x: number, hy: number, helmet: 
       break;
     case 'hood':
     case 'fur':
+    case 'wolf':
       break; // se dibujan con la cabeza (ver soldier)
   }
 }
@@ -1271,6 +1374,14 @@ function soldier(
   ctx.fillRect(x - 2.5, y - 17 - bob, 5, 8);
   ctx.fillStyle = shade(uniform, 0.7);
   ctx.fillRect(x - 5, y - 9 - bob, 10, 1.5);
+  if (helmet === 'wolf') {
+    // Piel de lobo con orejas (ulfhednar)
+    poly(ctx, [x - 4, y - 23 - bob, x - 3, y - 28 - bob, x - 1, y - 24 - bob], '#7e7b74');
+    poly(ctx, [x + 4, y - 23 - bob, x + 3, y - 28 - bob, x + 1, y - 24 - bob], '#7e7b74');
+    ellipse(ctx, x, y - 21 - bob, 4.8, 4.6, '#8f8b84');
+    ellipse(ctx, x + 0.8, y - 20.5 - bob, 2.8, 3, '#e2b68c');
+    return bob;
+  }
   if (helmet === 'hood' || helmet === 'fur') {
     // Capucha (arquero) o piel de oso (berserker)
     ellipse(ctx, x, y - 21 - bob, 4.6, 4.6, helmet === 'fur' ? '#6b4a2b' : shade(uniform, 0.8));
@@ -1296,7 +1407,7 @@ function drawHorseman(
   walking: boolean,
   attacking: boolean,
   heavy: boolean,
-  weapon: 'lance' | 'bow' = 'lance',
+  weapon: 'lance' | 'bow' | 'javelin' = 'lance',
   horseColor?: string,
   riderHat?: Helmet,
 ): void {
@@ -1330,10 +1441,18 @@ function drawHorseman(
     ctx.fillRect(x - 2, y - 22 - gallop, 4, 6);
   }
   ellipse(ctx, x, y - 26 - gallop, 3.2, 3.2, heavy && riderHat !== 'mongol' ? '#8a9099' : '#e2b68c');
-  if (riderHat === 'mongol' || riderHat === 'crest' || riderHat === 'bare') headgear(ctx, x, y - 26 - gallop, riderHat);
+  if (riderHat === 'mongol' || riderHat === 'crest' || riderHat === 'bare' || (riderHat === 'cone' && !heavy)) headgear(ctx, x, y - 26 - gallop, riderHat);
   else if (heavy) poly(ctx, [x - 3.5, y - 27 - gallop, x, y - 32 - gallop, x + 3.5, y - 27 - gallop], '#aab0b8');
   if (weapon === 'bow') {
     bow(ctx, x + 4, y - 20 - gallop, attacking ? Math.max(0, Math.sin(t * 6)) * 4 : 0);
+    return;
+  }
+  if (weapon === 'javelin') {
+    // Jabalina en alto y escudo redondo pequeño
+    const lift = attacking ? Math.max(0, Math.sin(t * 5)) * 5 : 0;
+    line(ctx, x + 1, y - 22 - gallop - lift, x + 12, y - 30 - gallop - lift, '#8b6a3e', 1.4);
+    poly(ctx, [x + 12, y - 30 - gallop - lift, x + 10, y - 27 - gallop - lift, x + 13, y - 27.5 - gallop - lift], '#cfd3d8');
+    ellipse(ctx, x - 5, y - 18 - gallop, 3.5, 4, color, '#d9d2c0', 1);
     return;
   }
   // Lanza

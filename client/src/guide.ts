@@ -20,7 +20,7 @@ import {
   type UnitType,
 } from '../../shared/data.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
-import { chargeOf, hasTech } from '../../shared/stats.ts';
+import { chargeOf, hasTech, unitCost } from '../../shared/stats.ts';
 import { el, esc } from './screens.ts';
 import type { ClientState } from './state.ts';
 
@@ -100,7 +100,7 @@ export class GuidePanel {
         return `<div class="g-card ${d.faction ? 'unique' : ''}">
           <div class="g-head"><span class="icon unit" style="color:${s.color(s.you)}">${this.icon(type)}</span>
             <div><b>${esc(s.labelOf(s.you, type))}</b>${d.faction ? ' <span class="uniq-tag">⚜ unique</span>' : ''}
-            <div class="muted">${CATEGORY_LABELS[d.category]} · ${home ? esc(BUILDING_DEFS[home].label) : ''} · ${costText(d.cost)}</div></div></div>
+            <div class="muted">${CATEGORY_LABELS[d.category]} · ${home ? esc(BUILDING_DEFS[home].label) : ''} · ${costText(unitCost(type, mask))}</div></div></div>
           <div class="g-stats">❤ ${st.hp} · ⚔ ${st.attack.damage} (${range}) · 🛡 ${st.armor.melee}/${st.armor.ranged} · ➜ ${st.speed.toFixed(1)}${st.regen ? ` · ✚ ${Math.round(st.regen * 10) / 10}/s` : ''}</div>
           <div>${esc(d.strong)}. <span class="muted">${esc(d.weak)}.</span></div>
           ${goodAgainst(type).length ? `<div class="counter good">⚔ Good against: ${esc(goodAgainst(type).join(', '))}</div>` : ''}

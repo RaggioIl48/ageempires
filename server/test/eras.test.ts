@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeBuilding, encodeBuilding } from '../../shared/codec.ts';
 import { BUILDING_DEFS, TECH_DEFS, UNIT_DEFS, unitAvailable, type TechId, type UnitType } from '../../shared/data.ts';
 import { parseClientMessage } from '../../shared/protocol.ts';
-import { buildingMaxHp, carryCapacity, damage, gatherRate, techBit, unitStats } from '../../shared/stats.ts';
+import { buildingMaxHp, carryCapacity, damage, gatherRate, hasTech, maskOf, unitStats } from '../../shared/stats.ts';
 import { ClientSync, buildFrame } from '../src/net/sync.ts';
 import { initRelations } from '../src/sim/diplomacy.ts';
 import { completeTech } from '../src/sim/production.ts';
@@ -29,7 +29,7 @@ describe('eras', () => {
   it('everyone starts in the Tribal Era with no technologies', () => {
     const { w } = richGame();
     expect(w.players.get(1)!.era).toBe(1);
-    expect(w.players.get(1)!.techs).toBe(0);
+    expect(w.players.get(1)!.techs).toBe('0');
   });
 
   it('advancing to the Medieval Era needs a finished barracks, charges the cost and takes its time', () => {
@@ -132,22 +132,22 @@ describe('eras', () => {
 
 describe('technologies', () => {
   it('tools: faster wood, stone and metal; plow: faster farms; wheelbarrow: carries more', () => {
-    const tools = techBit('tools');
+    const tools = maskOf(['tools']);
     expect(gatherRate('romans', 'wood', false, tools)).toBeCloseTo(gatherRate('romans', 'wood') * 1.15);
     expect(gatherRate('romans', 'food', false, tools)).toBe(gatherRate('romans', 'food'));
-    expect(gatherRate('romans', 'food', true, techBit('plow'))).toBeCloseTo(gatherRate('romans', 'food', true) * 1.25);
-    expect(carryCapacity(techBit('wheelbarrow'))).toBe(carryCapacity() + 5);
+    expect(gatherRate('romans', 'food', true, maskOf(['plow']))).toBeCloseTo(gatherRate('romans', 'food', true) * 1.25);
+    expect(carryCapacity(maskOf(['wheelbarrow']))).toBe(carryCapacity() + 5);
   });
 
   it('forge raises the attack of infantry and cavalry, but not of archers', () => {
-    const f = techBit('forge');
+    const f = maskOf(['forge']);
     expect(unitStats('germans', 'spearman', f).attack.damage).toBeCloseTo(UNIT_DEFS.spearman.attack.damage * 1.15, 1);
     expect(unitStats('germans', 'archer', f).attack.damage).toBe(unitStats('germans', 'archer').attack.damage);
   });
 
   it('ballistics: +1 range for ranged units, and it adds to the faction bonus', () => {
     const base = unitStats('visigoths', 'rifleman').attack.range;
-    expect(unitStats('visigoths', 'rifleman', techBit('ballistics')).attack.range).toBe(base + 1);
+    expect(unitStats('visigoths', 'rifleman', maskOf(['ballistics'])).attack.range).toBe(base + 1);
     expect(base).toBe(UNIT_DEFS.rifleman.attack.range + 1); // Visigoths
   });
 
@@ -155,7 +155,7 @@ describe('technologies', () => {
     const { g, w, tc } = richGame();
     research(g, tc.id, 'tools');
     run(g, TECH_DEFS.tools.time + 1);
-    expect(w.players.get(1)!.techs & techBit('tools')).toBeTruthy();
+    expect(hasTech(w.players.get(1)!.techs, 'tools')).toBe(true);
     expect(g.takeNotices(1).some((n) => n.includes('Tools'))).toBe(true);
     research(g, tc.id, 'tools'); // already researched
     g.step();
@@ -333,11 +333,11 @@ describe('network', () => {
     const { g, w } = richGame();
     const sync = new ClientSync(2);
     const first = sync.build(buildFrame(g, 0, true), g);
-    expect(first.pt).toEqual([1, 1, 0, 2, 1, 0]);
+    expect(first.pt).toEqual([1, 1, '0', 2, 1, '0']);
     g.step();
     expect(sync.build(buildFrame(g, 0), g).pt).toBeUndefined();
     completeTech(w, 1, 'era2');
     g.step();
-    expect(sync.build(buildFrame(g, 0), g).pt).toEqual([1, 2, techBit('era2'), 2, 1, 0]);
+    expect(sync.build(buildFrame(g, 0), g).pt).toEqual([1, 2, maskOf(['era2']), 2, 1, '0']);
   });
 });

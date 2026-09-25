@@ -25,7 +25,7 @@ import {
   type UnitType,
 } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
-import { canAfford, carryCapacity, chargeOf, isUpgraded, techsOf } from '../../shared/stats.ts';
+import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
 import { ACTION_KEYS, type Input } from './input.ts';
 import type { NetStatus } from './net.ts';
@@ -67,6 +67,13 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
   heavy_spearman: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.8" r="2.1" fill="#e2b68c"/><rect x="5" y="9.5" width="6" height="5.5" rx="1" fill="#7a7f86"/><path d="M1 8 L6 7.5 L6 14 L3.5 15.5 L1 14 Z" fill="currentColor"/><path d="M12.5 15.5 L15 0.5" stroke="#8b6a3e" stroke-width="1.3"/><path d="M15 0 L14 2.8 L16 2.8 Z" fill="#cfd3d8"/></svg>',
   berserker: '<svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3.4" fill="#6b4a2b"/><circle cx="8.5" cy="5.4" r="2" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="#d9a47a"/><rect x="5" y="12" width="6" height="3" fill="currentColor"/><path d="M11 11 L14.5 5" stroke="#6b4a2b" stroke-width="1.3"/><ellipse cx="14.5" cy="5" rx="1.8" ry="1.4" fill="#cfd3d8"/><path d="M5 11 L1.5 5" stroke="#6b4a2b" stroke-width="1.3"/><ellipse cx="1.5" cy="5" rx="1.8" ry="1.4" fill="#cfd3d8"/></svg>',
   huscarl: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.5" r="2.1" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="#6f757d"/><circle cx="3.5" cy="11" r="3.3" fill="currentColor" stroke="#d9d2c0" stroke-width="0.7"/><path d="M11 14 L14 2" stroke="#6b4a2b" stroke-width="1.3"/><path d="M13 1 Q16.5 2.5 14.5 5.5 Z" fill="#cfd3d8"/></svg>',
+  triarius: '<svg viewBox="0 0 16 16"><path d="M5 5.5 Q5 2.5 8 2.5 Q11 2.5 11 5.5 Z" fill="#b8a47a"/><ellipse cx="8" cy="1.8" rx="3.2" ry="1.3" fill="#c0392b"/><circle cx="8" cy="6.5" r="2.1" fill="#e2b68c"/><rect x="6" y="9" width="6" height="6" fill="#9b2d20"/><rect x="1.5" y="7" width="5" height="8.5" rx="0.8" fill="currentColor"/><path d="M13 15.5 L15.3 0.5" stroke="#8b6a3e" stroke-width="1.3"/><path d="M15.3 0 L14.3 2.8 L16 2.8 Z" fill="#cfd3d8"/></svg>',
+  trebuchet: '<svg viewBox="0 0 16 16"><path d="M1 14 L15 14" stroke="#6b4a2b" stroke-width="1.6"/><path d="M4 14 L8 5 L12 14" stroke="#7d5431" stroke-width="1.4" fill="none"/><path d="M11 9 L3 1" stroke="#8b6a3e" stroke-width="1.4"/><rect x="10" y="8" width="4" height="4" fill="#5a5a5a"/><path d="M3 1 L3 4" stroke="#3b2818" stroke-width="0.8"/><circle cx="3" cy="4.5" r="1" fill="#8a8a8a"/><path d="M14 14 L14 7" stroke="#3a3a3a" stroke-width="0.8"/><path d="M14 7 L16 8 L14 9 Z" fill="currentColor"/></svg>',
+  war_chariot: '<svg viewBox="0 0 16 16"><ellipse cx="11" cy="9" rx="4" ry="2.4" fill="#8a5a3b"/><path d="M13.5 8 L16 5 L16 7.5 L14.5 9.5 Z" fill="#7a4d31"/><rect x="1.5" y="6" width="6" height="4" fill="#7d5431"/><rect x="1.5" y="7.2" width="6" height="1.3" fill="currentColor"/><circle cx="4.5" cy="12" r="2.8" fill="#3b2818"/><path d="M1.8 12 L0 12.5" stroke="#cfd3d8" stroke-width="1"/><circle cx="3" cy="3.5" r="1.4" fill="#e2b68c"/><circle cx="6" cy="3" r="1.4" fill="#e2b68c"/><path d="M11 12 L11 15 M13 12 L13 15" stroke="#5b3a24" stroke-width="1"/></svg>',
+  chosen_axeman: '<svg viewBox="0 0 16 16"><path d="M5 5 Q5 2.5 8 2.5 Q11 2.5 11 5 Z" fill="#c98a3c"/><circle cx="8" cy="5.8" r="2.2" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="#6b5a3a"/><circle cx="3.5" cy="11" r="3.2" fill="currentColor"/><path d="M11 14 L14 3" stroke="#6b4a2b" stroke-width="1.3"/><path d="M13 2 Q16.5 3.5 14.5 6.5 Z" fill="#cfd3d8"/></svg>',
+  javelin_rider: '<svg viewBox="0 0 16 16"><ellipse cx="7" cy="11" rx="5.5" ry="2.8" fill="#3e3530"/><path d="M11 10 L14.5 6.5 L15.5 8 L12.5 11 Z" fill="#332b27"/><rect x="5" y="4.5" width="4" height="5" fill="currentColor"/><circle cx="7" cy="3.6" r="1.7" fill="#e2b68c"/><path d="M5.3 3.4 L7 0.8 L8.7 3.4 Z" fill="#8a9099"/><path d="M8 5 L15 0.5" stroke="#8b6a3e" stroke-width="1"/><circle cx="3.5" cy="7" r="1.8" fill="currentColor" stroke="#d9d2c0" stroke-width="0.5"/></svg>',
+  gothic_warband: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.5" r="2.1" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="#8a6a20"/><ellipse cx="3.5" cy="11" rx="2.6" ry="4" fill="currentColor"/><path d="M11 11 L15 7" stroke="#d6d9de" stroke-width="1.4"/></svg>',
+  ulfhednar: '<svg viewBox="0 0 16 16"><path d="M4.5 4 L5.5 0.5 L7 3.5 Z M11.5 4 L10.5 0.5 L9 3.5 Z" fill="#7e7b74"/><circle cx="8" cy="5" r="3.3" fill="#8f8b84"/><circle cx="8.5" cy="5.5" r="2" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="#d9a47a"/><rect x="5" y="12" width="6" height="3" fill="currentColor"/><path d="M11 11 L14.5 5" stroke="#6b4a2b" stroke-width="1.3"/><ellipse cx="14.5" cy="5" rx="1.8" ry="1.4" fill="#cfd3d8"/></svg>',
   tech: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#c9ccd1" stroke="#6d7077" stroke-width="1.6" stroke-dasharray="2.2 1.3"/><circle cx="8" cy="8" r="2" fill="#6d7077"/></svg>',
   era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
 };
@@ -422,9 +429,10 @@ export class Hud {
       const menu = this.input.buildMenu();
       const buttons = menu.map((type, i) => {
         const def = BUILDING_DEFS[type];
-        const ok = !have || canAfford(have, def.cost);
+        const cost = buildingCost(type, this.state.techsOf(this.state.you));
+        const ok = !have || canAfford(have, cost);
         return `<button class="act" data-action="build" data-arg="${type}" ${ok ? '' : 'disabled'} title="${esc(def.description)}">
-          <span class="key">${ACTION_KEYS[i]}</span><b>${def.label}</b><span class="costs">${costHtml(def.cost, have)}</span></button>`;
+          <span class="key">${ACTION_KEYS[i]}</span><b>${def.label}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
       }).join('');
       const next = BUILD_MENU.filter((t) => !menu.includes(t)).map((t) => BUILDING_DEFS[t]);
       const locked = next.length
@@ -464,11 +472,12 @@ export class Hud {
     const u = UNIT_DEFS[type];
     const st = this.state.statsOf(this.state.you, type);
     const name = this.state.labelOf(this.state.you, type);
-    const ok = !have || canAfford(have, u.cost);
+    const cost = unitCost(type, this.state.techsOf(this.state.you));
+    const ok = !have || canAfford(have, cost);
     const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
     return `<button class="act with-icon" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${ICONS[type]}</span>
-      <b>${esc(name)}${u.faction ? ' ⚜' : ''}</b><span class="costs">${costHtml(u.cost, have)}</span></button>`;
+      <b>${esc(name)}${u.faction ? ' ⚜' : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
   }
 
   /** Botón del Mercado: comprar o vender un lote. */
