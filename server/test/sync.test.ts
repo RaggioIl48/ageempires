@@ -21,7 +21,7 @@ describe('compact encoding', () => {
     expect(decodeUnit(encodeUnit(w))).toEqual(w);
     const b = { id: 3, owner: 1, type: 'barracks' as const, tx: 4, ty: 5, hp: 900, progress: 1, queue: [{ unit: 'warrior' as const, progress: 0.5 }, { unit: 'scout' as const, progress: 0 }], rally: { x: 10.5, y: 3.25 }, needsHouses: 1 as const };
     expect(decodeBuilding(encodeBuilding(b))).toEqual(b);
-    const farm = { id: 4, owner: 2, type: 'farm' as const, tx: 1, ty: 1, hp: 300, progress: 0.5, food: 120 };
+    const farm = { id: 4, owner: 2, type: 'farm' as const, tx: 1, ty: 1, hp: 300, progress: 0.5, stock: 120 };
     expect(decodeBuilding(encodeBuilding(farm))).toEqual(farm);
     const events: GameEvent[] = [
       { k: 'shot', x1: 1.5, y1: 2.5, x2: 3.25, y2: 4 },

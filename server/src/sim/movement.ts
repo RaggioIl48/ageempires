@@ -1,6 +1,8 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
+import { UNIT_DEFS, type Category } from '../../../shared/data.ts';
+import type { Formation } from '../../../shared/protocol.ts';
 import { clearLine, pathToPoint } from './pathfinding.ts';
 import type { Point, Unit, World } from './world.ts';
 
@@ -10,7 +12,9 @@ export function moveUnits(world: World, dt: number): void {
     if (u.path.length === 0) continue;
     const stats = world.statsOf(u);
     world.walker = u.owner;
-    let budget = stats.speed * dt;
+    // En formación, todos marchan al paso del más lento.
+    const speed = u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
+    let budget = speed * dt;
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
       const d = Math.hypot(wp.x - u.x, wp.y - u.y);
@@ -27,7 +31,10 @@ export function moveUnits(world: World, dt: number): void {
       budget -= step;
       if (step >= d) u.path.shift();
     }
-    if (u.path.length === 0 && u.state === 'moving') u.state = 'idle';
+    if (u.path.length === 0 && u.state === 'moving') {
+      u.state = 'idle';
+      u.speedCap = 0;
+    }
   }
 }
 
@@ -42,26 +49,15 @@ function rerouteBlocked(world: World, u: Unit): void {
 const SHARE_PATH_RADIUS = 6;
 
 /**
- * Orden de mover: un grupo se reparte en formación alrededor del punto.
- * Se calcula UN camino para el líder y el resto lo reutiliza cuando puede
- * (mucho más barato que una búsqueda por unidad).
+ * Orden de mover: un grupo se reparte alrededor del punto, suelto o en formación
+ * (ver rankedSpots). Se calcula UN camino para el líder y el resto lo reutiliza
+ * cuando puede (mucho más barato que una búsqueda por unidad).
  */
-export function moveGroup(world: World, units: Unit[], x: number, y: number): void {
+export function moveGroup(world: World, units: Unit[], x: number, y: number, formation: Formation = 'loose'): void {
   if (units.length === 0) return;
   world.walker = units[0].owner;
-  const spots = units.length === 1 ? [{ x, y }] : formationSpots(world, x, y, units.length);
-  const assigned: { u: Unit; spot: Point }[] = [];
-  const free = [...units];
-  for (const spot of spots) {
-    if (free.length === 0) break;
-    // La unidad más cercana a cada puesto lo ocupa (evita cruces largos).
-    let best = 0;
-    for (let i = 1; i < free.length; i++)
-      if (dist2(free[i], spot) < dist2(free[best], spot)) best = i;
-    assigned.push({ u: free.splice(best, 1)[0], spot });
-  }
-  // Las que no alcanzaron puesto (mapa muy lleno) van al punto mismo.
-  for (const u of free) assigned.push({ u, spot: { x, y } });
+  const ranked = formation !== 'loose' && units.length > 1;
+  const assigned = ranked ? rankedSpots(world, units, x, y, formation) : looseSpots(world, units, x, y);
 
   // Líder: la unidad más cercana al centro del grupo.
   const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
@@ -83,7 +79,112 @@ export function moveGroup(world: World, units: Unit[], x: number, y: number): vo
     u.chaseGoal = null;
     u.path = path ?? [];
     u.state = u.path.length > 0 ? 'moving' : 'idle';
+    u.speedCap = 0;
   }
+  // En formación, todos al paso del más lento (los aviones van aparte).
+  if (ranked) {
+    const ground = units.filter((u) => !world.statsOf(u).flies);
+    const cap = Math.min(...ground.map((u) => world.statsOf(u).speed));
+    for (const u of ground) if (u.state === 'moving') u.speedCap = cap;
+  }
+}
+
+/** Grupo suelto: cada puesto de una cuadrícula compacta lo ocupa la unidad más cercana. */
+function looseSpots(world: World, units: Unit[], x: number, y: number): { u: Unit; spot: Point }[] {
+  const spots = units.length === 1 ? [{ x, y }] : formationSpots(world, x, y, units.length);
+  return assignNearest(units, spots, { x, y });
+}
+
+/** La unidad más cercana a cada puesto lo ocupa (evita cruces largos); las que sobran van al punto. */
+function assignNearest(units: Unit[], spots: Point[], fallback: Point): { u: Unit; spot: Point }[] {
+  const assigned: { u: Unit; spot: Point }[] = [];
+  const free = [...units];
+  for (const spot of spots) {
+    if (free.length === 0) break;
+    let best = 0;
+    for (let i = 1; i < free.length; i++)
+      if (dist2(free[i], spot) < dist2(free[best], spot)) best = i;
+    assigned.push({ u: free.splice(best, 1)[0], spot });
+  }
+  for (const u of free) assigned.push({ u, spot: fallback });
+  return assigned;
+}
+
+/** Separación entre puestos de una formación (casillas). */
+export const RANK_SPACING = 0.9;
+
+/** Fila de cada tipo en la formación (0 = adelante); −1 = caballería (a los lados). */
+const RANK: Record<Category, number> = { infantry: 0, armor: 0, worker: 0, ranged: 1, siege: 2, air: 2, building: 2, cavalry: -1 };
+
+/**
+ * Formación en filas mirando hacia donde va el grupo (del centro del grupo al destino).
+ * 'line': frente ancho; infantería adelante, unidades a distancia detrás, asedio al
+ * fondo y caballería en los flancos. 'column': de a 3 en fondo, la caballería abre la marcha.
+ */
+function rankedSpots(world: World, units: Unit[], x: number, y: number, formation: Formation): { u: Unit; spot: Point }[] {
+  const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
+  const cy = units.reduce((s, u) => s + u.y, 0) / units.length;
+  let fx = x - cx, fy = y - cy;
+  const len = Math.hypot(fx, fy);
+  if (len < 0.5) [fx, fy] = [Math.SQRT1_2, Math.SQRT1_2]; // sin dirección clara: de frente a la cámara
+  else [fx, fy] = [fx / len, fy / len];
+  const rx = -fy, ry = fx; // hacia la derecha del frente
+  const at = (col: number, row: number): Point => ({
+    x: x + (rx * col - fx * row) * RANK_SPACING,
+    y: y + (ry * col - fy * row) * RANK_SPACING,
+  });
+
+  const byRank = new Map<number, Unit[]>();
+  for (const u of units) {
+    let r = RANK[UNIT_DEFS[u.type].category];
+    if (r === -1 && formation === 'column') r = -2; // en columna, la caballería va primero
+    byRank.set(r, [...(byRank.get(r) ?? []), u]);
+  }
+  const cavalry = formation === 'line' ? (byRank.get(-1) ?? []) : [];
+  const main = units.length - cavalry.length;
+  const width = formation === 'column' ? 3 : Math.max(3, Math.ceil(Math.sqrt(main * 2.5)));
+  const out: { u: Unit; spot: Point }[] = [];
+  let row = 0;
+  for (const r of [-2, 0, 1, 2]) {
+    const list = byRank.get(r);
+    if (!list) continue;
+    const spots: Point[] = [];
+    for (let i = 0; i < list.length; i += width, row++) {
+      const n = Math.min(width, list.length - i);
+      for (let c = 0; c < n; c++) spots.push(at(c - (n - 1) / 2, row));
+    }
+    out.push(...assignNearest(list, spots, { x, y }));
+  }
+  // Caballería en los flancos: izquierda y derecha alternadas, de adelante hacia atrás.
+  if (cavalry.length) {
+    const half = (Math.min(width, Math.max(main, 1)) - 1) / 2;
+    const spots = cavalry.map((_, i) => {
+      const side = i % 2 === 0 ? -1 : 1;
+      const k = Math.floor(i / 2);
+      return at(side * (half + 1.2 + (k % 2)), Math.floor(k / 2));
+    });
+    out.push(...assignNearest(cavalry, spots, { x, y }));
+  }
+  // Puestos sobre agua, montañas o edificios: al lugar libre más cercano.
+  const taken = new Set<number>();
+  for (const a of out) a.spot = freeNear(world, a.spot, taken) ?? { x, y };
+  return out;
+}
+
+/** Punto caminable más cercano (de a media casilla), sin repetir uno ya tomado. */
+function freeNear(world: World, p: Point, taken: Set<number>): Point | null {
+  for (let r = 0; r <= 6; r++)
+    for (let j = -r; j <= r; j++)
+      for (let i = -r; i <= r; i++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+        const q = { x: p.x + i * 0.5, y: p.y + j * 0.5 };
+        const tx = Math.floor(q.x), ty = Math.floor(q.y);
+        const key = Math.round(q.y * 4) * 100_000 + Math.round(q.x * 4);
+        if (tx < 0 || ty < 0 || tx >= world.size || ty >= world.size || !world.isWalkable(tx, ty) || taken.has(key)) continue;
+        taken.add(key);
+        return q;
+      }
+  return null;
 }
 
 /** Puestos libres en una cuadrícula compacta alrededor de (x, y), del más cercano al más lejano. */

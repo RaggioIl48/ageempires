@@ -85,9 +85,12 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Select | Left click |
 | Multiple selection | Drag with left click (Shift adds) |
 | All of the same type on screen | Double click |
-| Contextual order | Right click: ground = move · resource = gather · enemy = attack (only ranged units can hit airplanes) · foundation or damaged building = build/repair · own farm = farm it |
+| Contextual order | Right click: ground = move · resource = gather · enemy = attack (only ranged units can hit airplanes) · foundation or damaged building = build/repair · own farm, quarry or mine = work it |
+| Select a whole army type | Buttons above the minimap: **⚔ Infantry · 🏹 Ranged · 🐎 Cavalry · 💣 Siege · All** (Shift adds). With several types selected, click a type in the left panel to keep only those |
+| Groups | **Shift+1…9** saves the selection as a group · **1…9** selects it (press twice: the camera goes there) |
+| Formation | With 2 or more soldiers: **▤ Line** (infantry in front, ranged behind, cavalry on the flanks), **▥ Column** (3 wide) or **⁘ Loose**. In formation everyone marches at the pace of the slowest |
 | Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
-| Build | With workers: **Q E R T F G Z X C V B N M** in the order of the buttons (more buildings appear with each age; your people's unique building appears in the Medieval Age; Shift: place several) |
+| Build | With workers: **Q E R T F G Z X C V B N M Y U I O P** in the order of the buttons (more buildings appear with each age; your people's unique building appears in the Medieval Age; Shift: place several) |
 | Wall | Choose **Wall**, **click where it starts and click where it ends** (or drag): one order builds the whole line; workers move on from one section to the next. A **Gate** placed on your own wall replaces that section |
 | Train / research | With a building: the same keys, in the order of the buttons (units, technologies, advancing era) · click an item in the queue to cancel it (refunds the cost) |
 | Army guide | **📖 Army** in the top bar: your units by age, what they beat, what beats them, upgrades and your people's abilities |
@@ -117,14 +120,18 @@ Units are drawn with sprite sheets built by `tools/art/build.mjs` from open proj
   (soldiers and workers: body, clothes, helmets, shields, weapons and tools per people),
 - [[LPC] Horses](https://opengameart.org/content/lpc-horses) and
   [[LPC] Horse Riding](https://opengameart.org/content/lpc-horse-riding-updated-091) (cavalry),
-- [[LPC] Siege Weapons](https://opengameart.org/content/lpc-siege-weapons) (scorpion and artillery).
+- [[LPC] Siege Weapons](https://opengameart.org/content/lpc-siege-weapons) (scorpion and artillery),
+- [Unknown Horizons](https://unknown-horizons.org) (buildings: each people has its own building style —
+  stone for the Romans, timber-framed for the Goths, wood and grass roofs for Gauls, Germans and
+  Vikings, tents for the Mongols).
 
 Each people's look is described in `tools/art/recipes.mjs`. The build writes the sheets,
 `units.json` (animations, directions, team-color cut-outs) and `credits.json` (authors,
 licenses, links). A test (`server/test/art.test.ts`) fails if an image has no credits or
 if its license is not compatible with all its pieces. The combined images are shared under
-CC-BY-SA 4.0 (see `client/public/art/LICENSE.txt`). Units without art yet (modern era,
-trebuchet, war chariot) keep the drawn shapes.
+CC-BY-SA 4.0 (see `client/public/art/LICENSE.txt`). What has no art yet (modern-era units,
+trebuchet, war chariot, archery range, walls, the unique buildings and the Mongol Town Center)
+keeps the drawn shapes.
 
 ## Architecture
 

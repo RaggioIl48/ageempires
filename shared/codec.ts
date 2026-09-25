@@ -23,7 +23,7 @@ export const q = (v: number): number => Math.round(v * 100);
 const dq = (v: number): number => v / 100;
 
 // ---------- Unidades ----------
-// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo]
+// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla]
 export type UnitTuple = number[];
 export const U_X = 3;
 export const U_Y = 4;
@@ -42,6 +42,7 @@ export function encodeUnit(u: UnitView): UnitTuple {
     u.carryType ? RES.indexOf(u.carryType) : -1,
     u.carryAmount ?? 0,
     u.targetId ?? 0,
+    u.crew ?? 0,
   ];
 }
 
@@ -62,6 +63,7 @@ export function decodeUnit(t: UnitTuple): UnitView {
     v.carryAmount = t[10];
   }
   if (t[11]) v.targetId = t[11];
+  if (t[12] > 1) v.crew = t[12];
   return v;
 }
 
@@ -72,7 +74,7 @@ export function sameExceptPosition(a: UnitTuple, b: UnitTuple): boolean {
 }
 
 // ---------- Edificios ----------
-// [id, owner, tipo, tx, ty, vida, progreso‰, comida, faltanCasas, reunionX, reunionY, (unidad|100+tecnología, progreso%)…]
+// [id, owner, tipo, tx, ty, vida, progreso‰, reserva, faltanCasas, reunionX, reunionY, (unidad|100+tecnología, progreso%)…]
 // Los campos privados (cola, reunión, casas) solo tienen datos para el dueño.
 export type BuildingTuple = number[];
 
@@ -85,7 +87,7 @@ export function encodeBuilding(b: BuildingView): BuildingTuple {
     b.ty,
     b.hp,
     Math.round(b.progress * 1000),
-    b.food ?? -1,
+    b.stock ?? -1,
     b.needsHouses ? 1 : 0,
     b.rally ? q(b.rally.x) : -1,
     b.rally ? q(b.rally.y) : -1,
@@ -105,7 +107,7 @@ export function decodeBuilding(t: BuildingTuple): BuildingView {
     hp: t[5],
     progress: t[6] / 1000,
   };
-  if (t[7] >= 0) v.food = t[7];
+  if (t[7] >= 0) v.stock = t[7];
   if (t[8]) v.needsHouses = 1;
   if (t[9] >= 0) v.rally = { x: dq(t[9]), y: dq(t[10]) };
   if (t.length > 11) {

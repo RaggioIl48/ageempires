@@ -37,7 +37,7 @@ export interface Point {
 
 /** Lo que está haciendo una unidad por orden del jugador (o por reacción propia). */
 export type Task =
-  /** Recolectar de un nodo del mapa o de una granja (targetId). */
+  /** Recolectar de un nodo del mapa o de un campo de trabajo propio: granja, cantera, mina (targetId). */
   | { kind: 'gather'; targetId: number; resource: ResourceType; tx: number; ty: number }
   /** Construir o reparar un edificio propio. */
   | { kind: 'build'; targetId: number }
@@ -64,6 +64,10 @@ export interface Unit {
   repathIn: number; // pasos hasta poder recalcular la persecución
   /** Paso del último golpe dado (para la carga de caballería). */
   lastStrike: number;
+  /** Trabajadores de su cuadrilla (mismo recurso, cerca), contándolo; 0 si no recolecta. */
+  crew: number;
+  /** Límite de velocidad mientras marcha en formación (0 = sin límite). */
+  speedCap: number;
 }
 
 export interface ResourceNode {
@@ -97,9 +101,8 @@ export interface Building {
   queue: QueueItem[];
   /** Punto de reunión; targetId = recurso donde las unidades nuevas se ponen a trabajar. */
   rally: { x: number; y: number; targetId: number } | null;
-  /** Granjas: comida restante y quién la trabaja. */
-  food: number;
-  farmerId: number;
+  /** Campos de trabajo (granja, cantera, mina): recurso que les queda. */
+  stock: number;
   /** Producción detenida por falta de población. */
   needsHouses: boolean;
   cooldown: number; // edificios que disparan
@@ -333,8 +336,7 @@ export class World {
       progress: built ? 1 : 0,
       queue: [],
       rally: null,
-      food: def.food ?? 0,
-      farmerId: 0,
+      stock: def.field?.amount ?? 0,
       needsHouses: false,
       cooldown: 0,
       repairOwed: { food: 0, wood: 0, stone: 0, metal: 0 },
@@ -400,6 +402,8 @@ export class World {
       chaseGoal: null,
       repathIn: 0,
       lastStrike: -Infinity,
+      crew: 0,
+      speedCap: 0,
     };
     this.units.set(u.id, u);
     return u;

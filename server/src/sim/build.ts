@@ -10,7 +10,7 @@ import {
   type Cost,
 } from '../../../shared/data.ts';
 import { buildSpeed, buildingCost } from '../../../shared/stats.ts';
-import { assignFarm, farmTaken, stopWork } from './gather.ts';
+import { assignField, fieldFull, stopWork } from './gather.ts';
 import { pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Unit, type World } from './world.ts';
 
@@ -134,13 +134,13 @@ function repair(world: World, b: Building, builders: Unit[], amount: number): vo
 const NEXT_FOUNDATION_RANGE = 4;
 
 /**
- * Al terminar: quien construyó una granja se queda a trabajarla; si hay otro
+ * Al terminar: quien construyó una granja, cantera o mina se queda a trabajarla; si hay otro
  * cimiento propio muy cerca (como el siguiente tramo de una muralla), sigue
  * con ese; si no, queda libre.
  */
 function afterWork(world: World, u: Unit, b: Building): void {
-  if (b.type === 'farm' && u.type === 'worker' && !farmTaken(world, b, u)) {
-    assignFarm(world, u, b);
+  if (BUILDING_DEFS[b.type].field && u.type === 'worker' && !fieldFull(world, b, u)) {
+    assignField(world, u, b);
     return;
   }
   let next: Building | null = null;

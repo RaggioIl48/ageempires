@@ -167,7 +167,7 @@ describe('mid-game economy', () => {
     expect(gatherRate('romans', 'wood', false, m)).toBeCloseTo(gatherRate('romans', 'wood') * 1.2);
     expect(gatherRate('romans', 'metal', false, m)).toBeCloseTo(gatherRate('romans', 'metal') * 1.2);
     expect(BUILDING_DEFS.storehouse.researches).toContain('double_axe');
-    expect(BUILDING_DEFS.farm.food).toBeGreaterThanOrEqual(400);
+    expect(BUILDING_DEFS.farm.field!.amount).toBeGreaterThanOrEqual(400);
   });
 
   it('Market: buying raises the price, selling lowers it, and prices are the same for everyone', () => {

@@ -17,6 +17,11 @@
   "lpc-siege-weapons": {
    "title": "[LPC] Siege Weapons",
    "url": "https://opengameart.org/content/lpc-siege-weapons"
+  },
+  "uh": {
+   "title": "Unknown Horizons (buildings)",
+   "url": "https://github.com/unknown-horizons/unknown-horizons",
+   "version": "af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615"
   }
  },
  "items": {
@@ -1383,6 +1388,54 @@
     "https://opengameart.org/content/lpc-siege-weapons"
    ],
    "notes": ""
+  },
+  "uh:barracks-props": {
+   "pack": "uh",
+   "title": "Barracks yard props (in the Unknown Horizons barracks)",
+   "authors": [
+    "Clement Wu",
+    "Botanic",
+    "Clint Bellanger",
+    "p0ss"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/training-map",
+    "https://opengameart.org/content/kingdom-weapon-set",
+    "https://opengameart.org/content/training-target",
+    "https://opengameart.org/content/wooden-weapon-training-set"
+   ],
+   "notes": "\"Training Map\", \"Kingdom Weapon Set\", \"Training Target\" and \"Wooden Weapon Training Set\", as used by Unknown Horizons."
+  },
+  "uh:graphics": {
+   "pack": "uh",
+   "title": "Unknown Horizons buildings",
+   "authors": [
+    "Unknown Horizons team",
+    "Clearskies (Anthony Nguyen)",
+    "Daniel Stephens",
+    "dauerflucher (Andreas Lis)",
+    "egore (Christoph Brill)",
+    "inken",
+    "janexx (Jana Weigel)",
+    "kaschte (Fabian Riedel)",
+    "lmg",
+    "Manthus (Matthias Dittrich)",
+    "orakeldel",
+    "terwarf (Alexander Breidenbroich)",
+    "Viktoria S.",
+    "wentam (Matt Egeler)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://unknown-horizons.org",
+    "https://github.com/unknown-horizons/unknown-horizons/blob/af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615/doc/LICENSE"
+   ],
+   "notes": "Pre-rendered isometric buildings (one view each)."
   }
  }
 }

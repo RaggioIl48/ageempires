@@ -5,7 +5,7 @@
 
 import { BUILDING_DEFS, type FactionId, type ResourceType, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
-import { drawSpriteUnit, spriteTop } from './art.ts';
+import { buildingSprite, drawSpriteUnit, spriteTop } from './art.ts';
 import { worldToPx } from './view.ts';
 
 export const RESOURCE_COLORS: Record<ResourceType, string> = {
@@ -252,14 +252,42 @@ function flag(ctx: CanvasRenderingContext2D, x: number, y: number, color: string
 /** Altura total aproximada del dibujo de cada edificio (para "levantarlo" al construir). */
 export function buildingHeight(type: BuildingView['type']): number {
   return {
-    town_center: 90, house: 50, storehouse: 44, farm: 6, barracks: 64,
+    town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, barracks: 64,
     archery_range: 40, stable: 50, tech_center: 66, market: 40, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
     castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
   }[type];
 }
 
+/** Imagen del edificio (si tiene y ya cargó), ubicada sobre su base. */
+function artOf(b: BuildingView, faction?: FactionId) {
+  if (!faction) return null;
+  const s = BUILDING_DEFS[b.type].size;
+  const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
+  return buildingSprite(b, faction, c.px, c.py);
+}
+
+/** Altura del edificio sobre el centro de su base (px del mundo): la de su imagen si tiene. */
+export function buildingTop(b: BuildingView, faction?: FactionId): number {
+  const art = artOf(b, faction);
+  if (!art) return buildingHeight(b.type);
+  const s = BUILDING_DEFS[b.type].size;
+  return worldToPx(b.tx + s / 2, b.ty + s / 2).py - art.y;
+}
+
 export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction?: FactionId): void {
   const s = BUILDING_DEFS[b.type].size;
+  // Imagen de Unknown Horizons (según el estilo del pueblo); si no hay, las formas de abajo.
+  const art = artOf(b, faction);
+  if (art) {
+    if (art.yard) {
+      fillFootprint(ctx, b.tx + 0.08, b.ty + 0.08, s - 0.16, '#a38d66');
+      outlineFootprint(ctx, b.tx + 0.08, b.ty + 0.08, s - 0.16, '#7f6b4b', 1);
+    }
+    ctx.drawImage(art.img, art.x, art.y, art.w, art.h);
+    const R = worldToPx(b.tx + s, b.ty);
+    flag(ctx, R.px - 10, R.py + 5, color, b.type === 'farm' ? 16 : 28);
+    return;
+  }
   const look = lookOf(faction);
   if (look.arch !== 'hip' && drawCulture(ctx, b, s, color, look)) return;
   switch (b.type) {
@@ -320,8 +348,8 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       break;
     }
     case 'farm': {
-      const food = b.food ?? 0;
-      const ripe = Math.max(0, Math.min(1, food / (BUILDING_DEFS.farm.food ?? 300)));
+      const food = b.stock ?? 0;
+      const ripe = Math.max(0, Math.min(1, food / BUILDING_DEFS.farm.field!.amount));
       fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, '#7a5a38');
       // Surcos con cultivo: más verde cuanta más comida queda.
       for (let i = 1; i < 6; i++) {
@@ -336,6 +364,20 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
         ctx.fillStyle = color;
         ctx.fillRect(p.px - 1.5, p.py - 6, 3, 6);
       }
+      break;
+    }
+    case 'quarry':
+    case 'mine': {
+      // Respaldo si falta la imagen: pozo de tierra con piedras o mineral y un armazón de madera.
+      fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, '#8a6d4a');
+      fillFootprint(ctx, b.tx + 0.8, b.ty + 0.8, s - 1.6, '#4a3726');
+      const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
+      const ore = b.type === 'quarry' ? '#b4b0a6' : '#7f9bb8';
+      for (const [dx, dy] of [[-18, 4], [16, 6], [-6, 14], [8, -4]]) ellipse(ctx, c.px + dx, c.py + dy, 6, 4, ore, '#3b3b3b', 0.8);
+      line(ctx, c.px - 10, c.py, c.px, c.py - 30, '#6b4a2b', 2);
+      line(ctx, c.px + 10, c.py, c.px, c.py - 30, '#6b4a2b', 2);
+      line(ctx, c.px, c.py - 30, c.px, c.py - 6, '#3b2818', 1);
+      flag(ctx, c.px + 20, c.py + 8, color, 18);
       break;
     }
     case 'barracks': {
@@ -877,12 +919,12 @@ export function drawConstruction(ctx: CanvasRenderingContext2D, b: BuildingView,
   if (b.type === 'farm') {
     // La granja se "ara" de a poco.
     ctx.globalAlpha = 0.3 + b.progress * 0.7;
-    drawBuilding(ctx, { ...b, food: 0 }, color, faction);
+    drawBuilding(ctx, { ...b, stock: 0 }, color, faction);
     ctx.globalAlpha = 1;
     return;
   }
   const bottom = worldToPx(b.tx + s, b.ty + s).py + 6;
-  const top = bottom - buildingHeight(b.type) * Math.max(0.08, b.progress);
+  const top = bottom - (buildingTop(b, faction) + s * 16 + 6) * Math.max(0.08, b.progress);
   const left = worldToPx(b.tx, b.ty + s).px - 10, right = worldToPx(b.tx + s, b.ty).px + 10;
   ctx.save();
   ctx.beginPath();

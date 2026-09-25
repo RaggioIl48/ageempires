@@ -168,12 +168,17 @@ export function buildingMaxHp(faction: FactionId, type: BuildingType, mask: Tech
   return Math.round(BUILDING_DEFS[type].hp * f);
 }
 
-/** Recurso por segundo que recolecta un trabajador de esta facción. */
-export function gatherRate(faction: FactionId, resource: ResourceType, fromFarm = false, mask: TechMask = NO_TECHS): number {
-  let rate = (fromFarm ? FARM_GATHER_RATE : WORKER_GATHER_RATE[resource]) * (FACTIONS[faction].gather?.[resource] ?? 1);
+/**
+ * Recurso por segundo que recolecta un trabajador de esta facción. `field`: true = granja;
+ * un número = ritmo base de un campo de trabajo (granja, cantera, mina); false = recurso del mapa.
+ */
+export function gatherRate(faction: FactionId, resource: ResourceType, field: boolean | number = false, mask: TechMask = NO_TECHS): number {
+  const base = typeof field === 'number' ? field : field ? FARM_GATHER_RATE : WORKER_GATHER_RATE[resource];
+  const farm = field !== false && resource === 'food';
+  let rate = base * (FACTIONS[faction].gather?.[resource] ?? 1);
   for (const t of techsOf(mask)) {
     rate *= TECH_DEFS[t].gather?.[resource] ?? 1;
-    if (fromFarm) rate *= TECH_DEFS[t].farm ?? 1;
+    if (farm) rate *= TECH_DEFS[t].farm ?? 1;
   }
   return rate;
 }

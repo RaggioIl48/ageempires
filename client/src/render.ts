@@ -6,7 +6,7 @@ import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts'
 import { isUpgraded } from '../../shared/stats.ts';
 import {
   UNIT_LOOK,
-  buildingHeight,
+  buildingTop,
   drawBuilding,
   drawConstruction,
   drawMountain,
@@ -260,7 +260,7 @@ export class Renderer {
         if (d.b.progress >= 1 && (d.b.hp < max || sel.building === d.b.id)) {
           const s = BUILDING_DEFS[d.b.type].size;
           const c = worldToPx(d.b.tx + s / 2, d.b.ty + s / 2);
-          healthBar(ctx, c.px, c.py - buildingHeight(d.b.type) - 4, d.b.hp / max, 16 + s * 10);
+          healthBar(ctx, c.px, c.py - buildingTop(d.b, state.faction(d.b.owner)) - 4, d.b.hp / max, 16 + s * 10);
         } else if (d.b.progress < 1) {
           const s = BUILDING_DEFS[d.b.type].size;
           const c = worldToPx(d.b.tx + s / 2, d.b.ty + s / 2);
@@ -318,7 +318,7 @@ export class Renderer {
       fillFootprint(ctx, ghost.tx, ghost.ty, s, ghost.ok ? 'rgba(80,220,110,0.35)' : 'rgba(230,60,60,0.4)');
       outlineFootprint(ctx, ghost.tx, ghost.ty, s, ghost.ok ? '#7dff8a' : '#ff6b6b', 2);
       ctx.globalAlpha = 0.55;
-      drawBuilding(ctx, { id: 0, owner: state.you, type: ghost.type, tx: ghost.tx, ty: ghost.ty, hp: 1, progress: 1, food: BUILDING_DEFS[ghost.type].food }, state.color(state.you), state.faction(state.you));
+      drawBuilding(ctx, { id: 0, owner: state.you, type: ghost.type, tx: ghost.tx, ty: ghost.ty, hp: 1, progress: 1, stock: BUILDING_DEFS[ghost.type].field?.amount }, state.color(state.you), state.faction(state.you));
       ctx.globalAlpha = 1;
     }
 

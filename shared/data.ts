@@ -367,12 +367,22 @@ export const WORKER_GATHER_RATE: Record<ResourceType, number> = {
 };
 /** Las granjas se trabajan un poco más lento que las bayas, pero no se acaban tan rápido. */
 export const FARM_GATHER_RATE = 0.45;
+/** Canteras y minas: un poco más lentas que las rocas y vetas del mapa, pero se construyen donde quieras. */
+export const MINE_GATHER_RATE = 0.36;
+
+/**
+ * Cuadrilla: si al menos CREW_SIZE trabajadores recogen el mismo recurso a menos de
+ * CREW_RADIUS casillas unos de otros, cada uno recolecta CREW_BONUS veces más rápido.
+ */
+export const CREW_SIZE = 5;
+export const CREW_BONUS = 2;
+export const CREW_RADIUS = 5;
 /** Distancia (en casillas, desde el centro del trabajador) para recolectar o descargar. */
 export const INTERACT_RANGE = 1.25;
 
 // ---------- Edificios ----------
 export type BuildingType =
-  | 'town_center' | 'house' | 'storehouse' | 'farm' | 'barracks'
+  | 'town_center' | 'house' | 'storehouse' | 'farm' | 'quarry' | 'mine' | 'barracks'
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
   | 'workshop' | 'factory' | 'market'
   // Edificio único de cada pueblo (Edad Media)
@@ -396,8 +406,11 @@ export interface BuildingDef {
   attack?: AttackDef; // solo edificios defensivos
   /** false = se puede caminar encima (granja). */
   solid: boolean;
-  /** Comida que da una granja antes de agotarse. */
-  food?: number;
+  /**
+   * Campo de trabajo (granja, cantera, mina): qué recurso da, cuánto antes de agotarse,
+   * cuántos trabajadores caben y a qué ritmo recolecta cada uno (unidades/seg).
+   */
+  field?: { resource: ResourceType; amount: number; workers: number; rate: number };
   /** ¿Lo pueden construir los trabajadores? */
   buildable: boolean;
   /** Era desde la que se puede construir. */
@@ -433,7 +446,17 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   farm: {
     label: 'Farm', description: 'Food source for one worker. Best next to a drop-off.',
     size: 3, hp: 300, cost: { wood: 60 }, buildTime: 15, popProvided: 0, dropoff: [], trains: [], researches: [],
-    armor: { melee: 0, ranged: 0 }, sight: 1, solid: false, food: 400, buildable: true, era: 1,
+    armor: { melee: 0, ranged: 0 }, sight: 1, solid: false, field: { resource: 'food', amount: 400, workers: 1, rate: FARM_GATHER_RATE }, buildable: true, era: 1,
+  },
+  quarry: {
+    label: 'Quarry', description: 'Dig stone anywhere, no rocks needed: up to 5 workers, 800 stone. Stone drop-off.',
+    size: 3, hp: 700, cost: { wood: 125 }, buildTime: 30, popProvided: 0, dropoff: ['stone'], trains: [], researches: [],
+    armor: DEFENSE, sight: 2, solid: true, field: { resource: 'stone', amount: 800, workers: 5, rate: MINE_GATHER_RATE }, buildable: true, era: 1,
+  },
+  mine: {
+    label: 'Mine', description: 'Dig metal anywhere, no veins needed: up to 5 workers, 800 metal. Metal drop-off.',
+    size: 3, hp: 700, cost: { wood: 150, stone: 75 }, buildTime: 35, popProvided: 0, dropoff: ['metal'], trains: [], researches: [],
+    armor: DEFENSE, sight: 2, solid: true, field: { resource: 'metal', amount: 800, workers: 5, rate: MINE_GATHER_RATE }, buildable: true, era: 1,
   },
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
@@ -537,7 +560,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
 };
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
-  'house', 'storehouse', 'farm', 'barracks', 'tower', 'wall', 'gate',
+  'house', 'storehouse', 'farm', 'quarry', 'mine', 'barracks', 'tower', 'wall', 'gate',
   'archery_range', 'stable', 'tech_center', 'market',
   'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',

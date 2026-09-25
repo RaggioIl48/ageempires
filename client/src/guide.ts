@@ -16,11 +16,13 @@ import {
   unitAvailable,
   type BuildingType,
   type Cost,
+  type FactionId,
   type TechId,
   type UnitType,
 } from '../../shared/data.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
 import { chargeOf, hasTech, unitCost } from '../../shared/stats.ts';
+import { artVersion } from './art.ts';
 import { el, esc } from './screens.ts';
 import type { ClientState } from './state.ts';
 
@@ -44,7 +46,7 @@ export class GuidePanel {
 
   constructor(
     private state: ClientState,
-    private icon: (type: UnitType) => string,
+    private icon: (type: UnitType, faction?: FactionId, color?: string) => string,
   ) {
     el('btn-guide').addEventListener('click', () => this.toggle());
     el('guide-panel').addEventListener('click', (e) => {
@@ -70,7 +72,7 @@ export class GuidePanel {
   update(): void {
     el('btn-guide').classList.toggle('hidden', this.state.spectator);
     if (!this.open) return;
-    const key = `${this.tab}|${this.state.techVersion}|${this.state.faction(this.state.you)}`;
+    const key = `${this.tab}|${this.state.techVersion}|${this.state.faction(this.state.you)}|${artVersion}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
     el('guide-panel').innerHTML = this.html();
@@ -98,7 +100,7 @@ export class GuidePanel {
           .join('<br>');
         const range = st.attack.type === 'ranged' ? `range ${st.attack.range}` : 'melee';
         return `<div class="g-card ${d.faction ? 'unique' : ''}">
-          <div class="g-head"><span class="icon unit" style="color:${s.color(s.you)}">${this.icon(type)}</span>
+          <div class="g-head"><span class="icon unit" style="color:${s.color(s.you)}">${this.icon(type, faction, s.color(s.you))}</span>
             <div><b>${esc(s.labelOf(s.you, type))}</b>${d.faction ? ' <span class="uniq-tag">⚜ unique</span>' : ''}
             <div class="muted">${CATEGORY_LABELS[d.category]} · ${home ? esc(BUILDING_DEFS[home].label) : ''} · ${costText(unitCost(type, mask))}</div></div></div>
           <div class="g-stats">❤ ${st.hp} · ⚔ ${st.attack.damage} (${range}) · 🛡 ${st.armor.melee}/${st.armor.ranged} · ➜ ${st.speed.toFixed(1)}${st.regen ? ` · ✚ ${Math.round(st.regen * 10) / 10}/s` : ''}</div>

@@ -15,11 +15,14 @@ import {
   UNIT_DEFS,
   eraLabel,
   CHARGE_BONUS,
+  CREW_BONUS,
+  CREW_SIZE,
   MARKET_LOT,
   TRADE_RESOURCES,
   sellPrice,
   type TradeResource,
   type Cost,
+  type FactionId,
   type ResourceType,
   type TechId,
   type UnitType,
@@ -27,7 +30,8 @@ import {
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
-import { ACTION_KEYS, type Input } from './input.ts';
+import { unitPortrait } from './art.ts';
+import { ACTION_KEYS, ARMY_GROUPS, type ArmyGroup, type Input } from './input.ts';
 import type { NetStatus } from './net.ts';
 import type { ClientState } from './state.ts';
 
@@ -87,9 +91,9 @@ function techIcon(t: TechId): string {
 }
 
 /** Ícono de un elemento de la cola: la unidad, o un engranaje / estrella para las tecnologías. */
-function queueIcon(q: { unit?: UnitType; tech?: TechId }): string {
+function queueIcon(q: { unit?: UnitType; tech?: TechId }, faction?: FactionId, color?: string): string {
   if (q.tech) return techIcon(q.tech);
-  return ICONS[q.unit!];
+  return iconOf(q.unit!, faction, color);
 }
 
 const STATE_TEXT: Record<UnitView['state'], string> = {
@@ -107,9 +111,13 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-/** Ícono SVG de una unidad (lo usa también la guía del ejército). */
-export function iconOf(type: UnitType): string {
-  return ICONS[type];
+/**
+ * Ícono de una unidad: su retrato (del arte de sprites) con el color del jugador, o el
+ * dibujo SVG si no tiene o aún se está preparando. Lo usa también la guía del ejército.
+ */
+export function iconOf(type: UnitType, faction?: FactionId, color?: string): string {
+  const url = faction && color ? unitPortrait(faction, type, color) : null;
+  return url ? `<img class="portrait" src="${url}" alt="">` : ICONS[type];
 }
 
 function el(id: string): HTMLElement {
@@ -175,7 +183,21 @@ export class Hud {
           return this.input.act(Number(arg));
         case 'cancel':
           return this.input.cancelTrain(Number(arg));
+        case 'formation':
+          this.input.formation = arg as Input['formation'];
+          return;
       }
+    });
+    el('army-bar').addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      const army = t.closest<HTMLElement>('[data-army]');
+      if (army) return this.input.selectArmy(army.dataset.army as ArmyGroup | 'all', e.shiftKey);
+      const group = t.closest<HTMLElement>('[data-group]');
+      if (group) this.input.recallGroup(Number(group.dataset.group));
+    });
+    el('info').addEventListener('click', (e) => {
+      const keep = (e.target as HTMLElement).closest<HTMLElement>('[data-keep]');
+      if (keep) this.input.keepOnly(keep.dataset.keep as UnitType);
     });
     el('btn-idle').addEventListener('click', () => this.input.nextIdleWorker());
     el('btn-home').addEventListener('click', () => this.input.goHome());
@@ -199,7 +221,44 @@ export class Hud {
     this.renderTop();
     this.renderInfo();
     this.renderBottom();
+    this.renderArmyBar();
     this.renderNotices();
+  }
+
+  // ---------- Barra del ejército ----------
+
+  /** Botones para elegir todos los soldados de un tipo, y los grupos guardados (1 a 9). */
+  private renderArmyBar(): void {
+    const bar = el('army-bar');
+    if (this.state.spectator) {
+      setHtml(bar, '');
+      bar.classList.add('hidden');
+      return;
+    }
+    const count = { infantry: 0, ranged: 0, cavalry: 0, siege: 0 } as Record<ArmyGroup, number>;
+    for (const cu of this.state.units.values()) {
+      if (cu.v.owner !== this.state.you) continue;
+      const cat = UNIT_DEFS[cu.v.type].category;
+      for (const g of Object.keys(ARMY_GROUPS) as ArmyGroup[]) if ((ARMY_GROUPS[g] as readonly string[]).includes(cat)) count[g]++;
+    }
+    const LABEL: Record<ArmyGroup, string> = { infantry: '⚔ Infantry', ranged: '🏹 Ranged', cavalry: '🐎 Cavalry', siege: '💣 Siege' };
+    const chips = (Object.keys(count) as ArmyGroup[])
+      .filter((g) => count[g] > 0)
+      .map((g) => `<button class="chip" data-army="${g}" title="Select all your ${g} (Shift: add to the selection)">${LABEL[g]} <b>${count[g]}</b></button>`)
+      .join('');
+    const total = Object.values(count).reduce((a, b) => a + b, 0);
+    const groups = [...this.input.groups.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([n, ids]) => {
+        const alive = ids.filter((id) => this.state.units.has(id)).length;
+        return alive ? `<button class="chip group" data-group="${n}" title="Group ${n}: press ${n} (twice: go there). Shift+${n} saves the selection.">${n}<small>·${alive}</small></button>` : '';
+      })
+      .join('');
+    const html = total || groups
+      ? `${chips}${total ? `<button class="chip" data-army="all" title="Select all your soldiers">All <b>${total}</b></button>` : ''}${groups}`
+      : '';
+    setHtml(bar, html);
+    bar.classList.toggle('hidden', html === '');
   }
 
   // ---------- Barra superior ----------
@@ -294,11 +353,19 @@ export class Hud {
     } else if (sel.units.size > 1) {
       const units = [...sel.units].map((id) => this.state.units.get(id)?.v).filter((u): u is UnitView => !!u);
       const groups: Record<string, number> = {};
+      const typeOf: Record<string, UnitType> = {};
       for (const u of units) {
         const k = this.state.labelOf(u.owner, u.type);
         groups[k] = (groups[k] ?? 0) + 1;
+        typeOf[k] = u.type;
       }
-      html = `<h3>${units.length} units</h3>` + Object.entries(groups).map(([k, n]) => `<div class="row">${esc(k)}: <b>${n}</b></div>`).join('');
+      const many = Object.keys(groups).length > 1;
+      html =
+        `<h3>${units.length} units</h3>` +
+        Object.entries(groups)
+          .map(([k, n]) => (many ? `<button class="row keep" data-keep="${typeOf[k]}" title="Keep only these">${esc(k)}: <b>${n}</b></button>` : `<div class="row">${esc(k)}: <b>${n}</b></div>`))
+          .join('') +
+        (many ? '<p class="muted small">Click a type to keep only those.</p>' : '');
     } else if (sel.building !== null) {
       const b = this.state.buildings.get(sel.building);
       if (b) html = this.buildingInfo(b);
@@ -333,8 +400,13 @@ export class Hud {
       st.regen > 0 ? `Heals ${Math.round(st.regen * 10) / 10} health/s` : '',
       st.category === 'cavalry' && st.attack.type === 'melee' ? `Charge ×${chargeOf(this.state.faction(u.owner))}` : '',
     ].filter(Boolean);
+    const n = u.crew ?? 1;
+    const crew =
+      u.task && u.owner === this.state.you
+        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together work ×${CREW_BONUS} faster">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>×${CREW_BONUS} gathering</b>` : ` · ${CREW_SIZE - n} more nearby for ×${CREW_BONUS}`}</div>`
+        : '';
     return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
-      <div class="row">${doing}</div>${carry}
+      <div class="row">${doing}</div>${carry}${crew}
       <div class="stats">
         <div>Attack ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
         <div>Armor ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
@@ -351,7 +423,8 @@ export class Hud {
     let html = `<h3>${def.label}</h3>${this.ownerLine(b.owner)}${hpBar(b.hp, max)}`;
     if (b.progress < 1) return html + `<div class="row">Under construction: <b>${Math.floor(b.progress * 100)}%</b></div>`;
     html += `<div class="row muted">${esc(def.description)}</div>`;
-    if (b.type === 'farm') html += `<div class="row"><span class="icon mini">${ICONS.food}</span><b>${b.food ?? 0}</b> Food left</div>`;
+    const field = BUILDING_DEFS[b.type].field;
+    if (field) html += `<div class="row"><span class="icon mini">${ICONS[field.resource]}</span><b>${b.stock ?? 0}</b> ${RESOURCE_LABELS[field.resource]} left${field.workers > 1 ? ` · up to ${field.workers} workers` : ''}</div>`;
     if (def.popProvided) html += `<div class="row">Population: +${def.popProvided}</div>`;
     if (def.attack) html += `<div class="row">Shoots: ${def.attack.damage} damage, range ${def.attack.range} (airplanes too)</div>`;
     if (b.type === 'gate') html += '<div class="row">Your units and your allies pass through; enemies do not.</div>';
@@ -376,7 +449,7 @@ export class Hud {
       .map((u) => {
         const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
         return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
-          ${ICONS[u.type]}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
+          ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
       })
       .join('');
     if (this.state.spectator) {
@@ -443,7 +516,17 @@ export class Hud {
         <p class="hint">Right click: resource = gather · enemy = attack · foundation or damaged building = build/repair.</p>`;
     }
     if (own.length > 0) {
-      return `<button class="act small" data-action="stop">■ Stop</button>
+      const soldiers = own.length - workers.length;
+      const F: [Input['formation'], string, string][] = [
+        ['line', '▤ Line', 'Rows: infantry in front, ranged behind, cavalry on the flanks. Everyone marches at the pace of the slowest.'],
+        ['column', '▥ Column', 'Narrow column, 3 wide: good for roads and gaps in walls.'],
+        ['loose', '⁘ Loose', 'No formation: everyone at full speed.'],
+      ];
+      const formation =
+        soldiers >= 2
+          ? `<div class="formations"><span class="muted">Formation:</span>${F.map(([f, label, tip]) => `<button class="act small ${this.input.formation === f ? 'on' : ''}" data-action="formation" data-arg="${f}" title="${tip}">${label}</button>`).join('')}</div>`
+          : '';
+      return `${formation}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         Idle troops attack the enemies they see on their own.</p>`;
@@ -464,7 +547,8 @@ export class Hud {
       return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete">✖ Delete</button>' : ''}${warn}${rally}`;
     }
     return `<p class="hint">Drag to select. <b>H</b>: Town Center (advance age there) · <b>.</b>: idle worker ·
-      <b>WASD</b>/arrows: camera · wheel: zoom · <b>Q E R T</b>…: build / train / research.</p>`;
+      <b>WASD</b>/arrows: camera · wheel: zoom · <b>Q E R T</b>…: build / train / research ·
+      <b>Shift+1…9</b>: save a group, <b>1…9</b>: select it (twice: go there) · double click: all of that type.</p>`;
   }
 
   private trainButton(type: UnitType, i: number): string {
@@ -475,8 +559,10 @@ export class Hud {
     const cost = unitCost(type, this.state.techsOf(this.state.you));
     const ok = !have || canAfford(have, cost);
     const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
-    return `<button class="act with-icon" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
-      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${ICONS[type]}</span>
+    const icon = iconOf(type, this.state.faction(this.state.you), this.state.color(this.state.you));
+    const portrait = icon.startsWith('<img');
+    return `<button class="act with-icon ${portrait ? 'with-portrait' : ''}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${icon}</span>
       <b>${esc(name)}${u.faction ? ' ⚜' : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
   }
 
@@ -513,7 +599,7 @@ export class Hud {
     return b.queue
       .map(
         (q, i) => `<button class="card queue" data-action="cancel" data-arg="${i}" title="Click to cancel (refunds the cost)"
-          style="color:${this.state.color(this.state.you)}">${queueIcon(q)}
+          style="color:${this.state.color(this.state.you)}">${queueIcon(q, this.state.faction(this.state.you), this.state.color(this.state.you))}
           <div class="hp prog"><div style="width:${Math.round(q.progress * 100)}%"></div></div></button>`,
       )
       .join('');

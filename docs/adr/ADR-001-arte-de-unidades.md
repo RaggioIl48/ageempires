@@ -166,3 +166,5 @@ abiertos a la vez, siempre con créditos, y las unidades siguen siendo 2D.
 - Cada imagen combinada se publica con CC-BY-SA 4.0; la prueba comprueba que todas sus piezas lo permiten.
 - Siguen con formas: era industrial y moderna (salvo el cañón), Fundíbulo y Carro de guerra, y los edificios.
 - La prueba con 0 A.D. (Blender) queda pendiente y opcional.
+- Después se sumaron los **edificios de Unknown Horizons** (CC-BY-SA 3.0, casilla 64×32 como la
+  nuestra), con un estilo de construcción por pueblo; se usa una vista de cada edificio.

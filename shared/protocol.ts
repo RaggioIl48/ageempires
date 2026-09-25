@@ -51,6 +51,8 @@ export interface UnitView {
   carryAmount?: number;
   /** Objetivo de ataque o de construcción. */
   targetId?: number;
+  /** Cuadrilla: trabajadores que recogen lo mismo cerca (contándolo), si son 2 o más. */
+  crew?: number;
 }
 
 export interface NodeView {
@@ -77,8 +79,8 @@ export interface BuildingView {
   hp: number;
   /** 0..1 mientras está en construcción; 1 = terminado. */
   progress: number;
-  /** Comida restante (granjas). */
-  food?: number;
+  /** Campos de trabajo (granja, cantera, mina): recurso que les queda. */
+  stock?: number;
   /** Solo para el dueño: cola de producción, punto de reunión y si falta población. */
   queue?: QueueItemView[];
   rally?: { x: number; y: number };
@@ -180,8 +182,13 @@ export interface PlayerSummary {
 
 // ---------- Cliente -> Servidor ----------
 
+/** Formaciones para mover grupos. */
+export const FORMATIONS = ['line', 'column', 'loose'] as const;
+export type Formation = (typeof FORMATIONS)[number];
+
 export type Command =
-  | { kind: 'move'; unitIds: number[]; x: number; y: number }
+  /** formation: 'line' = filas (infantería adelante, a distancia detrás, caballería a los lados), 'column' = columna angosta, 'loose' = grupo suelto. */
+  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation }
   | { kind: 'stop'; unitIds: number[] }
   /** Recolectar de un recurso del mapa o de una granja propia. */
   | { kind: 'gather'; unitIds: number[]; targetId: number }
@@ -467,7 +474,10 @@ function parseCommand(c: Record<string, unknown>): Command | null {
   const unitIds = [...new Set(c.unitIds)];
   switch (c.kind) {
     case 'move':
-      return isCoord(c.x) && isCoord(c.y) ? { kind: 'move', unitIds, x: c.x, y: c.y } : null;
+      if (!isCoord(c.x) || !isCoord(c.y)) return null;
+      return (FORMATIONS as readonly unknown[]).includes(c.formation)
+        ? { kind: 'move', unitIds, x: c.x, y: c.y, formation: c.formation as Formation }
+        : { kind: 'move', unitIds, x: c.x, y: c.y };
     case 'stop':
       return { kind: 'stop', unitIds };
     case 'gather':

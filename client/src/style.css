@@ -1071,3 +1071,85 @@ select.tiny-select {
 .credits-box a {
   color: var(--accent);
 }
+
+/* ---------- Barra del ejército y formaciones ---------- */
+#army-bar {
+  position: fixed;
+  right: 10px;
+  bottom: calc(var(--bar-h) + 8px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: max(260px, calc(100vw - 460px));
+  z-index: 4;
+}
+#army-bar.hidden {
+  display: none;
+}
+.chip {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 12px;
+  background: rgba(43, 33, 24, 0.9);
+}
+.chip b {
+  color: var(--accent);
+  margin-left: 2px;
+}
+.chip.group {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.chip.group small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.formations {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.act.small.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #3a2c1f;
+}
+#info .row.keep {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 1px 4px;
+  margin-top: 2px;
+  font-size: 13px;
+}
+#info .small {
+  font-size: 11px;
+  margin: 4px 0 0;
+}
+
+/* ---------- Retratos de unidades ---------- */
+img.portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.card img.portrait {
+  height: 25px;
+}
+.act.with-portrait {
+  padding-right: 42px;
+  min-height: 38px;
+}
+.act.with-portrait .icon.unit {
+  width: 34px;
+  height: 34px;
+  top: 2px;
+  right: 3px;
+  background: #1c150f;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+}

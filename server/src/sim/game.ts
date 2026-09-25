@@ -16,7 +16,7 @@ import { wallLine } from '../../../shared/wall.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
 import { assignAttack, removeDead, targetOf, updateCombat } from './combat.ts';
 import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
-import { assignFarm, assignGather, farmTaken, isOwnFarm, stopWork, updateGatherers } from './gather.ts';
+import { assignField, assignGather, fieldFull, isOwnField, stopWork, updateGatherers } from './gather.ts';
 import { generateWorld, type MapOptions } from './mapgen.ts';
 import { moveGroup, moveUnits, separateUnits } from './movement.ts';
 import { updateHealing } from './healing.ts';
@@ -115,14 +115,14 @@ export class Game {
         for (const u of units) stopWork(u);
         break;
       case 'move':
-        moveGroup(w, units, clamp(cmd.x, 0, w.size - 0.01), clamp(cmd.y, 0, w.size - 0.01));
+        moveGroup(w, units, clamp(cmd.x, 0, w.size - 0.01), clamp(cmd.y, 0, w.size - 0.01), cmd.formation ?? 'loose');
         break;
       case 'gather': {
         const node = w.nodes.get(cmd.targetId);
         if (node) this.gatherGroup(workers, node);
         else {
-          const farm = w.buildings.get(cmd.targetId);
-          if (isOwnFarm(farm, playerId)) this.farmGroup(workers, farm);
+          const field = w.buildings.get(cmd.targetId);
+          if (isOwnField(field, playerId)) this.fieldGroup(workers, field);
         }
         break;
       }
@@ -171,7 +171,7 @@ export class Game {
         const b = w.buildings.get(cmd.targetId);
         if (!b || b.owner !== playerId) return;
         if (needsWork(b)) for (const u of workers) assignBuild(w, u, b);
-        else if (b.type === 'farm') this.farmGroup(workers, b);
+        else if (isOwnField(b, playerId)) this.fieldGroup(workers, b);
         break;
       }
       case 'attack': {
@@ -208,19 +208,25 @@ export class Game {
     workers.forEach((u, i) => assignGather(w, u, targets[i % targets.length]));
   }
 
-  /** Cada granja la trabaja una sola persona: los demás van a otras granjas libres cercanas. */
-  private farmGroup(workers: Unit[], farm: Building): void {
+  /**
+   * Un campo (granja, cantera, mina) admite pocos trabajadores: los que no caben van a
+   * otros campos libres cercanos del mismo tipo.
+   */
+  private fieldGroup(workers: Unit[], field: Building): void {
     const w = this.world;
-    const free = [farm, ...[...w.buildings.values()].filter((b) => b !== farm && isOwnFarm(b, farm.owner))]
-      .filter((b) => Math.hypot(b.tx - farm.tx, b.ty - farm.ty) <= 10)
-      .sort((a, b) => Math.hypot(a.tx - farm.tx, a.ty - farm.ty) - Math.hypot(b.tx - farm.tx, b.ty - farm.ty));
+    const free = [field, ...[...w.buildings.values()].filter((b) => b !== field && b.type === field.type && isOwnField(b, field.owner))]
+      .filter((b) => Math.hypot(b.tx - field.tx, b.ty - field.ty) <= 10)
+      .sort((a, b) => Math.hypot(a.tx - field.tx, a.ty - field.ty) - Math.hypot(b.tx - field.tx, b.ty - field.ty));
     let left = 0;
     for (const u of workers) {
-      const f = free.find((b) => !farmTaken(w, b, u));
-      if (f && assignFarm(w, u, f)) continue;
+      const f = free.find((b) => !fieldFull(w, b, u));
+      if (f && assignField(w, u, f)) continue;
       left++;
     }
-    if (left > 0) w.notify(farm.owner, 'Each farm is worked by a single worker');
+    if (left > 0) {
+      const def = BUILDING_DEFS[field.type];
+      w.notify(field.owner, def.field!.workers === 1 ? `Each ${def.label.toLowerCase()} is worked by a single worker` : `A ${def.label.toLowerCase()} holds ${def.field!.workers} workers: build another one`);
+    }
   }
 
   private deleteOwn(playerId: number, ids: number[]): void {
@@ -337,6 +343,7 @@ function unitView(u: Unit): UnitView {
     v.carryType = u.carryType;
     v.carryAmount = u.carryAmount;
   }
+  if (u.crew > 1) v.crew = u.crew;
   return v;
 }
 
@@ -351,7 +358,7 @@ export function buildingView(b: Building, includePrivate: boolean): BuildingView
     hp: Math.ceil(b.hp),
     progress: Math.round(b.progress * 1000) / 1000,
   };
-  if (b.type === 'farm') v.food = b.food;
+  if (BUILDING_DEFS[b.type].field) v.stock = Math.ceil(b.stock);
   if (includePrivate) {
     if (b.queue.length > 0)
       v.queue = b.queue.map((q) => ({ ...(q.tech ? { tech: q.tech } : { unit: q.unit }), progress: Math.round(q.progress * 100) / 100 }));

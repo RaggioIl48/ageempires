@@ -1,9 +1,15 @@
 // Recolección, como en los RTS clásicos: el trabajador camina al recurso,
 // recolecta hasta llenar su carga, la lleva al depósito más cercano y vuelve.
 // Si el recurso se agota, busca otro del mismo tipo cerca.
-// Las granjas son edificios: las trabaja un solo trabajador y se agotan.
+//
+// Los "campos de trabajo" son edificios que dan un recurso hasta agotarse:
+// la granja (comida, un trabajador), la cantera (piedra) y la mina (metal), donde
+// caben varios. Cantera y mina son además depósito de lo suyo.
+//
+// Cuadrilla: si CREW_SIZE o más trabajadores recogen el mismo recurso cerca unos de
+// otros, cada uno recolecta CREW_BONUS veces más rápido.
 
-import { BUILDING_DEFS, INTERACT_RANGE, NODE_DEFS } from '../../../shared/data.ts';
+import { BUILDING_DEFS, CREW_BONUS, CREW_RADIUS, CREW_SIZE, INTERACT_RANGE, NODE_DEFS, type ResourceType } from '../../../shared/data.ts';
 import { carryCapacity, gatherRate } from '../../../shared/stats.ts';
 import { pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type ResourceNode, type Unit, type World } from './world.ts';
@@ -15,20 +21,25 @@ const MAX_PATH_FAILURES = 4;
 /** Distancia al borde de la granja para trabajarla (el granjero camina sobre ella). */
 const FARM_RANGE = 0.5;
 
-type Source = { kind: 'node'; node: ResourceNode } | { kind: 'farm'; farm: Building };
+type Source = { kind: 'node'; node: ResourceNode } | { kind: 'field'; field: Building };
 
 type GatherTask = Extract<Unit['task'], { kind: 'gather' }>;
 
-/** ¿Es una granja terminada de este jugador? */
-export function isOwnFarm(b: Building | undefined, owner: number): b is Building {
-  return !!b && b.type === 'farm' && b.owner === owner && b.progress >= 1;
+/** ¿Es un campo de trabajo (granja, cantera, mina) terminado de este jugador? */
+export function isOwnField(b: Building | undefined, owner: number): b is Building {
+  return !!b && !!BUILDING_DEFS[b.type].field && b.owner === owner && b.progress >= 1;
 }
 
-/** ¿La granja la está trabajando OTRO trabajador? */
-export function farmTaken(world: World, farm: Building, by: Unit): boolean {
-  if (farm.farmerId === 0 || farm.farmerId === by.id) return false;
-  const other = world.units.get(farm.farmerId);
-  return !!other && other.task?.kind === 'gather' && other.task.targetId === farm.id;
+/** Trabajadores (sin contar a `by`) que tienen este campo como tarea. */
+function fieldWorkers(world: World, field: Building, by?: Unit): number {
+  let n = 0;
+  for (const u of world.units.values()) if (u !== by && u.task?.kind === 'gather' && u.task.targetId === field.id) n++;
+  return n;
+}
+
+/** ¿El campo ya tiene todos los trabajadores que admite (sin contar a `by`)? */
+export function fieldFull(world: World, field: Building, by?: Unit): boolean {
+  return fieldWorkers(world, field, by) >= BUILDING_DEFS[field.type].field!.workers;
 }
 
 /** Orden de recolectar un nodo del mapa. */
@@ -38,17 +49,17 @@ export function assignGather(world: World, u: Unit, node: ResourceNode): void {
   goToSource(world, u, { kind: 'node', node });
 }
 
-/** Orden de trabajar una granja propia. Devuelve false si ya la trabaja otro. */
-export function assignFarm(world: World, u: Unit, farm: Building): boolean {
-  if (farmTaken(world, farm, u)) return false;
-  farm.farmerId = u.id;
-  u.task = { kind: 'gather', targetId: farm.id, resource: 'food', tx: farm.tx, ty: farm.ty };
+/** Orden de trabajar un campo propio. Devuelve false si ya está lleno. */
+export function assignField(world: World, u: Unit, field: Building): boolean {
+  if (fieldFull(world, field, u)) return false;
+  u.task = { kind: 'gather', targetId: field.id, resource: BUILDING_DEFS[field.type].field!.resource, tx: field.tx, ty: field.ty };
   u.failedPaths = 0;
-  goToSource(world, u, { kind: 'farm', farm });
+  goToSource(world, u, { kind: 'field', field });
   return true;
 }
 
 export function updateGatherers(world: World, dt: number): void {
+  updateCrews(world);
   for (const u of world.units.values()) {
     if (u.task?.kind !== 'gather') continue;
     switch (u.state) {
@@ -65,6 +76,40 @@ export function updateGatherers(world: World, dt: number): void {
         break;
     }
   }
+}
+
+/**
+ * Tamaño de la cuadrilla de cada trabajador: cuántos (contándolo) recogen el mismo
+ * recurso con su objetivo a menos de CREW_RADIUS casillas del suyo.
+ */
+function updateCrews(world: World): void {
+  const groups = new Map<string, Unit[]>();
+  for (const u of world.units.values()) {
+    u.crew = 0;
+    if (u.task?.kind !== 'gather' || (u.state !== 'gathering' && u.state !== 'toResource' && u.state !== 'returning')) continue;
+    const key = `${u.owner}:${u.task.resource}`;
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = []));
+    g.push(u);
+  }
+  const r2 = CREW_RADIUS * CREW_RADIUS;
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    for (const u of g) {
+      const a = u.task as GatherTask;
+      let n = 0;
+      for (const o of g) {
+        const b = o.task as GatherTask;
+        if ((a.tx - b.tx) ** 2 + (a.ty - b.ty) ** 2 <= r2) n++;
+      }
+      u.crew = n;
+    }
+  }
+}
+
+/** Multiplicador de la cuadrilla (×CREW_BONUS con CREW_SIZE o más). */
+export function crewFactor(crew: number): number {
+  return crew >= CREW_SIZE ? CREW_BONUS : 1;
 }
 
 function stepToResource(world: World, u: Unit): void {
@@ -100,7 +145,8 @@ function stepGathering(world: World, u: Unit, dt: number): void {
   }
   const techs = world.techsOf(u.owner);
   const capacity = carryCapacity(techs);
-  u.gatherProgress += gatherRate(world.factionOf(u.owner), task.resource, src.kind === 'farm', techs) * dt;
+  const field = src.kind === 'field' ? BUILDING_DEFS[src.field.type].field!.rate : false;
+  u.gatherProgress += gatherRate(world.factionOf(u.owner), task.resource, field, techs) * crewFactor(u.crew) * dt;
   while (u.gatherProgress >= 1 && u.carryAmount < capacity && remaining(src) > 0) {
     u.gatherProgress -= 1;
     u.carryAmount += 1;
@@ -108,14 +154,14 @@ function stepGathering(world: World, u: Unit, dt: number): void {
       src.node.amount -= 1;
       world.changedNodes.add(src.node.id);
     } else {
-      src.farm.food -= 1;
+      src.field.stock -= 1;
     }
   }
   if (remaining(src) <= 0) {
     if (src.kind === 'node') world.removeNode(src.node.id);
     else {
-      world.removeBuilding(src.farm.id);
-      world.notify(u.owner, 'A farm ran out: build another one');
+      world.removeBuilding(src.field.id);
+      world.notify(u.owner, `A ${BUILDING_DEFS[src.field.type].label.toLowerCase()} ran out: build another one`);
     }
   }
   if (u.carryAmount >= capacity) startReturn(world, u);
@@ -145,13 +191,14 @@ function stepReturning(world: World, u: Unit): void {
 }
 
 function remaining(src: Source): number {
-  return src.kind === 'node' ? src.node.amount : src.farm.food;
+  return src.kind === 'node' ? src.node.amount : src.field.stock;
 }
 
 function inRange(u: Unit, src: Source): boolean {
-  return src.kind === 'node'
-    ? distanceToRect(u.x, u.y, src.node.tx, src.node.ty, 1) <= INTERACT_RANGE
-    : distanceToRect(u.x, u.y, src.farm.tx, src.farm.ty, src.farm.size) <= FARM_RANGE;
+  if (src.kind === 'node') return distanceToRect(u.x, u.y, src.node.tx, src.node.ty, 1) <= INTERACT_RANGE;
+  const f = src.field;
+  // La granja se trabaja caminando encima; cantera y mina, desde el borde.
+  return distanceToRect(u.x, u.y, f.tx, f.ty, f.size) <= (BUILDING_DEFS[f.type].solid ? INTERACT_RANGE : FARM_RANGE);
 }
 
 /** Fuente de la tarea, o una equivalente cercana si se agotó. null = sin trabajo. */
@@ -159,19 +206,15 @@ function currentSource(world: World, u: Unit): Source | null {
   const task = u.task as GatherTask;
   const node = world.nodes.get(task.targetId);
   if (node) return { kind: 'node', node };
-  const farm = world.buildings.get(task.targetId);
-  if (isOwnFarm(farm, u.owner)) {
-    farm.farmerId = u.id;
-    return { kind: 'farm', farm };
-  }
+  const field = world.buildings.get(task.targetId);
+  if (isOwnField(field, u.owner)) return { kind: 'field', field };
   // Se agotó: buscar otra igual cerca.
   const next = findNearby(world, u);
   if (next) {
-    task.targetId = next.kind === 'node' ? next.node.id : next.farm.id;
-    const at = next.kind === 'node' ? next.node : next.farm;
+    task.targetId = next.kind === 'node' ? next.node.id : next.field.id;
+    const at = next.kind === 'node' ? next.node : next.field;
     task.tx = at.tx;
     task.ty = at.ty;
-    if (next.kind === 'farm') next.farm.farmerId = u.id;
     return next;
   }
   // No queda nada cerca: si lleva algo, lo entrega; si no, queda inactivo.
@@ -198,11 +241,15 @@ function findNearby(world: World, u: Unit, excludeId = 0): Source | null {
     if (!world.isExposed(n.tx, n.ty)) continue;
     consider({ kind: 'node', node: n }, n.tx, n.ty, 1);
   }
-  // Un granjero cuya granja se agotó pasa a otra granja libre cercana.
-  if (task.resource === 'food')
-    for (const b of world.buildings.values())
-      if (b.id !== excludeId && isOwnFarm(b, u.owner) && !farmTaken(world, b, u)) consider({ kind: 'farm', farm: b }, b.tx, b.ty, b.size);
+  // Quien trabajaba un campo que se agotó pasa a otro campo libre cercano del mismo recurso.
+  for (const b of world.buildings.values())
+    if (b.id !== excludeId && isOwnField(b, u.owner) && fieldResource(b) === task.resource && !fieldFull(world, b, u))
+      consider({ kind: 'field', field: b }, b.tx, b.ty, b.size);
   return best;
+}
+
+function fieldResource(b: Building): ResourceType {
+  return BUILDING_DEFS[b.type].field!.resource;
 }
 
 function goToSource(world: World, u: Unit, src: Source): void {
@@ -213,7 +260,9 @@ function goToSource(world: World, u: Unit, src: Source): void {
   let path =
     src.kind === 'node'
       ? pathToRect(world, u, src.node.tx, src.node.ty, 1)
-      : pathToPoint(world, u, src.farm.tx + src.farm.size / 2, src.farm.ty + src.farm.size / 2);
+      : BUILDING_DEFS[src.field.type].solid
+        ? pathToRect(world, u, src.field.tx, src.field.ty, src.field.size)
+        : pathToPoint(world, u, src.field.tx + src.field.size / 2, src.field.ty + src.field.size / 2);
   if (!path && src.kind === 'node') {
     // Inalcanzable (p. ej. árbol en medio del bosque): probar con uno vecino accesible.
     const alt = findNearby(world, u, src.node.id);
@@ -266,4 +315,5 @@ export function stopWork(u: Unit): void {
   u.state = 'idle';
   u.failedPaths = 0;
   u.chaseGoal = null;
+  u.speedCap = 0;
 }

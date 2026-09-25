@@ -12,6 +12,8 @@ import {
   BUILDING_DEFS,
   BUILD_MENU,
   TECH_DEFS,
+  UNIT_DEFS,
+  type Category,
   buildingAvailable,
   unitAvailable,
   type BuildingType,
@@ -20,12 +22,12 @@ import {
   type UnitType,
   TRADE_RESOURCES,
 } from '../../shared/data.ts';
-import type { BuildingView } from '../../shared/protocol.ts';
+import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
 import { wallLine } from '../../shared/wall.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
-import { buildingHeight, UNIT_LOOK, unitTop } from './sprites.ts';
+import { buildingTop, UNIT_LOOK, unitTop } from './sprites.ts';
 import type { ClientState } from './state.ts';
 import { Camera, worldToPx } from './view.ts';
 
@@ -35,7 +37,16 @@ const DRAG_THRESHOLD = 5; // px antes de considerar que es un arrastre
 const KEY_PAN_SPEED = 900; // px de pantalla por segundo
 const DOUBLE_CLICK_MS = 350;
 /** Teclas de la cuadrícula de acciones (sin W/A/S/D, que mueven la cámara). */
-export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'] as const;
+export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Y', 'U', 'I', 'O', 'P'] as const;
+
+/** Categorías para seleccionar de a muchos (barra del ejército). */
+export const ARMY_GROUPS = {
+  infantry: ['infantry', 'armor'],
+  ranged: ['ranged'],
+  cavalry: ['cavalry'],
+  siege: ['siege', 'air'],
+} as const satisfies Record<string, readonly Category[]>;
+export type ArmyGroup = keyof typeof ARMY_GROUPS;
 
 /** Lo que se puede hacer con un edificio: entrenar, investigar o comerciar (Mercado). */
 export type BuildingAction =
@@ -65,7 +76,7 @@ export function pick(state: ClientState, cam: Camera, sx: number, sy: number, no
     const s = BUILDING_DEFS[b.type].size;
     const L = worldToPx(b.tx, b.ty + s), R = worldToPx(b.tx + s, b.ty), T = worldToPx(b.tx, b.ty), B = worldToPx(b.tx + s, b.ty + s);
     const insideFootprint = world.x >= b.tx && world.x < b.tx + s && world.y >= b.ty && world.y < b.ty + s;
-    const inBox = b.type !== 'farm' && px >= L.px && px <= R.px && py >= T.py - buildingHeight(b.type) + 10 && py <= B.py;
+    const inBox = b.type !== 'farm' && px >= L.px && px <= R.px && py >= T.py - buildingTop(b, state.faction(b.owner)) + 10 && py <= B.py;
     if ((insideFootprint || inBox) && b.tx + b.ty + s > bestDepth) {
       best = { kind: 'building', id: b.id };
       bestDepth = b.tx + b.ty + s;
@@ -101,6 +112,11 @@ export class Input {
   private wallStart: { tx: number; ty: number } | null = null;
   /** true mientras se arrastra con el botón apretado (si se suelta en la misma casilla, se espera el segundo clic). */
   private wallDragging = false;
+  /** Formación con que marchan los grupos de soldados. */
+  formation: Formation = 'line';
+  /** Grupos guardados con Shift + número (1 a 9). */
+  readonly groups = new Map<number, number[]>();
+  private lastGroupKey = { n: 0, time: 0 };
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -299,7 +315,7 @@ export class Input {
           mark(b.tx + s / 2, b.ty + s / 2, '#5ab0ff');
           return;
         }
-        if (b.type === 'farm') {
+        if (BUILDING_DEFS[b.type].field) {
           this.net.command({ kind: 'gather', unitIds: workers, targetId: b.id });
           mark(b.tx + s / 2, b.ty + s / 2, '#ffe27a');
           return;
@@ -312,8 +328,57 @@ export class Input {
       mark(n.tx + 0.5, n.ty + 0.5, '#ffe27a');
       return;
     }
-    this.net.command({ kind: 'move', unitIds: ids, x, y });
+    // Los soldados marchan en la formación elegida; los trabajadores, sueltos.
+    const soldiers = ids.filter((id) => this.state.units.get(id)?.v.type !== 'worker').length;
+    const formation = soldiers >= 2 ? this.formation : 'loose';
+    this.net.command({ kind: 'move', unitIds: ids, x, y, formation });
     mark(x, y, '#7dff8a');
+  }
+
+  // ---------- Grupos ----------
+
+  /** Todas las unidades propias de una categoría (en todo el mapa). Shift: se suman a la selección. */
+  selectArmy(group: ArmyGroup | 'all', additive = false): void {
+    const cats: readonly Category[] = group === 'all' ? Object.values(ARMY_GROUPS).flat() : ARMY_GROUPS[group];
+    if (!additive) this.sel.units.clear();
+    this.sel.building = null;
+    this.sel.node = null;
+    this.ghost = null;
+    for (const cu of this.state.units.values())
+      if (cu.v.owner === this.state.you && cats.includes(UNIT_DEFS[cu.v.type].category)) this.sel.units.add(cu.v.id);
+    this.onSelectionChange();
+  }
+
+  /** Deja en la selección solo las unidades de un tipo. */
+  keepOnly(type: UnitType): void {
+    for (const id of [...this.sel.units]) if (this.state.units.get(id)?.v.type !== type) this.sel.units.delete(id);
+    this.onSelectionChange();
+  }
+
+  /** Guarda la selección propia en el grupo n (1 a 9). */
+  saveGroup(n: number): void {
+    const ids = this.ownSelected();
+    if (ids.length === 0) this.groups.delete(n);
+    else this.groups.set(n, ids);
+    this.onSelectionChange();
+  }
+
+  /** Selecciona el grupo n; si se pide dos veces seguidas, la cámara va hacia él. */
+  recallGroup(n: number, now = performance.now()): void {
+    const ids = (this.groups.get(n) ?? []).filter((id) => this.state.units.has(id));
+    if (ids.length === 0) return;
+    this.groups.set(n, ids);
+    this.sel.units.clear();
+    for (const id of ids) this.sel.units.add(id);
+    this.sel.building = null;
+    this.sel.node = null;
+    this.ghost = null;
+    if (this.lastGroupKey.n === n && now - this.lastGroupKey.time < DOUBLE_CLICK_MS) {
+      const us = ids.map((id) => this.state.units.get(id)!.v);
+      this.cam.centerOn(us.reduce((s, u) => s + u.x, 0) / us.length, us.reduce((s, u) => s + u.y, 0) / us.length);
+    }
+    this.lastGroupKey = { n, time: now };
+    this.onSelectionChange();
   }
 
   // ---------- Eventos ----------
@@ -529,6 +594,14 @@ export class Input {
       case 'Delete':
         this.deleteSelected();
         return;
+    }
+    // Grupos: Shift (o Ctrl) + número guarda; el número solo, selecciona (dos veces: ir allí).
+    const digit = /^Digit([1-9])$/.exec(e.code);
+    if (digit) {
+      e.preventDefault();
+      if (e.shiftKey || e.ctrlKey || e.metaKey) this.saveGroup(Number(digit[1]));
+      else this.recallGroup(Number(digit[1]));
+      return;
     }
     // Cuadrícula de acciones: construir con trabajadores, entrenar o investigar con un edificio.
     const slot = ACTION_KEYS.indexOf(e.key.toUpperCase() as (typeof ACTION_KEYS)[number]);

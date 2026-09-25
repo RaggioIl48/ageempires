@@ -317,6 +317,37 @@ the team-color parts, mounts riders on horses, cuts and packs the animations. Re
 
 **Tests**: 222 (license and coverage check of the art, unit facing and fallen units).
 
+## Crews, mines, building art, portraits, groups and formations (2026-09-25)
+
+**Economy**
+
+- **Crews**: when **5 or more workers** gather the same resource close together (their targets less
+  than 5 tiles apart), each of them gathers **×2**. The worker panel shows "Crew 3/5 · 2 more nearby for ×2".
+  It works for trees, rocks, veins, berries, farms, quarries and mines.
+- **Quarry** (125 wood) and **Mine** (150 wood, 75 stone), Tribal Age, 3×3: stone or metal **without
+  depending on the rocks and veins of the map**. 800 each, up to 5 workers (a full crew: ×2), and they
+  are their own drop-off (no walking). A bit slower per worker than the map deposits (0.36/s).
+  Farms, quarries and mines share the same rules ("work fields"); farms keep one worker each.
+
+**Buildings**: pre-rendered isometric art from **Unknown Horizons** (CC-BY-SA 3.0; same 64×32 tile).
+Each people has its own style: Romans stone houses, Visigoths/Ostrogoths timber-framed, Gauls/Germans/
+Vikings wood with grass or thatch roofs, Mongols tents. A flag shows the player's color. Houses have
+variants. Farms look ripe or harvested. Still drawn with shapes: archery range, walls, gates, unique
+buildings and the Mongol Town Center (yurt camp).
+
+**Interface**
+
+- **Portraits**: train buttons, the selection and the queue show the unit's own sprite (half body for
+  foot soldiers, profile for riders and machines) in the player's color.
+- **Select a whole army type**: ⚔ Infantry · 🏹 Ranged · 🐎 Cavalry · 💣 Siege · All (Shift adds). In a
+  mixed selection, click a type in the left panel to keep only those.
+- **Groups**: Shift+1…9 saves, 1…9 selects (twice: go there).
+- **Formations** (2+ soldiers): **Line** (infantry front rank, ranged behind, siege at the back, cavalry on
+  the flanks, facing the march), **Column** (3 wide, cavalry leading), **Loose**. In formation everyone
+  marches at the pace of the slowest, so the ranks stay together.
+
+**Tests**: 232.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

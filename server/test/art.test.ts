@@ -53,6 +53,19 @@ describe('arte de unidades', () => {
       }
   });
 
+  it('edificios: cada imagen existe, está en el manifiesto y tiene créditos con licencia compatible', () => {
+    const b = JSON.parse(fs.readFileSync(path.join(ART, 'buildings.json'), 'utf8'));
+    const files = new Set(Object.values<{ file: string }>(b.sprites).map((s) => s.file));
+    for (const f of files) expect(fs.existsSync(path.join(ART, f)), f).toBe(true);
+    for (const f of fs.readdirSync(path.join(ART, 'buildings'))) expect(files, f).toContain(`buildings/${f}`);
+    for (const [key, ids] of Object.entries<string[]>(b.map)) for (const id of ids) expect(b.sprites[id], key).toBeDefined();
+    expect(b.credits.length).toBeGreaterThan(0);
+    for (const c of b.credits) expect(credits.items[c], c).toBeDefined();
+    expect(sheetLicense(b.credits.map((c: string) => credits.items[c].licenses))).toBe('CC-BY-SA 4.0');
+    // Cada pueblo tiene un estilo, y sus casas tienen imagen.
+    for (const f of FACTION_ORDER) expect(b.map[`${b.styles[f]}/house`], f).toBeDefined();
+  });
+
   it('los trabajadores traen una animación por tarea', () => {
     for (const f of FACTION_ORDER) {
       const s = units.sheets[units.units[`${f}/worker`]];

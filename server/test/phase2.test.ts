@@ -144,7 +144,7 @@ describe('construction', () => {
     const food0 = w.players.get(1)!.resources.food;
     run(g, 60);
     expect(w.players.get(1)!.resources.food).toBeGreaterThan(food0 + 15);
-    farm.food = 3; // almost exhausted
+    farm.stock = 3; // almost exhausted
     run(g, 20);
     expect(w.buildings.has(farm.id)).toBe(false);
   });

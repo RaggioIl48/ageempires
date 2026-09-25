@@ -6,8 +6,8 @@
 // Si una unidad no tiene hoja, o la imagen aún no llegó, se dibuja con las formas
 // de sprites.ts: el juego nunca queda sin dibujo.
 
-import type { FactionId, UnitType } from '../../shared/data.ts';
-import type { UnitView } from '../../shared/protocol.ts';
+import { BUILDING_DEFS, type FactionId, type UnitType } from '../../shared/data.ts';
+import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 
 interface AnimMeta {
   /** Fila superior del bloque; w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
@@ -42,23 +42,90 @@ interface Manifest {
   units: Record<string, string>;
 }
 
+/** Edificios (Unknown Horizons): una imagen por edificio y estilo de construcción. */
+interface BuildingArt {
+  v: number;
+  styles: Record<FactionId, string>;
+  sprites: Record<string, { file: string; w: number; h: number; tiles: number }>;
+  /** 'estilo/tipo' (o con '*' en lugar del estilo) → imágenes (varias = variantes). */
+  map: Record<string, string[]>;
+  credits: string[];
+}
+
 const BASE = import.meta.env.BASE_URL ?? '/';
 let manifest: Manifest | null = null;
+let buildingArt: BuildingArt | null = null;
 let loading: Promise<void> | null = null;
 /** Imagen de cada hoja; null = falló (se usa el dibujo de formas). */
 const images = new Map<string, HTMLImageElement | null>();
 const ready = new Set<string>();
 const tints = new Map<string, HTMLCanvasElement>();
+/** Sube cada vez que termina de cargar una imagen o un retrato (para redibujar la interfaz). */
+export let artVersion = 0;
 
-/** Carga el manifiesto (las imágenes se piden recién cuando aparece cada unidad). */
+const getJson = <T>(file: string): Promise<T | null> =>
+  fetch(`${BASE}art/${file}`)
+    .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
+    .catch(() => null);
+
+/** Carga los manifiestos (las imágenes se piden recién cuando aparece cada cosa). */
 export function loadArt(): Promise<void> {
-  loading ??= fetch(`${BASE}art/units.json`)
-    .then((r) => (r.ok ? r.json() : null))
-    .then((m: Manifest | null) => {
-      if (m?.v === 1) manifest = m;
-    })
-    .catch(() => undefined);
+  loading ??= Promise.all([getJson<Manifest>('units.json'), getJson<BuildingArt>('buildings.json')]).then(([m, b]) => {
+    if (m?.v === 1) manifest = m;
+    if (b?.v === 1) buildingArt = b;
+  });
   return loading;
+}
+
+/** Imagen de un archivo de arte, o null si aún no cargó (y la pide). */
+function artImage(file: string): HTMLImageElement | null {
+  if (ready.has(file)) return images.get(file)!;
+  if (!images.has(file)) {
+    const img = new Image();
+    img.decoding = 'async';
+    images.set(file, img);
+    img.onload = () => {
+      ready.add(file);
+      artVersion++;
+    };
+    img.onerror = () => images.set(file, null);
+    img.src = `${BASE}art/${file}`;
+  }
+  return null;
+}
+
+export interface BuildingSprite {
+  img: HTMLImageElement;
+  /** Rectángulo de dibujo en px del mundo. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** true = la imagen es más chica que la base del edificio (se dibuja un patio alrededor). */
+  yard: boolean;
+}
+
+/**
+ * Imagen para un edificio terminado (según el pueblo de su dueño), ya ubicada: su base
+ * queda centrada sobre la base del edificio. null = no tiene (o no cargó): se usan formas.
+ */
+export function buildingSprite(b: BuildingView, faction: FactionId, cx: number, cy: number): BuildingSprite | null {
+  if (!buildingArt) return null;
+  const style = buildingArt.styles[faction];
+  const list = buildingArt.map[`${style}/${b.type}`] ?? buildingArt.map[`*/${b.type}`];
+  if (!list) return null;
+  let id = list[b.id % list.length];
+  if (b.type === 'farm') {
+    const full = BUILDING_DEFS.farm.field!.amount;
+    if ((b.stock ?? full) >= full * 0.4 && buildingArt.sprites['farm-ripe']) id = 'farm-ripe';
+  }
+  const sp = buildingArt.sprites[id];
+  const img = sp ? artImage(sp.file) : null;
+  if (!sp || !img) return null;
+  const size = BUILDING_DEFS[b.type].size;
+  const k = Math.min(1, size / sp.tiles);
+  const w = sp.w * k, h = sp.h * k;
+  return { img, x: cx - w / 2, y: cy + sp.tiles * 16 * k - h, w, h, yard: sp.tiles < size };
 }
 
 function sheetId(faction: FactionId, type: UnitType): string | undefined {
@@ -66,17 +133,8 @@ function sheetId(faction: FactionId, type: UnitType): string | undefined {
 }
 
 /** Imagen lista de una hoja, o null (y la pide si aún no se pidió). */
-function imageOf(id: string, sheet: SheetMeta): HTMLImageElement | null {
-  if (ready.has(id)) return images.get(id)!;
-  if (!images.has(id)) {
-    const img = new Image();
-    img.decoding = 'async';
-    images.set(id, img);
-    img.onload = () => ready.add(id);
-    img.onerror = () => images.set(id, null);
-    img.src = `${BASE}art/${sheet.file}`;
-  }
-  return null;
+function imageOf(_id: string, sheet: SheetMeta): HTMLImageElement | null {
+  return artImage(sheet.file);
 }
 
 /** Recortes de equipo teñidos con el color del jugador (uno por hoja y color). */
@@ -209,6 +267,53 @@ function drawFrame(
     }
   }
   return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+}
+
+/** Retratos ya hechos (URL de la imagen), por hoja y color; null = en preparación. */
+const portraits = new Map<string, string | null>();
+
+/**
+ * Retrato de una unidad para la interfaz (botones, selección, cola): medio cuerpo para
+ * la infantería, de perfil para jinetes y máquinas, con el color del jugador.
+ * Devuelve la URL, o null si aún no está (se prepara solo y aparece en el próximo dibujo).
+ */
+export function unitPortrait(faction: FactionId, type: UnitType, color: string): string | null {
+  const id = sheetId(faction, type);
+  if (!id) return null;
+  const key = `${id}|${color}`;
+  if (portraits.has(key)) return portraits.get(key)!;
+  const sheet = manifest!.sheets[id];
+  const img = imageOf(id, sheet);
+  const a = sheet.anims.idle;
+  if (!img || !a) return null;
+  portraits.set(key, null);
+  // Cuadro completo con el color de equipo.
+  const wide = a.w > a.h * 0.9; // jinete o máquina: mejor de costado
+  const d = a.d === 1 ? 0 : sheet.o === 'oga8' ? 1 : wide ? 3 : 2;
+  const frame = document.createElement('canvas');
+  frame.width = a.w;
+  frame.height = a.h;
+  const g = frame.getContext('2d')!;
+  g.drawImage(img, 0, a.y + d * a.h, a.w, a.h, 0, 0, a.w, a.h);
+  const k = d * a.n * 6;
+  if (a.m.length && a.m[k + 2]) {
+    const tint = tintOf(id, img, sheet, color);
+    g.drawImage(tint, a.m[k], a.m[k + 1] - sheet.maskY, a.m[k + 2], a.m[k + 3], a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
+  }
+  // Recorte cuadrado: medio cuerpo (a pie) o la figura entera (jinetes y máquinas).
+  const side = wide ? Math.max(a.w, a.h) : Math.round(a.ay * 0.72);
+  const sx = wide ? (a.w - side) / 2 : a.ax - side / 2;
+  const sy = wide ? (a.h - side) / 2 : 0;
+  const out = document.createElement('canvas');
+  out.width = out.height = 48;
+  const o = out.getContext('2d')!;
+  o.imageSmoothingEnabled = !wide;
+  o.drawImage(frame, sx, sy, side, side, 0, 0, 48, 48);
+  out.toBlob((blob) => {
+    portraits.set(key, blob ? URL.createObjectURL(blob) : null);
+    artVersion++;
+  });
+  return null;
 }
 
 /** ¿Hay hoja para esta unidad? (para mostrar créditos o decidir sombras). */
