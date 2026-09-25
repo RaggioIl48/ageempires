@@ -82,6 +82,7 @@ export class ClientSync {
   private lastEcoAllTick = -Infinity;
   private lastDiplo = -1;
   private lastNews = -1;
+  private lastTech = -1;
 
   /** playerId 0 = observador (el profesor): ve todo y la economía de todos. */
   constructor(readonly playerId: number) {}
@@ -178,6 +179,13 @@ export class ClientSync {
     if (w.diploVersion !== this.lastDiplo || (timers && frame.tick % TICK_RATE === 0)) {
       this.lastDiplo = w.diploVersion;
       msg.dip = diploView(w, this.playerId);
+    }
+    // Era y tecnologías de todos (se ven las eras de los rivales, como en los RTS clásicos).
+    if (w.techVersion !== this.lastTech) {
+      this.lastTech = w.techVersion;
+      const pt: number[] = [];
+      for (const pl of w.players.values()) pt.push(pl.id, pl.era, pl.techs);
+      msg.pt = pt;
     }
     // El profesor recibe las noticias diplomáticas como avisos.
     if (this.playerId === 0) {

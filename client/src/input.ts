@@ -5,12 +5,22 @@
 //                  construir/reparar, o punto de reunión (con un edificio elegido)
 //   rueda = zoom · botón central = desplazar · WASD/flechas = cámara
 //   H = Centro Urbano · . = trabajador inactivo · Esc = cancelar · Supr = eliminar
-//   Q E R T = construir (con trabajadores) o entrenar (con un edificio)
+//   Q E R T F G Z X C V B N = construir (con trabajadores) o entrenar/investigar (con un edificio)
 
-import { BUILDING_DEFS, BUILD_MENU, type BuildingType } from '../../shared/data.ts';
+import {
+  BUILDING_DEFS,
+  BUILD_MENU,
+  TECH_DEFS,
+  unitAvailable,
+  type BuildingType,
+  type TechId,
+  type UnitType,
+} from '../../shared/data.ts';
+import type { BuildingView } from '../../shared/protocol.ts';
+import { hasTech } from '../../shared/stats.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
-import { buildingHeight } from './sprites.ts';
+import { buildingHeight, UNIT_LOOK } from './sprites.ts';
 import type { ClientState } from './state.ts';
 import { Camera, worldToPx } from './view.ts';
 
@@ -20,7 +30,10 @@ const DRAG_THRESHOLD = 5; // px antes de considerar que es un arrastre
 const KEY_PAN_SPEED = 900; // px de pantalla por segundo
 const DOUBLE_CLICK_MS = 350;
 /** Teclas de la cuadrícula de acciones (sin W/A/S/D, que mueven la cámara). */
-export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G'] as const;
+export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N'] as const;
+
+/** Lo que se puede hacer con un edificio: entrenar una unidad o investigar una tecnología. */
+export type BuildingAction = { kind: 'train'; unit: UnitType } | { kind: 'research'; tech: TechId };
 
 /** ¿Qué objeto hay bajo el punto de la pantalla? Las unidades tienen prioridad. */
 export function pick(state: ClientState, cam: Camera, sx: number, sy: number, now: number): Picked {
@@ -30,10 +43,11 @@ export function pick(state: ClientState, cam: Camera, sx: number, sy: number, no
   for (const cu of state.units.values()) {
     const p = state.unitPos(cu, now);
     const w = worldToPx(p.x, p.y);
-    const half = cu.v.type === 'scout' ? 13 : 9, top = cu.v.type === 'scout' ? 32 : 28;
-    if (px >= w.px - half && px <= w.px + half && py >= w.py - top && py <= w.py + 5 && p.x + p.y > bestDepth) {
+    const { half, top } = UNIT_LOOK[cu.v.type];
+    const depth = p.x + p.y + (cu.v.type === 'airplane' ? 10_000 : 0); // los aviones van encima
+    if (px >= w.px - half && px <= w.px + half && py >= w.py - top && py <= w.py + 5 && depth > bestDepth) {
       best = { kind: 'unit', id: cu.v.id };
-      bestDepth = p.x + p.y;
+      bestDepth = depth;
     }
   }
   if (best) return best;
@@ -171,11 +185,42 @@ export class Input {
     this.onSelectionChange();
   }
 
-  train(index: number): void {
+  /** Edificios que se pueden construir en la era actual. */
+  buildMenu(): BuildingType[] {
+    const era = this.state.eraOf(this.state.you);
+    return BUILD_MENU.filter((t) => BUILDING_DEFS[t].era <= era);
+  }
+
+  /** Unidades y tecnologías disponibles ahora en un edificio propio. */
+  buildingActions(b: BuildingView): BuildingAction[] {
+    const s = this.state;
+    const era = s.eraOf(s.you), mask = s.techsOf(s.you);
+    const def = BUILDING_DEFS[b.type];
+    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era)).map((unit) => ({ kind: 'train', unit }));
+    const queued = new Set<TechId>();
+    for (const o of s.buildings.values()) if (o.owner === s.you) for (const q of o.queue ?? []) if (q.tech) queued.add(q.tech);
+    for (const tech of def.researches) {
+      const t = TECH_DEFS[tech];
+      if (hasTech(mask, tech) || queued.has(tech)) continue;
+      if (t.advancesTo !== undefined ? t.advancesTo !== era + 1 : era < t.era) continue;
+      out.push({ kind: 'research', tech });
+    }
+    return out;
+  }
+
+  /** ¿Tiene el jugador un edificio terminado de este tipo? (requisito de algunas tecnologías) */
+  hasFinished(type: BuildingType): boolean {
+    for (const b of this.state.buildings.values()) if (b.owner === this.state.you && b.type === type && b.progress >= 1) return true;
+    return false;
+  }
+
+  /** Botón número `index` del edificio elegido: entrenar o investigar. */
+  act(index: number): void {
     const b = this.ownBuilding();
     if (!b || b.progress < 1) return;
-    const unit = BUILDING_DEFS[b.type].trains[index];
-    if (unit) this.net.command({ kind: 'train', buildingId: b.id, unit });
+    const a = this.buildingActions(b)[index];
+    if (a?.kind === 'train') this.net.command({ kind: 'train', buildingId: b.id, unit: a.unit });
+    else if (a?.kind === 'research') this.net.command({ kind: 'research', buildingId: b.id, tech: a.tech });
   }
 
   cancelTrain(index: number): void {
@@ -414,14 +459,14 @@ export class Input {
         this.deleteSelected();
         return;
     }
-    // Cuadrícula de acciones: construir con trabajadores, entrenar con un edificio.
+    // Cuadrícula de acciones: construir con trabajadores, entrenar o investigar con un edificio.
     const slot = ACTION_KEYS.indexOf(e.key.toUpperCase() as (typeof ACTION_KEYS)[number]);
     if (slot < 0) return;
     if (this.ownWorkersSelected().length > 0) {
-      const type = BUILD_MENU[slot];
+      const type = this.buildMenu()[slot];
       if (type) this.startPlacing(type);
     } else if (this.ownBuilding()) {
-      this.train(slot);
+      this.act(slot);
     }
   }
 }

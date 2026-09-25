@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, TICK_MS } from '../../../shared/data.ts';
+import { BUILDING_DEFS, TICK_MS, eraLabel } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -11,14 +11,14 @@ import type {
   PlayerView,
   UnitView,
 } from '../../../shared/protocol.ts';
-import { scaleCost } from '../../../shared/stats.ts';
+import { canHitAir, scaleCost } from '../../../shared/stats.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
 import { assignAttack, removeDead, targetOf, updateCombat } from './combat.ts';
 import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
 import { assignFarm, assignGather, farmTaken, isOwnFarm, stopWork, updateGatherers } from './gather.ts';
 import { generateWorld, type MapOptions } from './mapgen.ts';
 import { moveGroup, moveUnits, separateUnits } from './movement.ts';
-import { cancelQueued, queueUnit, setRally, updateProduction } from './production.ts';
+import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from './production.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
@@ -42,6 +42,7 @@ export class Game {
     const w = this.world;
     w.tick++;
     w.events = [];
+    w.walker = 0;
     const dt = TICK_MS / 1000;
     for (const { playerId, cmd } of this.queue) this.apply(playerId, cmd);
     this.queue = [];
@@ -64,6 +65,13 @@ export class Game {
         const b = w.buildings.get(cmd.buildingId);
         if (!b) return;
         const error = queueUnit(w, playerId, b, cmd.unit);
+        if (error) w.notify(playerId, error);
+        return;
+      }
+      case 'research': {
+        const b = w.buildings.get(cmd.buildingId);
+        if (!b) return;
+        const error = queueTech(w, playerId, b, cmd.tech);
         if (error) w.notify(playerId, error);
         return;
       }
@@ -110,6 +118,7 @@ export class Game {
       case 'build': {
         const def = BUILDING_DEFS[cmd.building];
         if (!def.buildable || workers.length === 0) return;
+        if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: necesitas la ${eraLabel(def.era)}`);
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
         if (error) return w.notify(playerId, error);
         if (!w.spend(playerId, def.cost)) return w.notify(playerId, 'Recursos insuficientes');
@@ -134,7 +143,10 @@ export class Game {
           return w.notify(playerId, rel === 'ally' ? `${name} es tu aliado: no puedes atacarlo` : `Estás en paz con ${name}: declárale la guerra primero`);
         }
         if (owner === playerId) return;
-        for (const u of units) assignAttack(u, cmd.targetId);
+        // A los aviones solo los alcanzan los ataques a distancia.
+        const attackers = t.kind === 'unit' && w.statsOf(t.unit).flies ? units.filter((u) => canHitAir(w.statsOf(u).attack)) : units;
+        if (attackers.length === 0) return w.notify(playerId, 'Solo las unidades a distancia pueden atacar aviones');
+        for (const u of attackers) assignAttack(u, cmd.targetId);
         break;
       }
     }
@@ -221,6 +233,7 @@ export class Game {
       units: [...w.units.values()].filter((u) => u.owner === p.id).length,
       buildings: [...w.buildings.values()].filter((b) => b.owner === p.id && b.progress >= 1).length,
       kills: p.kills,
+      era: p.era,
     }));
   }
 
@@ -299,7 +312,8 @@ export function buildingView(b: Building, includePrivate: boolean): BuildingView
   };
   if (b.type === 'farm') v.food = b.food;
   if (includePrivate) {
-    if (b.queue.length > 0) v.queue = b.queue.map((q) => ({ unit: q.unit, progress: Math.round(q.progress * 100) / 100 }));
+    if (b.queue.length > 0)
+      v.queue = b.queue.map((q) => ({ ...(q.tech ? { tech: q.tech } : { unit: q.unit }), progress: Math.round(q.progress * 100) / 100 }));
     if (b.rally) v.rally = { x: round2(b.rally.x), y: round2(b.rally.y) };
     if (b.needsHouses) v.needsHouses = 1;
   }

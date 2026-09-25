@@ -4,11 +4,14 @@
 // centésimas de casilla (enteros). Servidor y cliente usan estas mismas
 // funciones (el servidor entrega el cliente, así que siempre son la misma versión).
 
-import { BUILDING_DEFS, NODE_DEFS, RESOURCE_TYPES, UNIT_DEFS, type BuildingType, type UnitType } from './data.ts';
+import { BUILDING_DEFS, NODE_DEFS, RESOURCE_TYPES, TECH_DEFS, UNIT_DEFS, type BuildingType, type TechId, type UnitType } from './data.ts';
 import type { BuildingView, GameEvent, UnitState, UnitView } from './protocol.ts';
 
 export const UNIT_TYPES = Object.keys(UNIT_DEFS) as UnitType[];
 export const BUILDING_TYPES = Object.keys(BUILDING_DEFS) as BuildingType[];
+export const TECH_TYPES = Object.keys(TECH_DEFS) as TechId[];
+/** En la cola, las tecnologías van con su número + 100 (las unidades, con el suyo). */
+const TECH_OFFSET = 100;
 export const NODE_TYPES = Object.keys(NODE_DEFS) as (keyof typeof NODE_DEFS)[];
 export const UNIT_STATES: readonly UnitState[] = [
   'idle', 'moving', 'toResource', 'gathering', 'returning', 'toBuild', 'building', 'attacking',
@@ -69,7 +72,7 @@ export function sameExceptPosition(a: UnitTuple, b: UnitTuple): boolean {
 }
 
 // ---------- Edificios ----------
-// [id, owner, tipo, tx, ty, vida, progreso‰, comida, faltanCasas, reunionX, reunionY, (unidad, progreso%)…]
+// [id, owner, tipo, tx, ty, vida, progreso‰, comida, faltanCasas, reunionX, reunionY, (unidad|100+tecnología, progreso%)…]
 // Los campos privados (cola, reunión, casas) solo tienen datos para el dueño.
 export type BuildingTuple = number[];
 
@@ -87,7 +90,8 @@ export function encodeBuilding(b: BuildingView): BuildingTuple {
     b.rally ? q(b.rally.x) : -1,
     b.rally ? q(b.rally.y) : -1,
   ];
-  for (const item of b.queue ?? []) t.push(UNIT_TYPES.indexOf(item.unit), Math.round(item.progress * 100));
+  for (const item of b.queue ?? [])
+    t.push(item.tech ? TECH_OFFSET + TECH_TYPES.indexOf(item.tech) : UNIT_TYPES.indexOf(item.unit!), Math.round(item.progress * 100));
   return t;
 }
 
@@ -106,7 +110,12 @@ export function decodeBuilding(t: BuildingTuple): BuildingView {
   if (t[9] >= 0) v.rally = { x: dq(t[9]), y: dq(t[10]) };
   if (t.length > 11) {
     v.queue = [];
-    for (let i = 11; i + 1 < t.length; i += 2) v.queue.push({ unit: UNIT_TYPES[t[i]], progress: t[i + 1] / 100 });
+    for (let i = 11; i + 1 < t.length; i += 2)
+      v.queue.push(
+        t[i] >= TECH_OFFSET
+          ? { tech: TECH_TYPES[t[i] - TECH_OFFSET], progress: t[i + 1] / 100 }
+          : { unit: UNIT_TYPES[t[i]], progress: t[i + 1] / 100 },
+      );
   }
   return v;
 }
@@ -118,13 +127,13 @@ export function sameTuple(a: readonly number[] | undefined, b: readonly number[]
 }
 
 // ---------- Efectos ----------
-// shot: [0, x1, y1, x2, y2] · hit: [1, x, y] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
+// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
 export type EventTuple = number[];
 
 export function encodeEvent(e: GameEvent): EventTuple {
   switch (e.k) {
     case 'shot':
-      return [0, q(e.x1), q(e.y1), q(e.x2), q(e.y2)];
+      return [0, q(e.x1), q(e.y1), q(e.x2), q(e.y2), e.s ?? 0];
     case 'hit':
       return [1, q(e.x), q(e.y)];
     case 'death':
@@ -137,7 +146,7 @@ export function encodeEvent(e: GameEvent): EventTuple {
 export function decodeEvent(t: EventTuple): GameEvent {
   switch (t[0]) {
     case 0:
-      return { k: 'shot', x1: dq(t[1]), y1: dq(t[2]), x2: dq(t[3]), y2: dq(t[4]) };
+      return { k: 'shot', x1: dq(t[1]), y1: dq(t[2]), x2: dq(t[3]), y2: dq(t[4]), ...(t[5] ? { s: t[5] } : {}) };
     case 1:
       return { k: 'hit', x: dq(t[1]), y: dq(t[2]) };
     case 2:

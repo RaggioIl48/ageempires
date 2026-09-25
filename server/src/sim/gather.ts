@@ -3,13 +3,8 @@
 // Si el recurso se agota, busca otro del mismo tipo cerca.
 // Las granjas son edificios: las trabaja un solo trabajador y se agotan.
 
-import {
-  BUILDING_DEFS,
-  INTERACT_RANGE,
-  NODE_DEFS,
-  WORKER_CARRY_CAPACITY,
-} from '../../../shared/data.ts';
-import { gatherRate } from '../../../shared/stats.ts';
+import { BUILDING_DEFS, INTERACT_RANGE, NODE_DEFS } from '../../../shared/data.ts';
+import { carryCapacity, gatherRate } from '../../../shared/stats.ts';
 import { pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type ResourceNode, type Unit, type World } from './world.ts';
 
@@ -103,8 +98,10 @@ function stepGathering(world: World, u: Unit, dt: number): void {
     u.carryType = task.resource;
     u.carryAmount = 0;
   }
-  u.gatherProgress += gatherRate(world.factionOf(u.owner), task.resource, src.kind === 'farm') * dt;
-  while (u.gatherProgress >= 1 && u.carryAmount < WORKER_CARRY_CAPACITY && remaining(src) > 0) {
+  const techs = world.techsOf(u.owner);
+  const capacity = carryCapacity(techs);
+  u.gatherProgress += gatherRate(world.factionOf(u.owner), task.resource, src.kind === 'farm', techs) * dt;
+  while (u.gatherProgress >= 1 && u.carryAmount < capacity && remaining(src) > 0) {
     u.gatherProgress -= 1;
     u.carryAmount += 1;
     if (src.kind === 'node') {
@@ -121,7 +118,7 @@ function stepGathering(world: World, u: Unit, dt: number): void {
       world.notify(u.owner, 'Una granja se agotó: construye otra');
     }
   }
-  if (u.carryAmount >= WORKER_CARRY_CAPACITY) startReturn(world, u);
+  if (u.carryAmount >= capacity) startReturn(world, u);
 }
 
 function stepReturning(world: World, u: Unit): void {

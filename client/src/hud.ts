@@ -5,25 +5,28 @@ import {
   BUILDING_DEFS,
   BUILD_MENU,
   CATEGORY_LABELS,
+  ERAS,
   FACTIONS,
   NODE_DEFS,
   RELATION_LABELS,
   RESOURCE_LABELS,
   RESOURCE_TYPES,
+  TECH_DEFS,
   UNIT_DEFS,
-  WORKER_CARRY_CAPACITY,
+  eraLabel,
   type Cost,
   type ResourceType,
+  type TechId,
   type UnitType,
 } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
-import { canAfford, unitStats } from '../../shared/stats.ts';
+import { canAfford, carryCapacity, techsOf } from '../../shared/stats.ts';
 import { ACTION_KEYS, type Input } from './input.ts';
 import type { NetStatus } from './net.ts';
 import type { ClientState } from './state.ts';
 
 // Íconos originales (SVG sencillos).
-const ICONS: Record<ResourceType | 'pop' | UnitType, string> = {
+const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = {
   food: '<svg viewBox="0 0 16 16"><circle cx="5" cy="9" r="3.2" fill="#d8434f"/><circle cx="10.5" cy="9.5" r="3.2" fill="#c23644"/><circle cx="8" cy="5.5" r="3" fill="#e0525d"/><path d="M8 2.5 L9.5 0.8" stroke="#3f7c35" stroke-width="1.4"/></svg>',
   wood: '<svg viewBox="0 0 16 16"><rect x="1" y="5" width="13" height="6" rx="3" fill="#8a5a2b"/><ellipse cx="13" cy="8" rx="2.2" ry="3" fill="#d9b27c"/><ellipse cx="13" cy="8" rx="1" ry="1.4" fill="#a8783e"/></svg>',
   stone: '<svg viewBox="0 0 16 16"><path d="M1 13 L3 6 L8 3 L13 5 L15 12 Z" fill="#b3b3ad"/><path d="M8 3 L13 5 L15 12 L9 13 Z" fill="#85857f"/></svg>',
@@ -32,7 +35,27 @@ const ICONS: Record<ResourceType | 'pop' | UnitType, string> = {
   worker: '<svg viewBox="0 0 16 16"><ellipse cx="8" cy="3.5" rx="4.5" ry="1.4" fill="#d8c070"/><circle cx="8" cy="5.5" r="2.6" fill="#e2b68c"/><rect x="4.5" y="8" width="7" height="7" rx="1" fill="currentColor"/></svg>',
   warrior: '<svg viewBox="0 0 16 16"><path d="M5 5 L8 1 L11 5 Z" fill="#8a9099"/><circle cx="8" cy="6" r="2.4" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="currentColor"/><ellipse cx="4" cy="11" rx="2.6" ry="3.2" fill="#d9d2c0"/><path d="M12 13 L15 4" stroke="#cfd3d8" stroke-width="1.4"/></svg>',
   scout: '<svg viewBox="0 0 16 16"><ellipse cx="7" cy="11" rx="5.5" ry="2.8" fill="#8a5a3b"/><path d="M11 10 L14.5 6.5 L15.5 8 L12.5 11 Z" fill="#7a4d31"/><rect x="5" y="4.5" width="4" height="5" fill="currentColor"/><circle cx="7" cy="3.2" r="1.8" fill="#e2b68c"/><path d="M3 9 L13 1" stroke="#c8b27a" stroke-width="1"/></svg>',
+  spearman: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.5" r="2.2" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="currentColor"/><path d="M12.5 15 L14 1" stroke="#8b6a3e" stroke-width="1.3"/><path d="M14 0.5 L13 3 L15 3 Z" fill="#cfd3d8"/></svg>',
+  archer: '<svg viewBox="0 0 16 16"><circle cx="7" cy="5" r="3" fill="#4e5a30"/><circle cx="7.5" cy="5.2" r="1.8" fill="#e2b68c"/><rect x="4" y="8.5" width="6" height="6.5" rx="1" fill="currentColor"/><path d="M11 2 Q16 8 11 14" stroke="#7a5230" stroke-width="1.4" fill="none"/><path d="M11 2 L11 14" stroke="#e8e0c8" stroke-width="0.6"/></svg>',
+  knight: '<svg viewBox="0 0 16 16"><ellipse cx="7" cy="11" rx="5.5" ry="2.8" fill="#5a4a3e"/><rect x="2.5" y="9" width="9" height="4" fill="currentColor"/><path d="M11 10 L14.5 6.5 L15.5 8 L12.5 11 Z" fill="#4f4136"/><rect x="5" y="4.5" width="4" height="5" fill="#8a9099"/><path d="M5.3 3.5 L7 0.5 L8.7 3.5 Z" fill="#aab0b8"/><circle cx="7" cy="3.6" r="1.7" fill="#8a9099"/><path d="M3 9 L15 0.5" stroke="#c8b27a" stroke-width="1"/></svg>',
+  rifleman: '<svg viewBox="0 0 16 16"><path d="M4 6 Q4 2.5 8 2.5 Q12 2.5 12 6 Z" fill="#4b5536"/><circle cx="8" cy="6.5" r="2.2" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="#5d6b3f"/><rect x="6" y="9.5" width="4" height="3" fill="currentColor"/><path d="M3 12 L15 8" stroke="#3b2f25" stroke-width="1.5"/></svg>',
+  machine_gun: '<svg viewBox="0 0 16 16"><path d="M1 6 Q1 3 4 3 Q7 3 7 6 Z" fill="#4b5536"/><circle cx="4" cy="6.5" r="1.8" fill="#e2b68c"/><rect x="1.5" y="8.5" width="5" height="5" fill="currentColor"/><path d="M5 10 L15.5 8.5" stroke="#2b2b2b" stroke-width="2"/><path d="M10 10 L8 15 M10 10 L12.5 15" stroke="#2b2b2b" stroke-width="1"/></svg>',
+  antitank: '<svg viewBox="0 0 16 16"><path d="M4 7 Q4 3.5 8 3.5 Q12 3.5 12 7 Z" fill="#4b5536"/><circle cx="8" cy="7.5" r="2" fill="#e2b68c"/><rect x="5" y="10" width="6" height="5.5" rx="1" fill="currentColor"/><path d="M1 8 L15 5" stroke="#4a5238" stroke-width="2.6"/></svg>',
+  light_vehicle: '<svg viewBox="0 0 16 16"><path d="M1 12 L15 12 L15 8.5 L10 8 L8.5 5.5 L1 5.5 Z" fill="#6b7040"/><rect x="1" y="9" width="14" height="1.6" fill="currentColor"/><path d="M4 5 L11 2" stroke="#2b2b2b" stroke-width="1.3"/><circle cx="4.5" cy="12.5" r="2.2" fill="#1f1f1f"/><circle cx="12" cy="12.5" r="2.2" fill="#1f1f1f"/></svg>',
+  mech_infantry: '<svg viewBox="0 0 16 16"><path d="M1 12 L15 12 L15 8 L11 6 L1 6 Z" fill="#5b6446"/><rect x="1" y="8.5" width="12" height="1.6" fill="currentColor"/><circle cx="4" cy="5" r="1.6" fill="#4b5536"/><circle cx="7.5" cy="5" r="1.6" fill="#4b5536"/><rect x="1" y="11.5" width="8" height="3" rx="1.5" fill="#2f3329"/><circle cx="13" cy="13" r="2" fill="#1f1f1f"/></svg>',
+  artillery: '<svg viewBox="0 0 16 16"><path d="M5 10 L1 14" stroke="#4b4f3f" stroke-width="1.6"/><path d="M5 9 L15 3" stroke="#3d4436" stroke-width="2.4"/><path d="M6 5 L9 4 L9 10 L6 11 Z" fill="currentColor"/><circle cx="6" cy="12" r="3" fill="#1f1f1f"/><circle cx="6" cy="12" r="1.2" fill="#6d6d6d"/></svg>',
+  heavy_artillery: '<svg viewBox="0 0 16 16"><rect x="1" y="10" width="12" height="3" fill="#4b4f3f"/><path d="M3 10 L15.5 2" stroke="#3d4436" stroke-width="3.2"/><path d="M4 5 L8 4 L8 10 L4 11 Z" fill="currentColor"/><circle cx="3.5" cy="13.5" r="2" fill="#1f1f1f"/><circle cx="10" cy="13.5" r="2" fill="#1f1f1f"/></svg>',
+  tank: '<svg viewBox="0 0 16 16"><rect x="1" y="10" width="14" height="4.5" rx="2.2" fill="#2f3329"/><path d="M1.5 10 L14.5 10 L13 6.5 L3 6.5 Z" fill="#5b6446"/><rect x="2.5" y="7.8" width="11" height="1.4" fill="currentColor"/><path d="M5 6.5 L11 6.5 L10.5 3.5 L5.5 3.5 Z" fill="#66704e"/><path d="M10 5 L16 4.3" stroke="#4b543a" stroke-width="1.6"/></svg>',
+  airplane: '<svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="7.5" ry="2" fill="#7b8468"/><path d="M6 8.5 L9 8.5 L8 14 L4.5 14 Z" fill="#6b7359"/><path d="M6.5 7.5 L9 7.5 L8 3 L5.5 3 Z" fill="#5e6650"/><path d="M0.5 8 L2.5 8 L1 4 Z" fill="currentColor"/><circle cx="6.5" cy="11.5" r="1.1" fill="currentColor"/><rect x="15" y="5.5" width="1" height="5" fill="#ddd"/></svg>',
+  tech: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#c9ccd1" stroke="#6d7077" stroke-width="1.6" stroke-dasharray="2.2 1.3"/><circle cx="8" cy="8" r="2" fill="#6d7077"/></svg>',
+  era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
 };
+
+/** Ícono de un elemento de la cola: la unidad, o un engranaje / estrella para las tecnologías. */
+function queueIcon(q: { unit?: UnitType; tech?: TechId }): string {
+  if (q.tech) return TECH_DEFS[q.tech].advancesTo ? ICONS.era : ICONS.tech;
+  return ICONS[q.unit!];
+}
 
 const STATE_TEXT: Record<UnitView['state'], string> = {
   idle: 'Inactivo',
@@ -108,8 +131,8 @@ export class Hud {
           return this.input.deleteSelected();
         case 'build':
           return this.input.startPlacing(arg as (typeof BUILD_MENU)[number]);
-        case 'train':
-          return this.input.train(Number(arg));
+        case 'act':
+          return this.input.act(Number(arg));
         case 'cancel':
           return this.input.cancelTrain(Number(arg));
       }
@@ -187,9 +210,13 @@ export class Hud {
     const me = this.state.players.get(this.state.you);
     if (me) {
       const f = FACTIONS[me.faction];
-      const tip = `${f.name}: «${f.motto}»\n\nFuerte en:\n• ${f.strengths.join('\n• ')}\n\nDébil en:\n• ${f.weaknesses.join('\n• ')}`;
+      const era = this.state.eraOf(me.id);
+      const techs = techsOf(this.state.techsOf(me.id)).filter((t) => !TECH_DEFS[t].advancesTo);
+      const tip =
+        `${f.name}: «${f.motto}»\n\nFuerte en:\n• ${f.strengths.join('\n• ')}\n\nDébil en:\n• ${f.weaknesses.join('\n• ')}` +
+        `\n\n${eraLabel(era)}\nTecnologías: ${techs.length ? techs.map((t) => TECH_DEFS[t].label).join(', ') : 'ninguna todavía'}`;
       const box = el('faction');
-      setHtml(box, `<i style="background:${me.color}"></i>${esc(f.name)}`);
+      setHtml(box, `<i style="background:${me.color}"></i>${esc(f.name)} <span class="era-tag"><span class="icon mini">${ICONS.era}</span>${ERAS[era - 1].short}</span>`);
       box.title = tip;
     }
     this.renderPlayerDots();
@@ -205,7 +232,7 @@ export class Hud {
         .map(
           (p) =>
             `<i class="dot ${p.connected ? '' : 'off'} ${p.id === this.state.you ? 'me' : ''}" style="background:${p.color}"
-              title="${esc(p.name)}${p.id === this.state.you ? ' (tú)' : ''} · ${esc(FACTIONS[p.faction].name)} · ${p.connected ? 'conectado' : 'sin conectar'}"></i>`,
+              title="${esc(p.name)}${p.id === this.state.you ? ' (tú)' : ''} · ${esc(FACTIONS[p.faction].name)} · ${eraLabel(this.state.eraOf(p.id))} · ${p.connected ? 'conectado' : 'sin conectar'}"></i>`,
         )
         .join('');
     setHtml(el('players'), players);
@@ -245,13 +272,12 @@ export class Hud {
 
   private unitInfo(u: UnitView): string {
     const def = UNIT_DEFS[u.type];
-    const faction = this.state.faction(u.owner);
-    const st = unitStats(faction, u.type);
+    const st = this.state.statsOf(u.owner, u.type);
     const task = u.task ? ` ${RESOURCE_LABELS[u.task]}` : '';
     const doing = u.state === 'gathering' || u.state === 'toResource' ? STATE_TEXT[u.state] + task : STATE_TEXT[u.state];
     const carry =
       u.carryType && u.carryAmount
-        ? `<div class="row"><span class="icon mini">${ICONS[u.carryType]}</span>Carga: ${u.carryAmount}/${WORKER_CARRY_CAPACITY}</div>`
+        ? `<div class="row"><span class="icon mini">${ICONS[u.carryType]}</span>Carga: ${u.carryAmount}/${carryCapacity(this.state.techsOf(u.owner))}</div>`
         : '';
     // Comparación con la unidad "base": muestra la ventaja o desventaja de la facción.
     const mark = (val: number, base: number, fmt = (v: number) => String(Math.round(v * 10) / 10)) =>
@@ -263,7 +289,7 @@ export class Hud {
         <div>Ataque ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
         <div>Armadura ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
         <div>Velocidad ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · Vida ${mark(st.hp, def.hp)}</div>
-        <div class="muted">${CATEGORY_LABELS[st.category]} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
+        <div class="muted">${CATEGORY_LABELS[st.category]}${st.flies ? ' (vuela)' : ''} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
       </div>`;
   }
 
@@ -275,7 +301,8 @@ export class Hud {
     html += `<div class="row muted">${esc(def.description)}</div>`;
     if (b.type === 'farm') html += `<div class="row"><span class="icon mini">${ICONS.food}</span>Quedan <b>${b.food ?? 0}</b> de Comida</div>`;
     if (def.popProvided) html += `<div class="row">Población: +${def.popProvided}</div>`;
-    if (def.attack) html += `<div class="row">Dispara flechas: ${def.attack.damage} de daño, alcance ${def.attack.range}</div>`;
+    if (def.attack) html += `<div class="row">Dispara: ${def.attack.damage} de daño, alcance ${def.attack.range} (también a aviones)</div>`;
+    if (b.type === 'gate') html += '<div class="row">Tus unidades y las de tus aliados pasan; los enemigos no.</div>';
     return html;
   }
 
@@ -295,7 +322,7 @@ export class Hud {
     const cards = units
       .slice(0, 36)
       .map((u) => {
-        const frac = u.hp / unitStats(this.state.faction(u.owner), u.type).hp;
+        const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
         return `<div class="card" data-id="${u.id}" title="${UNIT_DEFS[u.type].label}" style="color:${this.state.color(u.owner)}">
           ${ICONS[u.type]}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
       })
@@ -318,11 +345,12 @@ export class Hud {
         if (!e) return '';
         const cells = RESOURCE_TYPES.map((r) => `<td>${Math.floor(e.resources[r])}</td>`).join('');
         return `<tr class="${p.connected ? '' : 'off'}"><td><i style="background:${p.color}"></i>${esc(p.name)}</td>${cells}
-          <td>${e.pop}/${e.popCap}</td><td class="${e.workers.idle > 0 ? 'warn-text' : ''}">${e.workers.idle}</td></tr>`;
+          <td>${e.pop}/${e.popCap}</td><td class="${e.workers.idle > 0 ? 'warn-text' : ''}">${e.workers.idle}</td>
+          <td title="${eraLabel(this.state.eraOf(p.id))}">${ERAS[this.state.eraOf(p.id) - 1].short}</td></tr>`;
       })
       .join('');
     const head = RESOURCE_TYPES.map((r) => `<th title="${RESOURCE_LABELS[r]}"><span class="icon mini">${ICONS[r]}</span></th>`).join('');
-    return `<table class="eco"><tr><th>Jugador</th>${head}<th>Pobl.</th><th title="Trabajadores inactivos">Inact.</th></tr>${rows}</table>`;
+    return `<table class="eco"><tr><th>Jugador</th>${head}<th>Pobl.</th><th title="Trabajadores inactivos">Inact.</th><th>Era</th></tr>${rows}</table>`;
   }
 
   private teacherActions(): string {
@@ -343,13 +371,18 @@ export class Hud {
         Clic derecho o Esc para cancelar. Verde = se puede, rojo = no.</p>`;
     }
     if (workers.length > 0) {
-      const buttons = BUILD_MENU.map((type, i) => {
+      const menu = this.input.buildMenu();
+      const buttons = menu.map((type, i) => {
         const def = BUILDING_DEFS[type];
         const ok = !have || canAfford(have, def.cost);
         return `<button class="act" data-action="build" data-arg="${type}" ${ok ? '' : 'disabled'} title="${esc(def.description)}">
           <span class="key">${ACTION_KEYS[i]}</span><b>${def.label}</b><span class="costs">${costHtml(def.cost, have)}</span></button>`;
       }).join('');
-      return `${buttons}<button class="act small" data-action="stop" title="Detener">■ Detener</button>
+      const next = BUILD_MENU.filter((t) => !menu.includes(t)).map((t) => BUILDING_DEFS[t]);
+      const locked = next.length
+        ? `<p class="hint">En la ${eraLabel(next[0].era)}: ${next.filter((d) => d.era === next[0].era).map((d) => d.label).join(', ')}.</p>`
+        : '';
+      return `${buttons}<button class="act small" data-action="stop" title="Detener">■ Detener</button>${locked}
         <button class="act small" data-action="delete" title="Eliminar (Supr)">✖ Eliminar</button>
         <p class="hint">Clic derecho: recurso = recolectar · enemigo = atacar · cimiento o edificio dañado = construir/reparar.</p>`;
     }
@@ -364,24 +397,36 @@ export class Hud {
       if (b.progress < 1)
         return `<button class="act small" data-action="delete" title="Cancelar y recuperar lo que falta por construir">✖ Cancelar construcción</button>
           <p class="hint">Selecciona trabajadores y haz clic derecho sobre el cimiento para ayudar.</p>`;
-      const faction = this.state.faction(this.state.you);
-      const buttons = def.trains
-        .map((type, i) => {
-          const u = UNIT_DEFS[type];
-          const st = unitStats(faction, type);
-          const ok = !have || canAfford(have, u.cost);
-          const tip = `${u.label}: ${u.strong}. ${u.weak}.\nVida ${st.hp} · Ataque ${st.attack.damage} · Velocidad ${st.speed.toFixed(1)} · ${u.trainTime} s`;
-          return `<button class="act with-icon" data-action="train" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
-            <span class="key">${ACTION_KEYS[i]}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${ICONS[type]}</span>
-            <b>${u.label}</b><span class="costs">${costHtml(u.cost, have)}</span></button>`;
-        })
-        .join('');
-      const rally = def.trains.length > 0 ? '<p class="hint">Clic derecho en el mapa: punto de reunión (sobre un recurso, los trabajadores nuevos van a recolectar).</p>' : '';
+      const actions = this.input.buildingActions(b);
+      const buttons = actions.map((a, i) => (a.kind === 'train' ? this.trainButton(a.unit, i) : this.researchButton(a.tech, i))).join('');
+      const rally = actions.some((a) => a.kind === 'train') ? '<p class="hint">Clic derecho en el mapa: punto de reunión (sobre un recurso, los trabajadores nuevos van a recolectar).</p>' : '';
       const warn = b.needsHouses ? '<p class="warn-text">⚠ Población máxima: construye más casas.</p>' : '';
       return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete">✖ Eliminar</button>' : ''}${warn}${rally}`;
     }
     return `<p class="hint">Arrastra para seleccionar. <b>H</b>: Centro Urbano · <b>.</b>: trabajador inactivo ·
-      <b>WASD</b>/flechas: cámara · rueda: zoom · <b>Q E R T</b>: construir / entrenar.</p>`;
+      <b>WASD</b>/flechas: cámara · rueda: zoom · <b>Q E R T</b>…: construir / entrenar / investigar.</p>`;
+  }
+
+  private trainButton(type: UnitType, i: number): string {
+    const have = this.state.economy?.resources;
+    const u = UNIT_DEFS[type];
+    const st = this.state.statsOf(this.state.you, type);
+    const ok = !have || canAfford(have, u.cost);
+    const tip = `${u.label}: ${u.strong}. ${u.weak}.\nVida ${st.hp} · Ataque ${st.attack.damage} · Velocidad ${st.speed.toFixed(1)} · ${u.trainTime} s`;
+    return `<button class="act with-icon" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${ICONS[type]}</span>
+      <b>${u.label}</b><span class="costs">${costHtml(u.cost, have)}</span></button>`;
+  }
+
+  private researchButton(tech: TechId, i: number): string {
+    const have = this.state.economy?.resources;
+    const t = TECH_DEFS[tech];
+    const missing = t.requires && !this.input.hasFinished(t.requires) ? BUILDING_DEFS[t.requires].label : '';
+    const ok = !missing && (!have || canAfford(have, t.cost));
+    const tip = `${t.label}: ${t.description}\n${t.time} s${missing ? `\nNecesitas un ${missing} terminado.` : ''}`;
+    return `<button class="act with-icon ${t.advancesTo ? 'era-btn' : 'tech-btn'}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit">${t.advancesTo ? ICONS.era : ICONS.tech}</span>
+      <b>${t.label}</b><span class="costs">${missing ? `<span class="cost short">Falta: ${esc(missing)}</span>` : costHtml(t.cost, have)}</span></button>`;
   }
 
   /** Cola de producción del edificio elegido: clic en un elemento para cancelarlo. */
@@ -390,7 +435,7 @@ export class Hud {
     return b.queue
       .map(
         (q, i) => `<button class="card queue" data-action="cancel" data-arg="${i}" title="Clic para cancelar (devuelve el costo)"
-          style="color:${this.state.color(this.state.you)}">${ICONS[q.unit]}
+          style="color:${this.state.color(this.state.you)}">${queueIcon(q)}
           <div class="hp prog"><div style="width:${Math.round(q.progress * 100)}%"></div></div></button>`,
       )
       .join('');

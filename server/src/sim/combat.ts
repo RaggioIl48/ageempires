@@ -3,10 +3,11 @@
 // Cuerpo a cuerpo hay que tocar al objetivo; a distancia basta con tenerlo
 // dentro del alcance. Las unidades militares quietas atacan solas a los
 // enemigos que ven (primero a quien puede pelear, luego trabajadores y al
-// final edificios). El Centro Urbano dispara flechas a los enemigos cercanos.
+// final edificios). El Centro Urbano y las torres disparan a los enemigos
+// cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, MELEE_REACH, type AttackDef, type Category } from '../../../shared/data.ts';
-import { damage } from '../../../shared/stats.ts';
+import { BUILDING_DEFS, MELEE_REACH, UNIT_DEFS, type AttackDef, type Category } from '../../../shared/data.ts';
+import { canHitAir, damage } from '../../../shared/stats.ts';
 import { isEnemy } from './diplomacy.ts';
 import { stopWork } from './gather.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
@@ -74,11 +75,13 @@ export function findTarget(
   y: number,
   radius: number,
   unitsOnly = false,
+  hitsAir = false,
 ): Target | null {
   let best: Target | null = null;
   let bestScore = Infinity;
   for (const o of grid.near(x, y, radius)) {
     if (!isEnemy(world, owner, o.owner)) continue;
+    if (!hitsAir && world.statsOf(o).flies) continue;
     const score = Math.hypot(o.x - x, o.y - y) + (o.type === 'worker' ? 3 : 0);
     if (score < bestScore) {
       bestScore = score;
@@ -124,7 +127,8 @@ function centerOf(t: Target): Point {
 /** Aplica un golpe. `from` es la posición del atacante (para dibujar flechas). */
 function strike(world: World, owner: number, attack: AttackDef, cat: Category, from: Point, t: Target, attacker?: Unit): void {
   const armor = t.kind === 'unit' ? world.statsOf(t.unit).armor : BUILDING_DEFS[t.building.type].armor;
-  const dmg = damage(attack, cat, categoryOf(t, world), armor);
+  const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
+  const dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
   const at = centerOf(t);
   const before = t.kind === 'unit' ? t.unit.hp : t.building.hp;
   if (t.kind === 'unit') t.unit.hp -= dmg;
@@ -134,7 +138,10 @@ function strike(world: World, owner: number, attack: AttackDef, cat: Category, f
     const p = world.players.get(owner);
     if (p) p.kills++;
   }
-  if (attack.type === 'ranged') world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: at.x, y2: at.y });
+  if (attack.type === 'ranged') {
+    const look = attacker ? UNIT_DEFS[attacker.type].shot : undefined;
+    world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: at.x, y2: at.y, s: look === 'bullet' ? 1 : look === 'shell' ? 2 : 0 });
+  }
   else world.events.push({ k: 'hit', x: at.x, y: at.y });
 
   // Aviso para el atacado (como mucho uno cada 15 segundos).
@@ -161,19 +168,21 @@ export function updateCombat(world: World, dt: number): void {
     const stats = world.statsOf(u);
 
     // Militares quietos: buscan enemigos a la vista.
+    const hitsAir = canHitAir(stats.attack);
     if (!u.task && u.state === 'idle' && stats.category !== 'worker' && (world.tick + u.id) % SCAN_EVERY === 0) {
-      const t = findTarget(world, grid, u.owner, u.x, u.y, stats.sight);
+      const t = findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir);
       if (t) assignAttack(u, t.kind === 'unit' ? t.unit.id : t.building.id, true);
     }
     if (u.task?.kind !== 'attack') continue;
 
     let t = targetOf(world, u.task.targetId);
     if (t && !isEnemy(world, u.owner, ownerOf(t))) t = null;
+    if (t && t.kind === 'unit' && !hitsAir && world.statsOf(t.unit).flies) t = null;
     // Si lo eligió sola, lo deja si se aleja demasiado (no persigue por todo el mapa).
     if (t && u.task.auto && distanceTo(u.x, u.y, t) > stats.sight + 3) t = null;
     if (!t) {
       // Objetivo muerto o perdido: si es militar, busca otro cerca; si no, queda libre.
-      const next = stats.category !== 'worker' ? findTarget(world, grid, u.owner, u.x, u.y, stats.sight) : null;
+      const next = stats.category !== 'worker' ? findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir) : null;
       if (next) assignAttack(u, next.kind === 'unit' ? next.unit.id : next.building.id, true);
       else stopWork(u);
       continue;
@@ -191,7 +200,7 @@ export function updateCombat(world: World, dt: number): void {
     chase(world, u, t);
   }
 
-  // Edificios que disparan (Centro Urbano).
+  // Edificios que disparan (Centro Urbano y torres).
   for (const b of world.buildings.values()) {
     const def = BUILDING_DEFS[b.type];
     if (!def.attack || b.progress < 1) continue;
@@ -199,7 +208,7 @@ export function updateCombat(world: World, dt: number): void {
     if (b.cooldown > 0) continue;
     const cx = b.tx + b.size / 2, cy = b.ty + b.size / 2;
     // Alcance medido desde el borde del edificio.
-    const t = findTarget(world, grid, b.owner, cx, cy, def.attack.range + b.size / 2, true);
+    const t = findTarget(world, grid, b.owner, cx, cy, def.attack.range + b.size / 2, true, true);
     if (!t) continue;
     strike(world, b.owner, def.attack, 'building', { x: cx, y: cy - 1 }, t);
     b.cooldown = def.attack.cooldown;
@@ -215,7 +224,8 @@ function chase(world: World, u: Unit, t: Target): void {
   u.repathIn = REPATH_TICKS;
   u.chaseGoal = goal;
   let path: Point[] | null;
-  if (t.kind === 'building') path = pathToRect(world, u, t.building.tx, t.building.ty, t.building.size);
+  if (world.statsOf(u).flies) path = [goal];
+  else if (t.kind === 'building') path = pathToRect(world, u, t.building.tx, t.building.ty, t.building.size);
   else if (clearLine(world, u, goal)) path = [goal];
   else path = pathToPoint(world, u, goal.x, goal.y);
   if (!path) {

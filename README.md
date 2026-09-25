@@ -83,10 +83,11 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Select | Left click |
 | Multiple selection | Drag with left click (Shift adds) |
 | All of the same type on screen | Double click |
-| Contextual order | Right click: ground = move · resource = gather · enemy = attack · foundation or damaged building = build/repair · own farm = farm it |
+| Contextual order | Right click: ground = move · resource = gather · enemy = attack (only ranged units can hit airplanes) · foundation or damaged building = build/repair · own farm = farm it |
 | Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
-| Build | With workers: **Q** House · **E** Storehouse · **R** Farm · **T** Barracks (Shift: place several) |
-| Train | With a building: **Q** / **E** (see the buttons) · click a unit in the queue to cancel it |
+| Build | With workers: **Q E R T F G Z X C V B N** in the order of the buttons (more buildings appear with each era; Shift: place several, e.g. walls) |
+| Train / research | With a building: the same keys, in the order of the buttons (units, technologies, advancing era) · click an item in the queue to cancel it (refunds the cost) |
+| Advance era | Select the Town Center and press the ★ button (needs a Barracks, then a Tech center, then a Factory) |
 | Delete | **Delete** key (an unfinished foundation refunds what is left to build) |
 | Camera | WASD or arrows · middle-button drag · minimap |
 | Zoom | Mouse wheel |

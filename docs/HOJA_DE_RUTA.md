@@ -37,29 +37,29 @@ Legend: ✅ done · 🔜 next · ⬜ pending
 | 3.6 | Teacher panel: pause, end, kick, watch | ✅ |
 | 3.7 | Test with 16 simulated clients | ✅ |
 
-## Phase 4 — Teams and diplomacy 🔜
+## Phase 4 — Teams and diplomacy ✅
 | # | Step | Status |
 |---|---|---|
-| 4.1 | Predefined teams and teams created by the teacher | ⬜ |
-| 4.2 | Server-side relations: war / peace / alliance | ⬜ |
-| 4.3 | Diplomacy panel: propose/accept/reject alliance, declare war (with warning), peace | ⬜ |
-| 4.4 | Consequences: allies don't attack each other, shared vision, allied gates | ⬜ |
-| 4.5 | "Who is with whom" table and simple negotiation chat (the teacher can disable it) | ⬜ |
+| 4.1 | Predefined teams and teams created by the teacher | ✅ |
+| 4.2 | Server-side relations: war / peace / alliance | ✅ |
+| 4.3 | Diplomacy panel: propose/accept/reject alliance, declare war (with warning), peace | ✅ |
+| 4.4 | Consequences: allies don't attack each other, allied gates | ✅ (shared vision comes with the fog of war, 6.1) |
+| 4.5 | "Who is with whom" table and simple negotiation chat (the teacher can disable it) | ✅ |
 
-## Phase 5 — Eras, technologies and advanced units ⬜
+## Phase 5 — Eras, technologies and advanced units ✅
 | # | Step | Status |
 |---|---|---|
-| 5.1 | Advancing era: Tribal → Medieval → Industrial → Modern | ⬜ |
-| 5.2 | Tech center and a simple tree (economy and military) | ⬜ |
-| 5.3 | Buildings: Archery range, Stable, Workshop, Factory, Wall, Gate, Tower | ⬜ |
-| 5.4 | Medieval: infantry, archer, cavalry | ⬜ |
-| 5.5 | Industrial: rifleman, machine gun, light vehicle, artillery | ⬜ |
-| 5.6 | Modern: tank, mechanized infantry, heavy artillery, anti-tank, aircraft | ⬜ |
+| 5.1 | Advancing era: Tribal → Medieval → Industrial → Modern | ✅ |
+| 5.2 | Tech center and a simple tree (economy and military) | ✅ |
+| 5.3 | Buildings: Archery range, Stable, Workshop, Factory, Wall, Gate, Tower | ✅ |
+| 5.4 | Medieval: spearman, archer, knight | ✅ |
+| 5.5 | Industrial: rifleman, machine gun, light vehicle, artillery | ✅ |
+| 5.6 | Modern: tank, mechanized infantry, heavy artillery, anti-tank, aircraft | ✅ |
 
-## Phase 6 — Fog of war, victory and balance ⬜
+## Phase 6 — Fog of war, victory and balance 🔜
 | # | Step | Status |
 |---|---|---|
-| 6.1 | Fog of war filtered **on the server** (cannot be cheated) | ⬜ |
+| 6.1 | Fog of war filtered **on the server** (cannot be cheated), with shared vision between allies | ⬜ |
 | 6.2 | Victory by conquest, by domination (points) and by wonder | ⬜ |
 | 6.3 | Time limit, end-of-game screen with statistics | ⬜ |
 | 6.4 | Balance with test games | ⬜ |

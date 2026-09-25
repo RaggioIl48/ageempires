@@ -3,8 +3,8 @@
 
 import { BUILDING_DEFS, TILE_MOUNTAIN, TILE_WATER, type BuildingType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
-import { unitStats } from '../../shared/stats.ts';
 import {
+  UNIT_LOOK,
   buildingHeight,
   drawBuilding,
   drawConstruction,
@@ -110,6 +110,9 @@ type Drawable =
 
 /** Duración de cada efecto (ms). */
 const EFFECT_MS = { shot: 300, hit: 180, death: 900, destroyed: 1200 } as const;
+/** Los disparos de cañón vuelan más lento y terminan en una explosión. */
+const SHELL_MS = 600;
+const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number }) => (e.k === 'shot' && e.s === 2 ? SHELL_MS : EFFECT_MS[e.k]);
 
 export class Renderer {
   private terrain: HTMLCanvasElement | null = null;
@@ -173,7 +176,9 @@ export class Renderer {
     }
     for (const cu of state.units.values()) {
       const p = state.unitPos(cu, now);
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y, k: 'unit', u: cu.v, x: p.x, y: p.y });
+      // Los aviones se dibujan encima de todo.
+      const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y });
     }
     list.sort((a, b) => a.depth - b.depth);
 
@@ -186,7 +191,7 @@ export class Renderer {
     for (const d of list) {
       if (d.k === 'unit' && sel.units.has(d.u.id)) {
         const p = worldToPx(d.x, d.y);
-        const r = d.u.type === 'scout' ? 13 : 10;
+        const r = UNIT_LOOK[d.u.type].ring;
         ellipse(ctx, p.px, p.py, r, r / 2, null, ringColor(state, d.u.owner), 1.5);
       } else if (d.k === 'node' && sel.node === d.n.id) {
         outlineFootprint(ctx, d.n.tx, d.n.ty, 1, '#ffe27a');
@@ -226,10 +231,10 @@ export class Renderer {
     // Barras de vida: de lo seleccionado y de todo lo que esté herido.
     for (const d of list) {
       if (d.k === 'unit') {
-        const max = unitStats(state.faction(d.u.owner), d.u.type).hp;
+        const max = state.statsOf(d.u.owner, d.u.type).hp;
         if (d.u.hp < max || sel.units.has(d.u.id)) {
           const p = worldToPx(d.x, d.y);
-          healthBar(ctx, p.px, p.py - (d.u.type === 'scout' ? 36 : 32), d.u.hp / max);
+          healthBar(ctx, p.px, p.py - UNIT_LOOK[d.u.type].top - 4, d.u.hp / max);
         }
       } else if (d.k === 'building') {
         const max = state.maxHpOf(d.b);
@@ -303,11 +308,40 @@ export class Renderer {
 
   /** Flechas, golpes, muertes y derrumbes. Los efectos viejos se descartan. */
   private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number): void {
-    state.effects = state.effects.filter(({ e, t0 }) => now - t0 < EFFECT_MS[e.k]);
+    state.effects = state.effects.filter(({ e, t0 }) => now - t0 < effectMs(e));
     for (const { e, t0 } of state.effects) {
-      const age = (now - t0) / EFFECT_MS[e.k];
+      const age = (now - t0) / effectMs(e);
       switch (e.k) {
         case 'shot': {
+          if (e.s === 1) {
+            // Bala: trazo recto y rápido.
+            const a = worldToPx(e.x1, e.y1), b = worldToPx(e.x2, e.y2);
+            const x = a.px + (b.px - a.px) * age, y = a.py - 14 + (b.py - a.py) * age;
+            const ang = Math.atan2(b.py - a.py, b.px - a.px);
+            ctx.strokeStyle = '#ffe27a';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x - Math.cos(ang) * 6, y - Math.sin(ang) * 6);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            break;
+          }
+          if (e.s === 2) {
+            // Proyectil de cañón: arco alto y explosión al final.
+            const a = worldToPx(e.x1, e.y1), b = worldToPx(e.x2, e.y2);
+            if (age < 0.8) {
+              const k = age / 0.8;
+              const x = a.px + (b.px - a.px) * k, y = a.py - 16 + (b.py - 10 - (a.py - 16)) * k - Math.sin(k * Math.PI) * 40;
+              ellipse(ctx, x, y, 2.5, 2.5, '#2b2b2b');
+            } else {
+              const k = (age - 0.8) / 0.2;
+              ctx.globalAlpha = 1 - k;
+              ellipse(ctx, b.px, b.py - 8, 6 + k * 10, 4 + k * 7, '#ff9f43');
+              ellipse(ctx, b.px, b.py - 8, 3 + k * 5, 2 + k * 4, '#ffe27a');
+              ctx.globalAlpha = 1;
+            }
+            break;
+          }
           // Flecha en arco desde el tirador hasta el blanco.
           const a = worldToPx(e.x1, e.y1), b = worldToPx(e.x2, e.y2);
           const x = a.px + (b.px - a.px) * age, y = a.py - 30 + (b.py - 12 - (a.py - 30)) * age - Math.sin(age * Math.PI) * 18;

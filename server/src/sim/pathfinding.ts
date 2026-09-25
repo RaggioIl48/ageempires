@@ -10,6 +10,15 @@ const DIRS: readonly [number, number, number][] = [
   [1, 1, SQRT2], [1, -1, SQRT2], [-1, 1, SQRT2], [-1, -1, SQRT2],
 ];
 
+/**
+ * Si el punto de partida es una unidad, las puertas de su dueño y de sus
+ * aliados cuentan como abiertas mientras se busca su camino.
+ */
+function useWalker(world: World, from: Point): void {
+  const owner = (from as { owner?: number }).owner;
+  if (owner !== undefined) world.walker = owner;
+}
+
 /** Límite de casillas exploradas por búsqueda (protege el tick del servidor). */
 export const MAX_EXPANSIONS = 20_000;
 /** Desempate: favorece seguir avanzando hacia el destino (explora muchas menos casillas). */
@@ -49,6 +58,7 @@ function prepareBuffers(n: number): void {
  * alcanzable más cercana al destino (así se comportan las órdenes de mover).
  */
 export function findPath(world: World, from: Point, goals: Set<number>, aim: Point, partial = false): Point[] | null {
+  useWalker(world, from);
   const size = world.size;
   const sx = Math.floor(from.x), sy = Math.floor(from.y);
   if (!world.inBounds(sx, sy) || goals.size === 0) return null;
@@ -107,6 +117,7 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
  * libre más cercana; si no se puede llegar, se acerca todo lo posible.
  */
 export function pathToPoint(world: World, from: Point, x: number, y: number): Point[] | null {
+  useWalker(world, from);
   const tx = Math.floor(x), ty = Math.floor(y);
   if (world.isWalkable(tx, ty)) {
     const goal = ty * world.size + tx;
@@ -124,6 +135,7 @@ export function pathToPoint(world: World, from: Point, x: number, y: number): Po
 
 /** Camino hasta quedar junto a un rectángulo (nodo de recurso o edificio). */
 export function pathToRect(world: World, from: Point, tx: number, ty: number, size: number): Point[] | null {
+  useWalker(world, from);
   const goals = new Set<number>();
   for (let y = ty - 1; y <= ty + size; y++)
     for (let x = tx - 1; x <= tx + size; x++) {
@@ -168,6 +180,7 @@ function smooth(world: World, from: Point, path: Point[]): Point[] {
 
 /** ¿Se puede ir en línea recta de a a b? Se prueban tres líneas paralelas (ancho de la unidad). */
 export function clearLine(world: World, a: Point, b: Point): boolean {
+  useWalker(world, a);
   const dx = b.x - a.x, dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
   if (len < 1e-6) return true;

@@ -8,7 +8,9 @@ import type { Point, Unit, World } from './world.ts';
 export function moveUnits(world: World, dt: number): void {
   for (const u of world.units.values()) {
     if (u.path.length === 0) continue;
-    let budget = world.statsOf(u).speed * dt;
+    const stats = world.statsOf(u);
+    world.walker = u.owner;
+    let budget = stats.speed * dt;
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
       const d = Math.hypot(wp.x - u.x, wp.y - u.y);
@@ -16,7 +18,7 @@ export function moveUnits(world: World, dt: number): void {
       const nx = d > 0 ? u.x + ((wp.x - u.x) / d) * step : wp.x;
       const ny = d > 0 ? u.y + ((wp.y - u.y) / d) * step : wp.y;
       // El camino pudo quedar viejo (p. ej. se construyó algo encima): no atravesar paredes.
-      if (!world.isWalkable(Math.floor(nx), Math.floor(ny))) {
+      if (!stats.flies && !world.isWalkable(Math.floor(nx), Math.floor(ny))) {
         rerouteBlocked(world, u);
         break;
       }
@@ -45,6 +47,8 @@ const SHARE_PATH_RADIUS = 6;
  * (mucho más barato que una búsqueda por unidad).
  */
 export function moveGroup(world: World, units: Unit[], x: number, y: number): void {
+  if (units.length === 0) return;
+  world.walker = units[0].owner;
   const spots = units.length === 1 ? [{ x, y }] : formationSpots(world, x, y, units.length);
   const assigned: { u: Unit; spot: Point }[] = [];
   const free = [...units];
@@ -63,11 +67,12 @@ export function moveGroup(world: World, units: Unit[], x: number, y: number): vo
   const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
   const cy = units.reduce((s, u) => s + u.y, 0) / units.length;
   const leader = assigned.reduce((a, b) => (dist2(a.u, { x: cx, y: cy }) <= dist2(b.u, { x: cx, y: cy }) ? a : b));
-  const leaderPath = pathToPoint(world, leader.u, leader.spot.x, leader.spot.y);
+  const leaderPath = world.statsOf(leader.u).flies ? [leader.spot] : pathToPoint(world, leader.u, leader.spot.x, leader.spot.y);
 
   for (const { u, spot } of assigned) {
     let path: Point[] | null = null;
-    if (u === leader.u) path = leaderPath;
+    if (world.statsOf(u).flies) path = [spot]; // los aviones vuelan en línea recta
+    else if (u === leader.u) path = leaderPath;
     else if (leaderPath && leaderPath.length >= 2 && dist2(u, leader.u) <= SHARE_PATH_RADIUS ** 2) {
       // Reutilizar: ir al primer punto del líder, seguir su ruta y terminar en su propio puesto.
       const shared = leaderPath.slice(0, -1);
@@ -105,13 +110,14 @@ const SEPARATION = 0.45; // distancia mínima deseada entre unidades quietas
 export function separateUnits(world: World): void {
   const buckets = new Map<number, Unit[]>();
   for (const u of world.units.values()) {
+    if (world.statsOf(u).flies) continue; // los aviones no se empujan con los de tierra
     const k = Math.floor(u.y) * world.size + Math.floor(u.x);
     let b = buckets.get(k);
     if (!b) buckets.set(k, (b = []));
     b.push(u);
   }
   for (const u of world.units.values()) {
-    if (u.path.length > 0) continue; // las que caminan no se empujan
+    if (u.path.length > 0 || world.statsOf(u).flies) continue; // las que caminan no se empujan
     const cx = Math.floor(u.x), cy = Math.floor(u.y);
     for (let dy = -1; dy <= 1; dy++)
       for (let dx = -1; dx <= 1; dx++) {
@@ -139,6 +145,7 @@ export function separateUnits(world: World): void {
 
 function nudge(world: World, u: Unit, dx: number, dy: number): void {
   const nx = u.x + dx, ny = u.y + dy;
+  world.walker = u.owner;
   if (world.isWalkable(Math.floor(nx), Math.floor(ny))) {
     u.x = nx;
     u.y = ny;

@@ -8,6 +8,7 @@ import {
   DIPLO_ACTIONS,
   FACTIONS,
   PLAYER_COLORS,
+  TECH_DEFS,
   UNIT_DEFS,
   type BuildingType,
   type DiploAction,
@@ -15,6 +16,7 @@ import {
   type NodeType,
   type ResourceType,
   type Resources,
+  type TechId,
   type UnitType,
 } from './data.ts';
 import type { BuildingTuple, EventTuple, UnitTuple } from './codec.ts';
@@ -57,8 +59,10 @@ export interface NodeView {
   amount: number;
 }
 
+/** En la cola: una unidad o una tecnología. */
 export interface QueueItemView {
-  unit: UnitType;
+  unit?: UnitType;
+  tech?: TechId;
   progress: number; // 0..1, solo avanza el primero
 }
 
@@ -100,7 +104,8 @@ export interface EconomyView {
 
 /** Cosas que pasaron en este paso (para efectos visuales). */
 export type GameEvent =
-  | { k: 'shot'; x1: number; y1: number; x2: number; y2: number }
+  /** s: 0 flecha, 1 bala, 2 proyectil de cañón. */
+  | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number }
   | { k: 'hit'; x: number; y: number }
   | { k: 'death'; x: number; y: number }
   | { k: 'destroyed'; x: number; y: number; size: number };
@@ -167,6 +172,7 @@ export interface PlayerSummary {
   units: number;
   buildings: number;
   kills: number;
+  era: number;
 }
 
 // ---------- Cliente -> Servidor ----------
@@ -182,6 +188,8 @@ export type Command =
   | { kind: 'construct'; unitIds: number[]; targetId: number }
   | { kind: 'attack'; unitIds: number[]; targetId: number }
   | { kind: 'train'; buildingId: number; unit: UnitType }
+  /** Investigar una tecnología (o avanzar de era). */
+  | { kind: 'research'; buildingId: number; tech: TechId }
   | { kind: 'cancelTrain'; buildingId: number; index: number }
   | { kind: 'rally'; buildingId: number; x: number; y: number }
   /** Eliminar unidades o edificios propios. */
@@ -239,6 +247,8 @@ export interface DeltaMessage {
   clk?: [number, number];
   /** Diplomacia (solo cuando cambia, o cada segundo si hay plazos corriendo). */
   dip?: DiploView;
+  /** Era y tecnologías de cada jugador: [id, era, máscara, …] (cuando cambian). */
+  pt?: number[];
 }
 
 export type ServerMessage =
@@ -424,6 +434,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
   switch (c.kind) {
     case 'train':
       return isId(c.buildingId) && isKey(UNIT_DEFS, c.unit) ? { kind: 'train', buildingId: c.buildingId, unit: c.unit } : null;
+    case 'research':
+      return isId(c.buildingId) && isKey(TECH_DEFS, c.tech) ? { kind: 'research', buildingId: c.buildingId, tech: c.tech } : null;
     case 'cancelTrain':
       return isId(c.buildingId) && isTile(c.index) && c.index >= 0
         ? { kind: 'cancelTrain', buildingId: c.buildingId, index: c.index }

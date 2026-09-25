@@ -18,11 +18,15 @@ import {
   type NodeType,
   type ResourceType,
   type Resources,
+  type TechId,
   type UnitType,
 } from '../../../shared/data.ts';
 import type { GameEvent, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
 import { buildingMaxHp, canAfford, unitStats, type UnitStats } from '../../../shared/stats.ts';
+
+/** Valor de `solid` para las puertas: bloquean solo a quien no es aliado. */
+export const GATE = 2;
 
 export interface Point {
   x: number;
@@ -66,8 +70,10 @@ export interface ResourceNode {
   amount: number;
 }
 
+/** Algo en la cola de un edificio: una unidad o una tecnología. */
 export interface QueueItem {
-  unit: UnitType;
+  unit?: UnitType;
+  tech?: TechId;
   progress: number;
 }
 
@@ -111,6 +117,10 @@ export interface Player {
   /** Estadísticas para el resumen final. */
   gathered: number;
   kills: number;
+  /** Era actual (1 = Tribal … 4 = Moderna). */
+  era: number;
+  /** Tecnologías investigadas (máscara de bits, ver stats.ts). */
+  techs: number;
 }
 
 export class World {
@@ -140,6 +150,13 @@ export class World {
   diploVersion = 0;
   proposals: Proposal[] = [];
   pendingWars: PendingWar[] = [];
+  /** Sube cuando algún jugador cambia de era o investiga algo. */
+  techVersion = 0;
+  /**
+   * Dueño de la unidad que está buscando camino ahora: las puertas dejan pasar
+   * a su dueño y a sus aliados (0 = nadie).
+   */
+  walker = 0;
 
   constructor(size: number) {
     this.size = size;
@@ -156,11 +173,16 @@ export class World {
     return tx >= 0 && ty >= 0 && tx < this.size && ty < this.size;
   }
 
-  /** ¿Puede una unidad terrestre pisar esta casilla? */
+  /** ¿Puede una unidad terrestre pisar esta casilla? (las puertas dependen de `walker`) */
   isWalkable(tx: number, ty: number): boolean {
     if (!this.inBounds(tx, ty)) return false;
     const i = ty * this.size + tx;
-    return this.tiles[i] === TILE_GRASS && this.solid[i] === 0;
+    if (this.tiles[i] !== TILE_GRASS) return false;
+    const s = this.solid[i];
+    if (s === 0) return true;
+    if (s !== GATE || this.walker === 0) return false;
+    const gate = this.buildings.get(this.occupant[i]);
+    return !!gate && this.relation(this.walker, gate.owner) === 'ally';
   }
 
   /** ¿Casilla de pasto sin nada encima? (para colocar cosas) */
@@ -186,6 +208,8 @@ export class World {
       lastAttackNotice: -Infinity,
       gathered: 0,
       kills: 0,
+      era: 1,
+      techs: 0,
     };
     this.players.set(id, p);
     return p;
@@ -287,7 +311,7 @@ export class World {
   addBuilding(type: BuildingType, owner: number, tx: number, ty: number, built = true): Building | null {
     if (this.placementError(type, tx, ty)) return null;
     const def = BUILDING_DEFS[type];
-    const maxHp = buildingMaxHp(this.factionOf(owner), type);
+    const maxHp = buildingMaxHp(this.factionOf(owner), type, this.techsOf(owner));
     const b: Building = {
       id: this.newId(),
       owner,
@@ -310,7 +334,7 @@ export class World {
     for (let y = ty; y < ty + def.size; y++)
       for (let x = tx; x < tx + def.size; x++) {
         this.occupant[y * this.size + x] = b.id;
-        if (def.solid) this.solid[y * this.size + x] = 1;
+        if (def.solid) this.solid[y * this.size + x] = type === 'gate' ? GATE : 1;
       }
     if (def.solid) this.pushUnitsOut(b);
     return b;
@@ -330,6 +354,7 @@ export class World {
   /** Las unidades que quedaron dentro de un edificio nuevo salen a la casilla libre más cercana. */
   private pushUnitsOut(b: Building): void {
     for (const u of this.units.values()) {
+      if (this.statsOf(u).flies) continue; // los aviones pasan por encima
       const tx = Math.floor(u.x), ty = Math.floor(u.y);
       if (tx < b.tx || ty < b.ty || tx >= b.tx + b.size || ty >= b.ty + b.size) continue;
       const spot = freeTilesAround(this, tx, ty, 1)[0];
@@ -350,7 +375,7 @@ export class World {
       type,
       x,
       y,
-      hp: unitStats(this.factionOf(owner), type).hp,
+      hp: unitStats(this.factionOf(owner), type, this.techsOf(owner)).hp,
       state: 'idle',
       path: [],
       task: null,
@@ -367,7 +392,16 @@ export class World {
   }
 
   statsOf(u: Unit): UnitStats {
-    return unitStats(this.factionOf(u.owner), u.type);
+    return unitStats(this.factionOf(u.owner), u.type, this.techsOf(u.owner));
+  }
+
+  /** Tecnologías investigadas por un jugador (máscara). */
+  techsOf(playerId: number): number {
+    return this.players.get(playerId)?.techs ?? 0;
+  }
+
+  eraOf(playerId: number): number {
+    return this.players.get(playerId)?.era ?? 1;
   }
 
   // ---------- Economía ----------

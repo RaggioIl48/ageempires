@@ -7,9 +7,9 @@ Full roadmap: [HOJA_DE_RUTA.md](HOJA_DE_RUTA.md).
 | 1 | Map, camera, selection, movement, workers, resources, gathering | ✅ Working and audited |
 | 2 | Construction, unit production, basic combat, factions | ✅ Working |
 | 3 | Rooms with a code, faction choice, reconnection, teacher panel, efficient sync | ✅ Working |
-| 4 | Teams, diplomacy, alliances, war | 🔜 Next |
-| 5 | Eras, technologies, advanced units | — |
-| 6 | Fog of war, victory conditions, balance | — |
+| 4 | Teams, diplomacy, alliances, war | ✅ Working |
+| 5 | Eras, technologies, advanced units | ✅ Working |
+| 6 | Fog of war, victory conditions, balance | 🔜 Next |
 | 7 | Optimization, interface, LAN setup, documentation | — |
 
 ## Phase 1 audit (2026-09-24)
@@ -114,7 +114,62 @@ privacy (nobody sees someone else's queue), 21 lobby tests (PIN, codes, colors, 
 reconnection, second tab, removal, pause, end, time limit, teacher watching) and a
 **class of 16 students over real WebSockets**.
 
+## Phase 4 — what exists
+
+**Teams chosen by the teacher** in the waiting room (or "2 teams" / "all against all" with one
+click). At the start, same team = allies; everyone else = at war.
+
+**Diplomacy decided by the server** (war / peace / alliance). Diplomacy panel (🤝 button):
+propose an alliance or peace (the other player has 60 s to accept), break an alliance, declare
+war (it starts 20 s later, with a warning to the whole class). Allies and players at peace
+never attack each other — not on their own, not by order, not with Town Center arrows.
+A "who is with whom" table shows everyone's relations. The teacher can lock the teams.
+
+**Negotiation chat** (Enter to write, Tab switches between "All" and "Allies"), with a
+cooldown against spam; the teacher can turn it off and sees every message.
+
+## Phase 5 — what exists
+
+**Four eras**, advanced from the Town Center (each one needs a building and costs more):
+
+| Advance | Needs | Cost | Time |
+|---|---|---|---|
+| Tribal → Medieval | Barracks | 500 food, 150 metal | 60 s |
+| Medieval → Industrial | Tech center | 900 food, 250 stone, 350 metal | 90 s |
+| Industrial → Modern | Factory | 1400 food, 400 stone, 700 metal | 120 s |
+
+The whole class is told when someone advances; everyone sees the others' era (top bar and
+teacher table).
+
+**Few units, each with a clear role** (older units stop being trained when replaced):
+
+| Era | Units | Rock–paper–scissors |
+|---|---|---|
+| Tribal | Worker, Scout, Warrior | Warrior beats cavalry |
+| Medieval | Spearman, Archer, Knight (+ Scout) | Spearman > Knight > Archer > Spearman |
+| Industrial | Rifleman, Machine gun, Light vehicle, Artillery | Machine gun stops infantry; vehicles hunt artillery; artillery destroys buildings |
+| Modern | Tank, Mechanized infantry, Anti-tank, Heavy artillery, Airplane (+ Rifleman, Machine gun, Light vehicle) | Anti-tank beats tanks; tanks crush infantry; airplanes punish tanks and artillery; riflemen and towers shoot down airplanes |
+
+Airplanes fly over water, walls and buildings; only ranged attacks can hit them.
+
+**New buildings**: Archery range, Stable, Tech center, Defensive tower (shoots, also at
+airplanes), Wall and Gate (1×1, placed in a row with Shift; the gate lets its owner and allies
+through but not enemies), Workshop (artillery), Factory (vehicles, tanks, airplanes).
+
+**Technologies** (each researched once; a gear in the queue): Tools, Wheelbarrow, Plow (Town
+Center); Forge, Armor, Masonry, Ballistics, Machinery, Plating (Tech center). They add to the
+faction bonuses. Masonry and Plating also raise the health of what already exists.
+
+**Look**: every new unit and building has its own original drawing; shots look like arrows,
+bullets or cannon shells depending on the unit.
+
+**Tests**: 178 automated tests (26 new: eras and requirements, cancelling, unlocking and
+replacing units, every tech, per-unit bonuses, a 3 anti-tank vs. tank battle, towers, walls,
+gates for allies but not enemies, airplanes over water, who can hit airplanes, network
+encoding of research and eras).
+
 ## Known limits
+- Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.
 - There is no victory yet: the final table sorts by resources gathered (Phase 6).
 - If the server is restarted, the games in progress are lost (they are in memory).

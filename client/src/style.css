@@ -245,7 +245,8 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  gap: 6px;
+  gap: 5px;
+  overflow-y: auto;
 }
 #actions .hint {
   flex-basis: 100%;
@@ -347,6 +348,26 @@ b.up {
 }
 b.down {
   color: #ff7b6b;
+}
+
+/* ---------- Eras y tecnologías ---------- */
+.era-tag {
+  margin-left: 6px;
+  padding: 1px 6px 1px 3px;
+  border-radius: 8px;
+  background: #2a2013;
+  border: 1px solid #a87b1f;
+  color: #f0c14b;
+}
+.era-tag .icon.mini {
+  vertical-align: -2px;
+}
+.act.era-btn {
+  border-color: #d4a23a;
+  box-shadow: 0 0 6px rgba(240, 193, 75, 0.35);
+}
+.act.tech-btn {
+  border-color: #6d8fb0;
 }
 
 /* ---------- Facción ---------- */

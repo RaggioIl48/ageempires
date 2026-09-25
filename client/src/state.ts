@@ -3,7 +3,7 @@
 // (Código sin navegador: también lo usan las pruebas del servidor.)
 
 import { decodeBuilding, decodeEvent, decodeUnit, NODE_TYPES } from '../../shared/codec.ts';
-import { BUILDING_DEFS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation } from '../../shared/data.ts';
+import { BUILDING_DEFS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation, type UnitType } from '../../shared/data.ts';
 import {
   decodeTiles,
   type BuildingView,
@@ -16,7 +16,7 @@ import {
   type ServerMessage,
   type UnitView,
 } from '../../shared/protocol.ts';
-import { buildingMaxHp } from '../../shared/stats.ts';
+import { buildingMaxHp, unitStats, type UnitStats } from '../../shared/stats.ts';
 
 export interface ClientUnit {
   v: UnitView;
@@ -80,6 +80,11 @@ export class ClientState {
   /** Sube cuando cambia la diplomacia (para redibujar el panel). */
   diploVersion = 0;
   chat: ChatLine[] = [];
+  /** Era y tecnologías (máscara) de cada jugador. */
+  eras = new Map<number, number>();
+  techs = new Map<number, number>();
+  /** Sube cuando alguien cambia de era o investiga algo. */
+  techVersion = 0;
 
   /** Relación entre dos jugadores (uno mismo cuenta como aliado). */
   relation(a: number, b: number): Relation {
@@ -122,6 +127,8 @@ export class ClientState {
         this.proposals = [];
         this.pendingWars = [];
         this.chat = [];
+        this.eras.clear();
+        this.techs.clear();
         this.nodesVersion++;
         break;
       }
@@ -198,6 +205,13 @@ export class ClientState {
       this.diploLocked = d.dip.locked;
       this.diploVersion++;
     }
+    if (d.pt) {
+      for (let i = 0; i + 2 < d.pt.length; i += 3) {
+        this.eras.set(d.pt[i], d.pt[i + 1]);
+        this.techs.set(d.pt[i], d.pt[i + 2]);
+      }
+      this.techVersion++;
+    }
     this.tick = d.k;
     this.lastStateAt = now;
   }
@@ -216,8 +230,21 @@ export class ClientState {
     return this.players.get(playerId)?.faction ?? 'legion';
   }
 
+  eraOf(playerId: number): number {
+    return this.eras.get(playerId) ?? 1;
+  }
+
+  techsOf(playerId: number): number {
+    return this.techs.get(playerId) ?? 0;
+  }
+
+  /** Estadísticas reales de una unidad (facción y tecnologías de su dueño). */
+  statsOf(owner: number, type: UnitType): UnitStats {
+    return unitStats(this.faction(owner), type, this.techsOf(owner));
+  }
+
   maxHpOf(b: BuildingView): number {
-    return buildingMaxHp(this.faction(b.owner), b.type);
+    return buildingMaxHp(this.faction(b.owner), b.type, this.techsOf(b.owner));
   }
 
   tile(x: number, y: number): number {

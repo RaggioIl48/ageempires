@@ -2,7 +2,7 @@
 // dice el servidor. Recuerda la partida del estudiante (código + token) para
 // volver a entrar solo si se corta la conexión o se recarga la página.
 
-import { FACTIONS } from '../../shared/data.ts';
+import { ERAS, FACTIONS } from '../../shared/data.ts';
 import type { PlayerSummary, ServerMessage } from '../../shared/protocol.ts';
 import { GameView } from './game.ts';
 import { Net } from './net.ts';
@@ -246,12 +246,12 @@ function showEnd(reason: string, summary: PlayerSummary[]): void {
   const rows = sorted
     .map(
       (p) => `<tr class="${p.id === game.state.you ? 'me' : ''}"><td><i style="background:${p.color}"></i>${esc(p.name)}</td>
-        <td>${esc(FACTIONS[p.faction].name)}</td><td>${p.gathered}</td><td>${p.units}</td><td>${p.buildings}</td><td>${p.kills}</td></tr>`,
+        <td>${esc(FACTIONS[p.faction].name)}</td><td>${p.gathered}</td><td>${p.units}</td><td>${p.buildings}</td><td>${p.kills}</td><td>${ERAS[(p.era ?? 1) - 1].short}</td></tr>`,
     )
     .join('');
   const box = el('ended');
   box.innerHTML = `<h2>Fin de la partida</h2><p>${esc(reason)}</p>
-    <table class="eco"><tr><th>Jugador</th><th>Facción</th><th>Recolectado</th><th>Unidades</th><th>Edificios</th><th>Derribos</th></tr>${rows}</table>
+    <table class="eco"><tr><th>Jugador</th><th>Facción</th><th>Recolectado</th><th>Unidades</th><th>Edificios</th><th>Derribos</th><th>Era</th></tr>${rows}</table>
     <p class="muted">La tabla de victoria llega en la Fase 6. Por ahora: ¿quién recolectó más?</p>
     <button id="btn-end-close">${isTeacherPage ? 'Volver al panel' : 'Salir'}</button>`;
   box.classList.remove('hidden');
