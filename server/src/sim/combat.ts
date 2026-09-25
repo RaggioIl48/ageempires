@@ -7,17 +7,10 @@
 
 import { BUILDING_DEFS, MELEE_REACH, type AttackDef, type Category } from '../../../shared/data.ts';
 import { damage } from '../../../shared/stats.ts';
+import { isEnemy } from './diplomacy.ts';
 import { stopWork } from './gather.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Point, type Unit, type World } from './world.ts';
-
-/**
- * ¿Están en guerra? Fase 2: todos contra todos.
- * En la fase 4 la diplomacia (alianzas, paz, guerra) se decidirá aquí.
- */
-export function isEnemy(a: number, b: number): boolean {
-  return a !== b;
-}
 
 export type Target = { kind: 'unit'; unit: Unit } | { kind: 'building'; building: Building };
 
@@ -85,7 +78,7 @@ export function findTarget(
   let best: Target | null = null;
   let bestScore = Infinity;
   for (const o of grid.near(x, y, radius)) {
-    if (!isEnemy(owner, o.owner)) continue;
+    if (!isEnemy(world, owner, o.owner)) continue;
     const score = Math.hypot(o.x - x, o.y - y) + (o.type === 'worker' ? 3 : 0);
     if (score < bestScore) {
       bestScore = score;
@@ -94,7 +87,7 @@ export function findTarget(
   }
   if (!unitsOnly)
     for (const b of world.buildings.values()) {
-      if (!isEnemy(owner, b.owner)) continue;
+      if (!isEnemy(world, owner, b.owner)) continue;
       const d = distanceToRect(x, y, b.tx, b.ty, b.size);
       if (d <= radius && d + 6 < bestScore) {
         bestScore = d + 6;
@@ -175,7 +168,7 @@ export function updateCombat(world: World, dt: number): void {
     if (u.task?.kind !== 'attack') continue;
 
     let t = targetOf(world, u.task.targetId);
-    if (t && !isEnemy(u.owner, ownerOf(t))) t = null;
+    if (t && !isEnemy(world, u.owner, ownerOf(t))) t = null;
     // Si lo eligió sola, lo deja si se aleja demasiado (no persigue por todo el mapa).
     if (t && u.task.auto && distanceTo(u.x, u.y, t) > stats.sight + 3) t = null;
     if (!t) {

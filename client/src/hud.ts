@@ -7,6 +7,7 @@ import {
   CATEGORY_LABELS,
   FACTIONS,
   NODE_DEFS,
+  RELATION_LABELS,
   RESOURCE_LABELS,
   RESOURCE_TYPES,
   UNIT_DEFS,
@@ -282,7 +283,8 @@ export class Hud {
     const p = this.state.players.get(owner);
     if (!p) return '';
     const who = owner === this.state.you ? 'Tuyo' : esc(p.name);
-    return `<div class="row owner"><i style="background:${p.color}"></i>${who} · ${esc(FACTIONS[p.faction].name)}</div>`;
+    const rel = this.state.spectator || owner === this.state.you ? '' : ` · <span class="rel ${this.state.relation(this.state.you, owner)}">${RELATION_LABELS[this.state.relation(this.state.you, owner)]}</span>`;
+    return `<div class="row owner"><i style="background:${p.color}"></i>${who} · ${esc(FACTIONS[p.faction].name)}${rel}</div>`;
   }
 
   // ---------- Barra inferior ----------

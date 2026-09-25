@@ -4,10 +4,13 @@
 
 import {
   BUILDING_DEFS,
+  CHAT_MAX,
+  DIPLO_ACTIONS,
   FACTIONS,
   PLAYER_COLORS,
   UNIT_DEFS,
   type BuildingType,
+  type DiploAction,
   type FactionId,
   type NodeType,
   type ResourceType,
@@ -118,6 +121,10 @@ export interface RoomSettings {
   mapSize: MapSize;
   /** Duración máxima en minutos (0 = sin límite). */
   durationMin: number;
+  /** 'free' = alianzas y guerras pueden cambiar en la partida; 'locked' = los equipos no cambian. */
+  diplomacy: 'free' | 'locked';
+  /** Chat entre jugadores (el profesor puede apagarlo). */
+  chat: boolean;
 }
 
 export type RoomPhase = 'lobby' | 'playing' | 'ended';
@@ -128,6 +135,8 @@ export interface MemberView {
   color: string;
   faction: FactionId;
   connected: boolean;
+  /** Equipo asignado por el profesor (0 = sin equipo). */
+  team: number;
 }
 
 export interface RoomView {
@@ -176,7 +185,9 @@ export type Command =
   | { kind: 'cancelTrain'; buildingId: number; index: number }
   | { kind: 'rally'; buildingId: number; x: number; y: number }
   /** Eliminar unidades o edificios propios. */
-  | { kind: 'delete'; ids: number[] };
+  | { kind: 'delete'; ids: number[] }
+  /** Diplomacia con otro jugador (proponer alianza, declarar guerra…). */
+  | { kind: 'diplo'; action: DiploAction; target: number };
 
 export type ClientMessage =
   // Estudiante
@@ -195,7 +206,9 @@ export type ClientMessage =
   | { t: 'end'; code: string }
   | { t: 'closeRoom'; code: string }
   | { t: 'watch'; code: string }
-  | { t: 'unwatch' };
+  | { t: 'unwatch' }
+  | { t: 'setTeam'; code: string; memberId: number; team: number }
+  | { t: 'chat'; text: string; to: 'all' | 'allies' };
 
 // ---------- Servidor -> Cliente ----------
 
@@ -224,6 +237,8 @@ export interface DeltaMessage {
   no?: string[];
   /** Reloj: [segundos transcurridos, límite en segundos (0 = sin límite)]. */
   clk?: [number, number];
+  /** Diplomacia (solo cuando cambia, o cada segundo si hay plazos corriendo). */
+  dip?: DiploView;
 }
 
 export type ServerMessage =
@@ -250,7 +265,22 @@ export type ServerMessage =
   | { t: 'players'; players: PlayerView[] }
   | DeltaMessage
   | { t: 'paused'; paused: boolean }
-  | { t: 'ended'; reason: string; summary: PlayerSummary[] };
+  | { t: 'ended'; reason: string; summary: PlayerSummary[] }
+  | { t: 'chat'; from: number; name: string; color: string; text: string; to: 'all' | 'allies' };
+
+/**
+ * Estado diplomático (público: todos ven quién está con quién).
+ * r: [a, b, relación] por cada par (0 guerra, 1 paz, 2 aliados)
+ * p: propuestas que ve este jugador [de, para, tipo (0 alianza, 1 paz), segundos restantes]
+ * w: guerras declaradas que aún no empiezan [de, para, segundos restantes]
+ */
+export interface DiploView {
+  r: number[];
+  p: number[];
+  w: number[];
+  /** true = los equipos no pueden cambiar. */
+  locked: boolean;
+}
 
 // ---------- Validación de mensajes entrantes ----------
 
@@ -282,12 +312,17 @@ function isCode(v: unknown): v is string {
 
 /** Nombre limpio: sin caracteres de control, espacios recortados, largo máximo. */
 export function cleanName(v: unknown): string {
+  return cleanText(v, MAX_NAME_LENGTH);
+}
+
+/** Texto limpio: sin caracteres de control ni < >, espacios recortados, largo máximo. */
+export function cleanText(v: unknown, max: number): string {
   if (typeof v !== 'string') return '';
   return v
     .replace(/[\u0000-\u001f\u007f<>]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, MAX_NAME_LENGTH);
+    .slice(0, max);
 }
 
 function parseSettings(v: unknown): RoomSettings | null {
@@ -296,7 +331,15 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (!Number.isInteger(s.maxPlayers) || (s.maxPlayers as number) < 1 || (s.maxPlayers as number) > 16) return null;
   if (s.mapSize !== 'small' && s.mapSize !== 'normal' && s.mapSize !== 'large') return null;
   if (!Number.isInteger(s.durationMin) || (s.durationMin as number) < 0 || (s.durationMin as number) > 240) return null;
-  return { maxPlayers: s.maxPlayers as number, mapSize: s.mapSize, durationMin: s.durationMin as number };
+  if (s.diplomacy !== undefined && s.diplomacy !== 'free' && s.diplomacy !== 'locked') return null;
+  if (s.chat !== undefined && typeof s.chat !== 'boolean') return null;
+  return {
+    maxPlayers: s.maxPlayers as number,
+    mapSize: s.mapSize,
+    durationMin: s.durationMin as number,
+    diplomacy: (s.diplomacy as RoomSettings['diplomacy'] | undefined) ?? 'free',
+    chat: (s.chat as boolean | undefined) ?? true,
+  };
 }
 
 /**
@@ -329,6 +372,15 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'leave' };
     case 'unwatch':
       return { t: 'unwatch' };
+    case 'setTeam':
+      return isCode(m.code) && isId(m.memberId) && Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) <= 8
+        ? { t: 'setTeam', code: m.code, memberId: m.memberId, team: m.team as number }
+        : null;
+    case 'chat': {
+      const text = cleanText(m.text, CHAT_MAX);
+      if (!text || (m.to !== 'all' && m.to !== 'allies')) return null;
+      return { t: 'chat', text, to: m.to };
+    }
     case 'choose': {
       const out: ClientMessage = { t: 'choose' };
       if (m.faction !== undefined) {
@@ -380,6 +432,10 @@ function parseCommand(c: Record<string, unknown>): Command | null {
       return isId(c.buildingId) && isCoord(c.x) && isCoord(c.y) ? { kind: 'rally', buildingId: c.buildingId, x: c.x, y: c.y } : null;
     case 'delete':
       return isIdList(c.ids) ? { kind: 'delete', ids: [...new Set(c.ids)] } : null;
+    case 'diplo':
+      return typeof c.action === 'string' && (DIPLO_ACTIONS as readonly string[]).includes(c.action) && isId(c.target)
+        ? { kind: 'diplo', action: c.action as DiploAction, target: c.target }
+        : null;
   }
   // Órdenes sobre unidades.
   if (!isIdList(c.unitIds)) return null;

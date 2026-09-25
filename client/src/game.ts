@@ -2,6 +2,7 @@
 
 import { BUILDING_DEFS } from '../../shared/data.ts';
 import type { ServerMessage } from '../../shared/protocol.ts';
+import { ChatBox, DiploPanel } from './diplomacy.ts';
 import { Hud } from './hud.ts';
 import { Input } from './input.ts';
 import { Minimap } from './minimap.ts';
@@ -17,6 +18,8 @@ export class GameView {
   readonly input: Input;
   readonly hud: Hud;
   private readonly minimap: Minimap;
+  readonly diplo: DiploPanel;
+  private readonly chat: ChatBox;
   private readonly canvas = document.getElementById('game') as HTMLCanvasElement;
   private readonly ctx = this.canvas.getContext('2d', { alpha: false })!;
   private needCenter = false;
@@ -28,6 +31,8 @@ export class GameView {
     this.input = new Input(this.canvas, this.cam, this.state, net);
     this.hud = new Hud(this.state, this.input);
     this.minimap = new Minimap(document.getElementById('minimap') as HTMLCanvasElement, this.cam, this.state, this.renderer, this.input);
+    this.diplo = new DiploPanel(this.state, net);
+    this.chat = new ChatBox(this.state, net);
     this.input.onSelectionChange = () => this.hud.update();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -48,6 +53,8 @@ export class GameView {
       this.input.prune();
     }
     this.hud.update();
+    this.diplo.update();
+    this.chat.update();
   }
 
   /** Al empezar: la cámara sobre el Centro Urbano propio (o el centro del mapa si es el profesor). */
@@ -100,6 +107,7 @@ export class GameView {
 
     if (now - this.lastMini > 100) {
       this.minimap.draw(now);
+      this.chat.update(); // los mensajes viejos se desvanecen
       this.lastMini = now;
     }
   }

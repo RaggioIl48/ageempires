@@ -75,6 +75,18 @@
                 <option value="90">90 minutos</option>
               </select>
             </label>
+            <label>Diplomacia
+              <select id="in-diplo">
+                <option value="free" selected>Libre (alianzas y guerras cambian)</option>
+                <option value="locked">Fija (los equipos no cambian)</option>
+              </select>
+            </label>
+            <label>Chat
+              <select id="in-chat">
+                <option value="1" selected>Activado</option>
+                <option value="0">Desactivado</option>
+              </select>
+            </label>
             <button type="submit" class="big">Crear partida</button>
           </form>
           <div id="teacher-rooms"></div>
@@ -94,13 +106,19 @@
           <div id="faction"></div>
           <button id="btn-home" title="Centro Urbano (H)">⌂ Centro</button>
           <button id="btn-idle" title="Siguiente trabajador inactivo (.)"></button>
-          <button id="btn-diplo" disabled title="Llega en la Fase 4">Diplomacia</button>
+          <button id="btn-diplo">🤝 Diplomacia</button>
           <div id="players"></div>
         </div>
       </header>
 
       <aside id="info" class="panel hidden"></aside>
       <div id="notices"></div>
+      <aside id="diplo-panel" class="panel hidden"></aside>
+      <div id="chat-log"></div>
+      <form id="chat-form" class="hidden" autocomplete="off">
+        <button type="button" id="chat-scope" title="Tab: cambiar entre Todos y Aliados">Todos</button>
+        <input id="chat-input" placeholder="Escribe y presiona Enter (Esc para cerrar)" />
+      </form>
 
       <footer id="bottombar">
         <div id="selection-grid"></div>

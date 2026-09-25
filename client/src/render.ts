@@ -75,6 +75,12 @@ export function buildTerrainTexture(state: ClientState): HTMLCanvasElement {
 
 // ---------- Escena ----------
 
+/** Color de selección según la relación: propio blanco, aliado verde, en paz amarillo, enemigo rojo. */
+function ringColor(state: ClientState, owner: number): string {
+  const rel = state.relationTo(owner);
+  return rel === 'own' ? '#ffffff' : rel === 'ally' ? '#7dff8a' : rel === 'peace' ? '#ffe27a' : '#ff6b6b';
+}
+
 export interface Marker {
   x: number;
   y: number;
@@ -181,14 +187,14 @@ export class Renderer {
       if (d.k === 'unit' && sel.units.has(d.u.id)) {
         const p = worldToPx(d.x, d.y);
         const r = d.u.type === 'scout' ? 13 : 10;
-        ellipse(ctx, p.px, p.py, r, r / 2, null, d.u.owner === state.you ? '#ffffff' : '#ff8080', 1.5);
+        ellipse(ctx, p.px, p.py, r, r / 2, null, ringColor(state, d.u.owner), 1.5);
       } else if (d.k === 'node' && sel.node === d.n.id) {
         outlineFootprint(ctx, d.n.tx, d.n.ty, 1, '#ffe27a');
       }
     }
     if (sel.building !== null) {
       const b = state.buildings.get(sel.building);
-      if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, b.owner === state.you ? '#ffffff' : '#ff8080');
+      if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
     }
 
     for (const d of list) {

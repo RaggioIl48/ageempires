@@ -31,7 +31,7 @@ class FakeConn implements Conn {
   }
 }
 
-const SETTINGS: RoomSettings = { maxPlayers: 4, mapSize: 'normal', durationMin: 0 };
+const SETTINGS: RoomSettings = { maxPlayers: 4, mapSize: 'normal', durationMin: 0, diplomacy: 'free', chat: true };
 
 function setup() {
   const lobby = new Lobby({ pin: '4321', urls: () => ['http://192.168.1.20:8080'], seed: () => 77 });
@@ -322,5 +322,58 @@ describe('game', () => {
     lobby.handle(teacher, { t: 'closeRoom', code });
     expect(ana.last('kicked')?.message).toMatch(/cerró/);
     expect(lobby.rooms.has(code)).toBe(false);
+  });
+});
+
+describe('teams and chat (Phase 4)', () => {
+  it('the teacher assigns teams in the lobby; at the start teammates are allies', () => {
+    const { lobby, teacher, code, room, student } = setup();
+    const [a, b, c] = ['Ana', 'Bruno', 'Carla'].map((n) => student(n));
+    const id = (x: FakeConn) => x.last('joined')!.memberId;
+    lobby.handle(teacher, { t: 'setTeam', code, memberId: id(a), team: 1 });
+    lobby.handle(teacher, { t: 'setTeam', code, memberId: id(b), team: 1 });
+    lobby.handle(teacher, { t: 'setTeam', code, memberId: id(c), team: 2 });
+    expect(c.last('room')!.room.members.map((m) => m.team)).toEqual([1, 1, 2]);
+    lobby.handle(teacher, { t: 'start', code });
+    const w = room.game!.world;
+    expect(w.relation(1, 2)).toBe('ally');
+    expect(w.relation(1, 3)).toBe('war');
+    const d = a.all('d').find((m) => m.dip)!;
+    expect(d.dip!.r).toEqual([1, 2, 2, 1, 3, 0, 2, 3, 0]);
+  });
+
+  it('a student cannot change teams', () => {
+    const { lobby, code, room, student } = setup();
+    const a = student('Ana');
+    lobby.handle(a, { t: 'setTeam', code, memberId: a.last('joined')!.memberId, team: 3 });
+    expect(room.view().members[0].team).toBe(0);
+  });
+
+  it('chat: "all" reaches everyone; "allies" only the team; the teacher watching sees everything', () => {
+    const { lobby, teacher, code, student } = setup();
+    const [a, b, c] = ['Ana', 'Bruno', 'Carla'].map((n) => student(n));
+    lobby.handle(teacher, { t: 'setTeam', code, memberId: a.last('joined')!.memberId, team: 1 });
+    lobby.handle(teacher, { t: 'setTeam', code, memberId: b.last('joined')!.memberId, team: 1 });
+    lobby.handle(teacher, { t: 'start', code });
+    lobby.handle(teacher, { t: 'watch', code });
+    lobby.handle(a, { t: 'chat', text: '¡Hola a todos!', to: 'all' });
+    expect(c.last('chat')?.text).toBe('¡Hola a todos!');
+    (lobby.rooms.get(code)!.members[0] as { lastChat: number }).lastChat = 0; // no esperar el límite
+    lobby.handle(a, { t: 'chat', text: 'Plan secreto', to: 'allies' });
+    expect(b.last('chat')?.text).toBe('Plan secreto');
+    expect(c.last('chat')?.text).toBe('¡Hola a todos!'); // not an ally: did not receive it
+    expect(teacher.last('chat')?.text).toBe('Plan secreto');
+  });
+
+  it('chat: limited rhythm, and the teacher can turn it off', () => {
+    const { lobby, teacher, code, student } = setup();
+    const a = student('Ana');
+    lobby.handle(a, { t: 'chat', text: 'uno', to: 'all' });
+    lobby.handle(a, { t: 'chat', text: 'dos', to: 'all' });
+    expect(a.last('error')?.message).toMatch(/Espera/);
+    lobby.handle(teacher, { t: 'setSettings', code, settings: { ...SETTINGS, chat: false } });
+    (lobby.rooms.get(code)!.members[0] as { lastChat: number }).lastChat = 0;
+    lobby.handle(a, { t: 'chat', text: 'tres', to: 'all' });
+    expect(a.last('error')?.message).toMatch(/desactivó el chat/);
   });
 });

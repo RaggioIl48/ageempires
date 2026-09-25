@@ -224,6 +224,7 @@ function onMessage(msg: ServerMessage): void {
       return;
     case 'd':
     case 'players':
+    case 'chat':
       game.handle(msg);
       return;
     case 'paused':

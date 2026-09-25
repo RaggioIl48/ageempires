@@ -224,7 +224,7 @@ export class Input {
     if (target?.kind === 'unit' || target?.kind === 'building') {
       const owner =
         target.kind === 'unit' ? this.state.units.get(target.id)?.v.owner : this.state.buildings.get(target.id)?.owner;
-      if (owner !== undefined && owner !== this.state.you) {
+      if (owner !== undefined && owner !== this.state.you && this.state.relation(this.state.you, owner) === 'war') {
         this.net.command({ kind: 'attack', unitIds: ids, targetId: target.id });
         mark(x, y, '#ff5252');
         return;
@@ -323,8 +323,8 @@ export class Input {
     if (this.ghost) cursor = 'copy';
     else if (this.ownSelected().length > 0) {
       const t = pick(this.state, this.cam, p.x, p.y, performance.now());
-      if (t?.kind === 'unit' && this.state.units.get(t.id)?.v.owner !== this.state.you) cursor = 'crosshair';
-      else if (t?.kind === 'building' && this.state.buildings.get(t.id)?.owner !== this.state.you) cursor = 'crosshair';
+      const owner = t?.kind === 'unit' ? this.state.units.get(t.id)?.v.owner : t?.kind === 'building' ? this.state.buildings.get(t.id)?.owner : undefined;
+      if (owner !== undefined && owner !== this.state.you && this.state.relation(this.state.you, owner) === 'war') cursor = 'crosshair';
       else if (t && this.ownWorkersSelected().length > 0 && t.kind !== 'unit') cursor = 'pointer';
     }
     if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;

@@ -69,7 +69,7 @@ async function teacherWithRoom(port: number, maxPlayers = 16) {
   const teacher = await connect(port);
   teacher.send({ t: 'teacher' });
   await teacher.next('teacherOk');
-  teacher.send({ t: 'createRoom', settings: { maxPlayers, mapSize: 'normal', durationMin: 0 } });
+  teacher.send({ t: 'createRoom', settings: { maxPlayers, mapSize: 'normal', durationMin: 0, diplomacy: 'free', chat: true } });
   const code = (await teacher.next('rooms')).rooms[0].code;
   return { teacher, code };
 }

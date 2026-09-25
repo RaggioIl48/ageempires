@@ -59,3 +59,22 @@ describe('validación de mensajes del cliente', () => {
     });
   }
 });
+
+describe('Phase 4 messages', () => {
+  const parse = (m: unknown) => parseClientMessage(JSON.stringify(m));
+  it('valid diplomacy, team and chat', () => {
+    expect(parse({ t: 'cmd', cmd: { kind: 'diplo', action: 'declareWar', target: 3 } })).not.toBeNull();
+    expect(parse({ t: 'setTeam', code: 'ABCD', memberId: 2, team: 1 })).not.toBeNull();
+    expect(parse({ t: 'chat', text: 'hola', to: 'allies' })).not.toBeNull();
+  });
+  it('rejects invalid things and cleans the chat', () => {
+    expect(parse({ t: 'cmd', cmd: { kind: 'diplo', action: 'nuke', target: 3 } })).toBeNull();
+    expect(parse({ t: 'cmd', cmd: { kind: 'diplo', action: 'declareWar', target: -1 } })).toBeNull();
+    expect(parse({ t: 'setTeam', code: 'ABCD', memberId: 2, team: 99 })).toBeNull();
+    expect(parse({ t: 'chat', text: '   ', to: 'all' })).toBeNull();
+    expect(parse({ t: 'chat', text: 'hola', to: 'enemigos' })).toBeNull();
+    const m = parse({ t: 'chat', text: '<b>hola</b>' + 'x'.repeat(500), to: 'all' });
+    expect(m?.t === 'chat' && m.text.includes('<')).toBe(false);
+    expect(m?.t === 'chat' && m.text.length).toBe(140);
+  });
+});

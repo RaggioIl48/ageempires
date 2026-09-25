@@ -14,12 +14,14 @@ import {
   type BuildingType,
   type Cost,
   type FactionId,
+  type Relation,
   type NodeType,
   type ResourceType,
   type Resources,
   type UnitType,
 } from '../../../shared/data.ts';
 import type { GameEvent, UnitState } from '../../../shared/protocol.ts';
+import type { PendingWar, Proposal } from './diplomacy.ts';
 import { buildingMaxHp, canAfford, unitStats, type UnitStats } from '../../../shared/stats.ts';
 
 export interface Point {
@@ -131,6 +133,14 @@ export class World {
   /** Efectos de este paso (disparos, muertes…). */
   events: GameEvent[] = [];
 
+  // Diplomacia (ver diplomacy.ts). Por defecto, todos en guerra (todos contra todos).
+  private readonly relations = new Map<number, Relation>();
+  diploLocked = false;
+  /** Sube con cada cambio diplomático (para mandarlo a los clientes solo cuando cambia). */
+  diploVersion = 0;
+  proposals: Proposal[] = [];
+  pendingWars: PendingWar[] = [];
+
   constructor(size: number) {
     this.size = size;
     this.tiles = new Uint8Array(size * size).fill(TILE_GRASS);
@@ -188,6 +198,28 @@ export class World {
   notify(playerId: number, text: string): void {
     const p = this.players.get(playerId);
     if (p && !p.notices.includes(text)) p.notices.push(text);
+  }
+
+  /** Aviso para todos los jugadores (noticias diplomáticas). */
+  announce(text: string): void {
+    for (const id of this.players.keys()) this.notify(id, text);
+    this.news.push(text);
+    if (this.news.length > 30) this.news.shift();
+    this.newsCount++;
+  }
+  /** Últimas noticias (para el profesor que mira) y cuántas hubo en total. */
+  news: string[] = [];
+  newsCount = 0;
+
+  relation(a: number, b: number): Relation {
+    if (a === b) return 'ally';
+    return this.relations.get(Math.min(a, b) * 1000 + Math.max(a, b)) ?? 'war';
+  }
+
+  setRelation(a: number, b: number, r: Relation): void {
+    if (a === b) return;
+    this.relations.set(Math.min(a, b) * 1000 + Math.max(a, b), r);
+    this.diploVersion++;
   }
 
   canAfford(playerId: number, cost: Cost): boolean {

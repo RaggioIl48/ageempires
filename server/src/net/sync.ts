@@ -20,6 +20,7 @@ import {
 } from '../../../shared/codec.ts';
 import { TICK_RATE } from '../../../shared/data.ts';
 import { encodeTiles, type DeltaMessage, type EconomyView, type RoomSettings, type ServerMessage } from '../../../shared/protocol.ts';
+import { diploView } from '../sim/diplomacy.ts';
 import { buildingView, type Game } from '../sim/game.ts';
 
 /** Primer mensaje al entrar a la partida: mapa comprimido, jugadores y recursos. */
@@ -79,6 +80,8 @@ export class ClientSync {
   private lastEco = '';
   private lastClock = '';
   private lastEcoAllTick = -Infinity;
+  private lastDiplo = -1;
+  private lastNews = -1;
 
   /** playerId 0 = observador (el profesor): ve todo y la economía de todos. */
   constructor(readonly playerId: number) {}
@@ -167,6 +170,23 @@ export class ClientSync {
       const all: Record<number, EconomyView> = {};
       for (const id of game.world.players.keys()) all[id] = game.economyOf(id);
       msg.ecoAll = all;
+    }
+
+    // Diplomacia: cuando cambia, o cada segundo si hay plazos corriendo (propuestas, guerras por empezar).
+    const w = game.world;
+    const timers = w.proposals.length > 0 || w.pendingWars.length > 0;
+    if (w.diploVersion !== this.lastDiplo || (timers && frame.tick % TICK_RATE === 0)) {
+      this.lastDiplo = w.diploVersion;
+      msg.dip = diploView(w, this.playerId);
+    }
+    // El profesor recibe las noticias diplomáticas como avisos.
+    if (this.playerId === 0) {
+      if (this.lastNews < 0) this.lastNews = w.newsCount; // al empezar a mirar, solo lo nuevo
+      else if (w.newsCount > this.lastNews) {
+        const fresh = w.news.slice(-Math.min(w.news.length, w.newsCount - this.lastNews));
+        this.lastNews = w.newsCount;
+        msg.no = fresh;
+      }
     }
 
     const clock = frame.clock.join(',');

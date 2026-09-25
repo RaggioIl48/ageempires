@@ -714,6 +714,192 @@ table.eco tr.me {
   }
 }
 
+/* ---------- Diplomacia ---------- */
+#diplo-panel {
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  width: min(520px, calc(100vw - 20px));
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  font-size: 13px;
+}
+.dp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dp-head h3,
+#diplo-panel h4 {
+  margin: 0;
+  color: var(--accent);
+}
+#diplo-panel h4 {
+  margin-top: 10px;
+}
+.dp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(138, 106, 63, 0.35);
+}
+.dp-row.off {
+  opacity: 0.6;
+}
+.dp-who {
+  flex: 1 1 160px;
+}
+.dp-who i,
+.dp-matrix i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+}
+.dp-actions {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.dp-offer {
+  color: var(--accent);
+  font-weight: 700;
+}
+.dp-war {
+  color: #ff8a7a;
+  font-weight: 700;
+}
+.rel {
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.rel.ally {
+  background: rgba(80, 200, 110, 0.25);
+  color: #9dffa8;
+}
+.rel.peace {
+  background: rgba(255, 226, 122, 0.2);
+  color: #ffe27a;
+}
+.rel.war {
+  background: rgba(255, 90, 90, 0.2);
+  color: #ff9d8f;
+}
+button.danger {
+  border-color: #c9483b;
+  color: #ffb3a8;
+}
+.badge {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #d6453a;
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+}
+#btn-diplo.alert {
+  border-color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 10px var(--accent);
+  }
+}
+.dp-matrix {
+  overflow-x: auto;
+}
+.dp-matrix table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.dp-matrix th,
+.dp-matrix td {
+  padding: 2px 3px;
+  text-align: center;
+}
+.dp-matrix th.left {
+  text-align: left;
+  white-space: nowrap;
+}
+.dp-matrix td.ally {
+  background: rgba(80, 200, 110, 0.3);
+}
+.dp-matrix td.peace {
+  background: rgba(255, 226, 122, 0.25);
+}
+.dp-matrix td.war {
+  background: rgba(255, 90, 90, 0.25);
+}
+.dp-matrix td.self {
+  background: rgba(255, 255, 255, 0.06);
+}
+.team-tag {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgba(255, 212, 121, 0.18);
+  color: var(--accent);
+  font-size: 11px;
+}
+select.tiny-select {
+  font-size: 11px;
+  padding: 1px 4px;
+  margin-left: 6px;
+}
+
+/* ---------- Chat ---------- */
+#chat-log {
+  position: fixed;
+  left: 10px;
+  bottom: calc(var(--bar-h) + 44px);
+  width: min(420px, 60vw);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
+.chat-line {
+  background: rgba(20, 16, 12, 0.6);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.chat-tag {
+  color: #9dffa8;
+}
+.chat-hint {
+  color: var(--muted);
+  font-size: 11px;
+  padding-left: 4px;
+}
+#chat-form {
+  position: fixed;
+  left: 10px;
+  bottom: calc(var(--bar-h) + 8px);
+  width: min(420px, 60vw);
+  display: flex;
+  gap: 4px;
+}
+#chat-form input {
+  flex: 1;
+  font-size: 14px;
+  padding: 5px 8px;
+}
+#chat-scope.allies {
+  color: #9dffa8;
+  border-color: #4caf50;
+}
+
 /* ---------- Avisos ---------- */
 #overlay {
   position: fixed;

@@ -340,6 +340,31 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
 };
 export const FACTION_ORDER: readonly FactionId[] = ['legion', 'wind', 'forest', 'forge', 'river', 'mountain'];
 
+// ---------- Diplomacia ----------
+/** Relación entre dos jugadores: en guerra, en paz (no se atacan) o aliados. */
+export type Relation = 'war' | 'peace' | 'ally';
+export const RELATIONS: readonly Relation[] = ['war', 'peace', 'ally'];
+export const RELATION_LABELS: Record<Relation, string> = { war: 'En guerra', peace: 'En paz', ally: 'Aliados' };
+/** Segundos de aviso antes de que empiece una guerra declarada. */
+export const WAR_DELAY_SEC = 20;
+/** Segundos que dura una propuesta (alianza o paz) sin respuesta. */
+export const PROPOSAL_SEC = 60;
+export type DiploAction =
+  | 'proposeAlliance'
+  | 'acceptAlliance'
+  | 'rejectAlliance'
+  | 'breakAlliance'
+  | 'declareWar'
+  | 'proposePeace'
+  | 'acceptPeace'
+  | 'rejectPeace';
+export const DIPLO_ACTIONS: readonly DiploAction[] = [
+  'proposeAlliance', 'acceptAlliance', 'rejectAlliance', 'breakAlliance',
+  'declareWar', 'proposePeace', 'acceptPeace', 'rejectPeace',
+];
+/** Largo máximo de un mensaje de chat. */
+export const CHAT_MAX = 140;
+
 // ---------- Partida ----------
 export const STARTING_UNITS: readonly UnitType[] = ['worker', 'worker', 'worker', 'scout'];
 /** Colores de jugador (16, bien distinguibles entre sí). */

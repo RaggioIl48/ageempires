@@ -53,6 +53,12 @@ export class Lobby {
       case 'cmd':
         if (conn.role === 'student') conn.room?.command(conn, msg.cmd);
         return;
+      case 'chat': {
+        if (conn.role !== 'student' || !conn.room) return;
+        const error = conn.room.chat(conn, msg.text, msg.to);
+        if (error) conn.send({ t: 'error', message: error });
+        return;
+      }
       case 'start': {
         // El profesor probando como "estudiante" también puede iniciar su sala desde la sala de
         // espera: si está en el computador del servidor, o si da la clave del profesor.
@@ -109,6 +115,9 @@ export class Lobby {
         break;
       case 'kick':
         room.kick(msg.memberId);
+        break;
+      case 'setTeam':
+        error = room.setTeam(msg.memberId, msg.team);
         break;
       case 'start':
         error = room.start();

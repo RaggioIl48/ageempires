@@ -13,7 +13,8 @@ import type {
 } from '../../../shared/protocol.ts';
 import { scaleCost } from '../../../shared/stats.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
-import { assignAttack, isEnemy, removeDead, targetOf, updateCombat } from './combat.ts';
+import { assignAttack, removeDead, targetOf, updateCombat } from './combat.ts';
+import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
 import { assignFarm, assignGather, farmTaken, isOwnFarm, stopWork, updateGatherers } from './gather.ts';
 import { generateWorld, type MapOptions } from './mapgen.ts';
 import { moveGroup, moveUnits, separateUnits } from './movement.ts';
@@ -44,6 +45,7 @@ export class Game {
     const dt = TICK_MS / 1000;
     for (const { playerId, cmd } of this.queue) this.apply(playerId, cmd);
     this.queue = [];
+    updateDiplomacy(w);
     updateProduction(w, dt);
     updateCombat(w, dt);
     moveUnits(w, dt);
@@ -77,6 +79,9 @@ export class Game {
       }
       case 'delete':
         this.deleteOwn(playerId, cmd.ids);
+        return;
+      case 'diplo':
+        diplo(w, playerId, cmd.action, cmd.target);
         return;
     }
 
@@ -123,7 +128,12 @@ export class Game {
         const t = targetOf(w, cmd.targetId);
         if (!t) return;
         const owner = t.kind === 'unit' ? t.unit.owner : t.building.owner;
-        if (!isEnemy(playerId, owner)) return;
+        if (owner !== playerId && !isEnemy(w, playerId, owner)) {
+          const name = w.players.get(owner)?.name ?? '';
+          const rel = w.relation(playerId, owner);
+          return w.notify(playerId, rel === 'ally' ? `${name} es tu aliado: no puedes atacarlo` : `Estás en paz con ${name}: declárale la guerra primero`);
+        }
+        if (owner === playerId) return;
         for (const u of units) assignAttack(u, cmd.targetId);
         break;
       }

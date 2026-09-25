@@ -8,7 +8,7 @@ import { ClientState } from '../../client/src/state.ts';
 import { buildFrame, ClientSync, welcomeMessage } from '../src/net/sync.ts';
 import { Game } from '../src/sim/game.ts';
 
-const SETTINGS = { maxPlayers: 4, mapSize: 'normal' as const, durationMin: 0 };
+const SETTINGS = { maxPlayers: 4, mapSize: 'normal' as const, durationMin: 0, diplomacy: 'free' as const, chat: true };
 
 /** Simulates the network: JSON there and back. */
 const wire = (m: ServerMessage): ServerMessage => JSON.parse(JSON.stringify(m));

@@ -21,7 +21,17 @@ export function showScreen(id: ScreenId): void {
 
 const MAP_LABEL = { small: 'pequeño', normal: 'normal', large: 'grande' } as const;
 export function settingsText(s: RoomSettings): string {
-  return `hasta ${s.maxPlayers} jugadores · mapa ${MAP_LABEL[s.mapSize]} · ${s.durationMin ? `${s.durationMin} minutos` : 'sin límite de tiempo'}`;
+  return [
+    `hasta ${s.maxPlayers} jugadores`,
+    `mapa ${MAP_LABEL[s.mapSize]}`,
+    s.durationMin ? `${s.durationMin} minutos` : 'sin límite de tiempo',
+    s.diplomacy === 'locked' ? 'equipos fijos' : 'diplomacia libre',
+    s.chat ? 'chat activado' : 'sin chat',
+  ].join(' · ');
+}
+
+export function teamText(team: number): string {
+  return team > 0 ? `Equipo ${team}` : 'Sin equipo';
 }
 
 type Send = (m: ClientMessage) => void;
@@ -124,7 +134,9 @@ export class LobbyScreen {
     el('lobby-members').innerHTML = room.members
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i>
-          <b>${esc(m.name)}</b>${m.id === this.me ? ' (tú)' : ''}<span class="muted"> · ${esc(FACTIONS[m.faction].name)}</span></div>`,
+          <b>${esc(m.name)}</b>${m.id === this.me ? ' (tú)' : ''}<span class="muted"> · ${esc(FACTIONS[m.faction].name)}</span>${
+            m.team > 0 ? ` <span class="team-tag">${teamText(m.team)}</span>` : ''
+          }</div>`,
       )
       .join('');
     el('lobby-factions').innerHTML = FACTION_ORDER.map((id) => {
@@ -170,6 +182,8 @@ export class TeacherScreen {
           maxPlayers: Number(max.value),
           mapSize: el<HTMLSelectElement>('in-map').value as RoomSettings['mapSize'],
           durationMin: Number(el<HTMLSelectElement>('in-duration').value),
+          diplomacy: el<HTMLSelectElement>('in-diplo').value as RoomSettings['diplomacy'],
+          chat: el<HTMLSelectElement>('in-chat').value === '1',
         },
       });
     });
@@ -182,6 +196,11 @@ export class TeacherScreen {
         /* sin almacenamiento */
       }
       this.send({ t: 'teacher', pin });
+    });
+    el('teacher-rooms').addEventListener('change', (e) => {
+      const sel = e.target as HTMLSelectElement;
+      if (sel.dataset.team !== undefined)
+        this.send({ t: 'setTeam', code: sel.dataset.code!, memberId: Number(sel.dataset.id), team: Number(sel.value) });
     });
     el('teacher-rooms').addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
@@ -204,6 +223,15 @@ export class TeacherScreen {
           // Abre otra pestaña como si fuera un estudiante (para probar solo en un computador).
           window.open(`/?c=${code}`, '_blank');
           return;
+        case 'teams2':
+        case 'ffa': {
+          // Repartir en 2 equipos alternando (1, 2, 1, 2…) o todos sin equipo.
+          const room = this.rooms.get(code);
+          room?.members.forEach((m, i) =>
+            this.send({ t: 'setTeam', code, memberId: m.id, team: btn.dataset.act === 'ffa' ? 0 : (i % 2) + 1 }),
+          );
+          return;
+        }
         case 'kick':
           if (confirm(`¿Sacar a ${btn.dataset.name} de la partida?`)) this.send({ t: 'kick', code, memberId: Number(btn.dataset.id) });
           return;
@@ -276,6 +304,15 @@ export class TeacherScreen {
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i><b>${esc(m.name)}</b>
           <span class="muted">· ${esc(FACTIONS[m.faction].name)} ${m.connected ? '' : '· desconectado'}</span>
+          ${
+            r.phase === 'lobby'
+              ? `<select class="tiny-select" data-team data-code="${r.code}" data-id="${m.id}" title="Equipo">${[0, 1, 2, 3, 4]
+                  .map((t) => `<option value="${t}" ${t === m.team ? 'selected' : ''}>${teamText(t)}</option>`)
+                  .join('')}</select>`
+              : m.team > 0
+                ? `<span class="team-tag">${teamText(m.team)}</span>`
+                : ''
+          }
           <button class="tiny" data-act="kick" data-code="${r.code}" data-id="${m.id}" data-name="${esc(m.name)}">Sacar</button></div>`,
       )
       .join('');
@@ -285,6 +322,7 @@ export class TeacherScreen {
       actions =
         b('start', '▶ Iniciar partida', r.members.length === 0 ? 'disabled title="Primero debe entrar al menos un jugador"' : 'class="primary"') +
         b('try', '🧪 Probar como estudiante', 'title="Abre una pestaña nueva como si fueras un estudiante"') +
+        (r.members.length > 1 ? b('teams2', '⚖ Repartir en 2 equipos') + b('ffa', 'Todos contra todos') : '') +
         b('close', 'Cerrar sala');
     else if (r.phase === 'playing')
       actions =

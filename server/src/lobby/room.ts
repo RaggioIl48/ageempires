@@ -15,6 +15,7 @@ import type {
   ServerMessage,
 } from '../../../shared/protocol.ts';
 import { buildFrame, ClientSync, welcomeMessage } from '../net/sync.ts';
+import { initRelations } from '../sim/diplomacy.ts';
 import { Game } from '../sim/game.ts';
 import type { Conn } from './conn.ts';
 
@@ -27,7 +28,14 @@ export interface Member {
   faction: FactionId;
   conn: Conn | null;
   kicked: boolean;
+  /** Equipo asignado por el profesor (0 = sin equipo). */
+  team: number;
+  /** Último mensaje de chat (para limitar el ritmo). */
+  lastChat: number;
 }
+
+/** Segundos mínimos entre dos mensajes de chat de un mismo estudiante. */
+const CHAT_COOLDOWN_MS = 1500;
 
 export class Room {
   phase: RoomPhase = 'lobby';
@@ -75,6 +83,8 @@ export class Room {
       faction: FACTION_ORDER[this.members.length % FACTION_ORDER.length],
       conn: null,
       kicked: false,
+      team: 0,
+      lastChat: 0,
     };
     this.members.push(member);
     this.attach(conn, member);
@@ -160,6 +170,36 @@ export class Room {
     return null;
   }
 
+  /** El profesor arma los equipos en la sala de espera. */
+  setTeam(memberId: number, team: number): string | null {
+    if (this.phase !== 'lobby') return 'Los equipos se arman antes de empezar.';
+    const member = this.members.find((m) => m.id === memberId);
+    if (!member) return null;
+    member.team = team;
+    this.changed();
+    return null;
+  }
+
+  /**
+   * Chat: a todos o solo a los aliados (en la sala de espera, al propio equipo).
+   * El profesor que mira recibe todos los mensajes.
+   */
+  chat(conn: Conn, text: string, to: 'all' | 'allies'): string | null {
+    const member = this.memberOf(conn);
+    if (!member || member.kicked) return null;
+    if (!this.settings.chat) return 'El profesor desactivó el chat en esta partida.';
+    const now = Date.now();
+    if (now - member.lastChat < CHAT_COOLDOWN_MS) return 'Espera un momento antes de enviar otro mensaje.';
+    member.lastChat = now;
+    const world = this.game?.world;
+    const friend = (m: Member) =>
+      m === member || (world ? world.relation(member.id, m.id) === 'ally' : member.team > 0 && m.team === member.team);
+    const msg: ServerMessage = { t: 'chat', from: member.id, name: member.name, color: member.color, text, to };
+    for (const m of this.members) if (m.conn && !m.kicked && (to === 'all' || friend(m))) m.conn.send(msg);
+    for (const w of this.watchers) w.send(msg);
+    return null;
+  }
+
   kick(memberId: number): void {
     const member = this.members.find((m) => m.id === memberId);
     if (!member) return;
@@ -188,6 +228,8 @@ export class Room {
       mapSize: this.settings.mapSize,
       players: players.map((m) => ({ name: m.name, color: m.color, faction: m.faction })),
     });
+    // Los del mismo equipo empiezan aliados; el resto, en guerra.
+    initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
     for (const m of players) {
       const p = this.game.world.players.get(m.id)!;
       p.connected = m.conn !== null;
@@ -278,7 +320,7 @@ export class Room {
       paused: this.paused,
       settings: this.settings,
       members: this.members.filter((m) => !m.kicked).map(
-        (m): MemberView => ({ id: m.id, name: m.name, color: m.color, faction: m.faction, connected: m.conn !== null }),
+        (m): MemberView => ({ id: m.id, name: m.name, color: m.color, faction: m.faction, connected: m.conn !== null, team: m.team }),
       ),
     };
   }

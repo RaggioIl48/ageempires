@@ -3,7 +3,7 @@
 // (Código sin navegador: también lo usan las pruebas del servidor.)
 
 import { decodeBuilding, decodeEvent, decodeUnit, NODE_TYPES } from '../../shared/codec.ts';
-import { BUILDING_DEFS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId } from '../../shared/data.ts';
+import { BUILDING_DEFS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation } from '../../shared/data.ts';
 import {
   decodeTiles,
   type BuildingView,
@@ -22,6 +22,24 @@ export interface ClientUnit {
   v: UnitView;
   prevX: number;
   prevY: number;
+}
+
+/** Propuesta diplomática pendiente. */
+export interface ProposalView {
+  from: number;
+  to: number;
+  kind: 'alliance' | 'peace';
+  secondsLeft: number;
+}
+
+/** Mensaje de chat recibido. */
+export interface ChatLine {
+  from: number;
+  name: string;
+  color: string;
+  text: string;
+  to: 'all' | 'allies';
+  at: number;
 }
 
 /** Un efecto visual (flecha, golpe, muerte) con su momento de inicio. */
@@ -54,6 +72,26 @@ export class ClientState {
   effects: Effect[] = [];
   /** Avisos recibidos que la interfaz todavía no mostró. */
   notices: string[] = [];
+  // Diplomacia (la decide el servidor; aquí solo se muestra).
+  private rel = new Map<number, Relation>();
+  proposals: ProposalView[] = [];
+  pendingWars: { from: number; to: number; secondsLeft: number }[] = [];
+  diploLocked = false;
+  /** Sube cuando cambia la diplomacia (para redibujar el panel). */
+  diploVersion = 0;
+  chat: ChatLine[] = [];
+
+  /** Relación entre dos jugadores (uno mismo cuenta como aliado). */
+  relation(a: number, b: number): Relation {
+    if (a === b) return 'ally';
+    return this.rel.get(Math.min(a, b) * 1000 + Math.max(a, b)) ?? 'war';
+  }
+
+  /** Relación de un jugador con el propio (para colores y órdenes). */
+  relationTo(playerId: number): Relation | 'own' {
+    if (playerId === this.you) return 'own';
+    return this.relation(this.you, playerId);
+  }
 
   get spectator(): boolean {
     return this.you === 0;
@@ -80,11 +118,19 @@ export class ClientState {
         this.economy = null;
         this.economies.clear();
         this.effects = [];
+        this.rel.clear();
+        this.proposals = [];
+        this.pendingWars = [];
+        this.chat = [];
         this.nodesVersion++;
         break;
       }
       case 'players':
         this.players = new Map(msg.players.map((p) => [p.id, p]));
+        break;
+      case 'chat':
+        this.chat.push({ from: msg.from, name: msg.name, color: msg.color, text: msg.text, to: msg.to, at: now });
+        if (this.chat.length > 50) this.chat.shift();
         break;
       case 'd':
         this.applyDelta(msg, now);
@@ -139,6 +185,19 @@ export class ClientState {
     if (d.ecoAll) this.economies = new Map(Object.entries(d.ecoAll).map(([id, e]) => [Number(id), e]));
     if (d.no) this.notices.push(...d.no);
     if (d.clk) this.clock = d.clk;
+    if (d.dip) {
+      this.rel.clear();
+      for (let i = 0; i + 2 < d.dip.r.length; i += 3)
+        this.rel.set(Math.min(d.dip.r[i], d.dip.r[i + 1]) * 1000 + Math.max(d.dip.r[i], d.dip.r[i + 1]), RELATIONS[d.dip.r[i + 2]]);
+      this.proposals = [];
+      for (let i = 0; i + 3 < d.dip.p.length; i += 4)
+        this.proposals.push({ from: d.dip.p[i], to: d.dip.p[i + 1], kind: d.dip.p[i + 2] === 0 ? 'alliance' : 'peace', secondsLeft: d.dip.p[i + 3] });
+      this.pendingWars = [];
+      for (let i = 0; i + 2 < d.dip.w.length; i += 3)
+        this.pendingWars.push({ from: d.dip.w[i], to: d.dip.w[i + 1], secondsLeft: d.dip.w[i + 2] });
+      this.diploLocked = d.dip.locked;
+      this.diploVersion++;
+    }
     this.tick = d.k;
     this.lastStateAt = now;
   }
