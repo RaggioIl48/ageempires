@@ -19,7 +19,9 @@ import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
 import { assignFarm, assignGather, farmTaken, isOwnFarm, stopWork, updateGatherers } from './gather.ts';
 import { generateWorld, type MapOptions } from './mapgen.ts';
 import { moveGroup, moveUnits, separateUnits } from './movement.ts';
+import { updateHealing } from './healing.ts';
 import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from './production.ts';
+import { trade } from './market.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
@@ -50,6 +52,7 @@ export class Game {
     updateDiplomacy(w);
     updateProduction(w, dt);
     updateCombat(w, dt);
+    updateHealing(w, dt);
     moveUnits(w, dt);
     updateGatherers(w, dt);
     updateBuilders(w, dt);
@@ -66,6 +69,13 @@ export class Game {
         const b = w.buildings.get(cmd.buildingId);
         if (!b) return;
         const error = queueUnit(w, playerId, b, cmd.unit);
+        if (error) w.notify(playerId, error);
+        return;
+      }
+      case 'trade': {
+        const b = w.buildings.get(cmd.buildingId);
+        if (!b) return;
+        const error = trade(w, playerId, b, cmd.resource, cmd.buy);
         if (error) w.notify(playerId, error);
         return;
       }

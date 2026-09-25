@@ -6,8 +6,8 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, MELEE_REACH, UNIT_DEFS, type AttackDef, type Category } from '../../../shared/data.ts';
-import { canHitAir, damage } from '../../../shared/stats.ts';
+import { BUILDING_DEFS, CHARGE_READY_SEC, MELEE_REACH, TICK_RATE, UNIT_DEFS, type AttackDef, type Category } from '../../../shared/data.ts';
+import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { isEnemy } from './diplomacy.ts';
 import { stopWork } from './gather.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
@@ -128,7 +128,14 @@ function centerOf(t: Target): Point {
 function strike(world: World, owner: number, attack: AttackDef, cat: Category, from: Point, t: Target, attacker?: Unit): void {
   const armor = t.kind === 'unit' ? world.statsOf(t.unit).armor : BUILDING_DEFS[t.building.type].armor;
   const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
-  const dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
+  let dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
+  // Carga: la caballería cuerpo a cuerpo que lleva un rato sin pelear golpea más fuerte la primera vez.
+  let charge = false;
+  if (attacker && cat === 'cavalry' && attack.type === 'melee' && world.tick - attacker.lastStrike >= CHARGE_READY_SEC * TICK_RATE) {
+    dmg = Math.round(dmg * chargeOf(world.factionOf(owner)));
+    charge = true;
+  }
+  if (attacker) attacker.lastStrike = world.tick;
   const at = centerOf(t);
   const before = t.kind === 'unit' ? t.unit.hp : t.building.hp;
   if (t.kind === 'unit') t.unit.hp -= dmg;
@@ -142,7 +149,7 @@ function strike(world: World, owner: number, attack: AttackDef, cat: Category, f
     const look = attacker ? UNIT_DEFS[attacker.type].shot : undefined;
     world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: at.x, y2: at.y, s: look === 'bullet' ? 1 : look === 'shell' ? 2 : 0 });
   }
-  else world.events.push({ k: 'hit', x: at.x, y: at.y });
+  else world.events.push(charge ? { k: 'hit', x: at.x, y: at.y, c: 1 } : { k: 'hit', x: at.x, y: at.y });
 
   // Aviso para el atacado (como mucho uno cada 15 segundos).
   const victim = world.players.get(ownerOf(t));

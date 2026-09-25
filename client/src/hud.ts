@@ -14,13 +14,19 @@ import {
   TECH_DEFS,
   UNIT_DEFS,
   eraLabel,
+  CHARGE_BONUS,
+  MARKET_LOT,
+  TRADE_RESOURCES,
+  sellPrice,
+  type TradeResource,
   type Cost,
   type ResourceType,
   type TechId,
   type UnitType,
 } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
-import { canAfford, carryCapacity, techsOf } from '../../shared/stats.ts';
+import { canAfford, carryCapacity, chargeOf, isUpgraded, techsOf } from '../../shared/stats.ts';
+import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
 import { ACTION_KEYS, type Input } from './input.ts';
 import type { NetStatus } from './net.ts';
 import type { ClientState } from './state.ts';
@@ -65,9 +71,17 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
   era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
 };
 
+/** Ícono de una tecnología: estrella (era), la unidad que evoluciona, o un engranaje. */
+function techIcon(t: TechId): string {
+  const def = TECH_DEFS[t];
+  if (def.advancesTo) return ICONS.era;
+  const unit = def.unitMods ? (Object.keys(def.unitMods)[0] as UnitType) : undefined;
+  return unit ? ICONS[unit] : ICONS.tech;
+}
+
 /** Ícono de un elemento de la cola: la unidad, o un engranaje / estrella para las tecnologías. */
 function queueIcon(q: { unit?: UnitType; tech?: TechId }): string {
-  if (q.tech) return TECH_DEFS[q.tech].advancesTo ? ICONS.era : ICONS.tech;
+  if (q.tech) return techIcon(q.tech);
   return ICONS[q.unit!];
 }
 
@@ -84,6 +98,11 @@ const STATE_TEXT: Record<UnitView['state'], string> = {
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/** Ícono SVG de una unidad (lo usa también la guía del ejército). */
+export function iconOf(type: UnitType): string {
+  return ICONS[type];
 }
 
 function el(id: string): HTMLElement {
@@ -230,6 +249,7 @@ export class Hud {
       const techs = techsOf(this.state.techsOf(me.id)).filter((t) => !TECH_DEFS[t].advancesTo);
       const tip =
         `${f.name}: «${f.motto}»\n\nStrong in:\n• ${f.strengths.join('\n• ')}\n\nWeak in:\n• ${f.weaknesses.join('\n• ')}` +
+        `\n\nAbilities:\n✦ ${f.abilities.join('\n✦ ')}` +
         `\n\n${eraLabel(era)}\nTechnologies: ${techs.length ? techs.map((t) => TECH_DEFS[t].label).join(', ') : 'none yet'}` +
         '\n\nClick: go to your Town Center (you advance the age there)';
       const box = el('faction');
@@ -268,7 +288,7 @@ export class Hud {
       const units = [...sel.units].map((id) => this.state.units.get(id)?.v).filter((u): u is UnitView => !!u);
       const groups: Record<string, number> = {};
       for (const u of units) {
-        const k = UNIT_DEFS[u.type].label;
+        const k = this.state.labelOf(u.owner, u.type);
         groups[k] = (groups[k] ?? 0) + 1;
       }
       html = `<h3>${units.length} units</h3>` + Object.entries(groups).map(([k, n]) => `<div class="row">${esc(k)}: <b>${n}</b></div>`).join('');
@@ -300,13 +320,21 @@ export class Hud {
     const mark = (val: number, base: number, fmt = (v: number) => String(Math.round(v * 10) / 10)) =>
       val > base + 1e-6 ? `<b class="up">${fmt(val)} ▲</b>` : val < base - 1e-6 ? `<b class="down">${fmt(val)} ▼</b>` : `<b>${fmt(val)}</b>`;
     const range = st.attack.type === 'ranged' ? `range ${mark(st.attack.range, def.attack.range)}` : 'melee';
-    return `<h3>${def.label}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
+    const elite = isUpgraded(u.type, this.state.techsOf(u.owner)) ? ' <span class="elite">★</span>' : '';
+    const unique = def.faction ? ` <span class="uniq-tag">${esc(FACTIONS[def.faction].name)}</span>` : '';
+    const extras = [
+      st.regen > 0 ? `Heals ${Math.round(st.regen * 10) / 10} health/s` : '',
+      st.category === 'cavalry' && st.attack.type === 'melee' ? `Charge ×${chargeOf(this.state.faction(u.owner))}` : '',
+    ].filter(Boolean);
+    return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
       <div class="row">${doing}</div>${carry}
       <div class="stats">
         <div>Attack ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
         <div>Armor ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
         <div>Speed ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · Health ${mark(st.hp, def.hp)}</div>
+        ${extras.length ? `<div class="up">${extras.join(' · ')}</div>` : ''}
         <div class="muted">${CATEGORY_LABELS[st.category]}${st.flies ? ' (flies)' : ''} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
+        ${counterHtml(u.type)}
       </div>`;
   }
 
@@ -340,7 +368,7 @@ export class Hud {
       .slice(0, 36)
       .map((u) => {
         const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
-        return `<div class="card" data-id="${u.id}" title="${UNIT_DEFS[u.type].label}" style="color:${this.state.color(u.owner)}">
+        return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
           ${ICONS[u.type]}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
       })
       .join('');
@@ -418,7 +446,11 @@ export class Hud {
         return `<button class="act small" data-action="delete" title="Cancel and get back what was not built yet">✖ Cancel construction</button>
           <p class="hint">Select workers and right click the foundation to help.</p>`;
       const actions = this.input.buildingActions(b);
-      const buttons = actions.map((a, i) => (a.kind === 'train' ? this.trainButton(a.unit, i) : this.researchButton(a.tech, i))).join('');
+      const buttons = actions
+        .map((a, i) =>
+          a.kind === 'train' ? this.trainButton(a.unit, i) : a.kind === 'research' ? this.researchButton(a.tech, i) : this.tradeButton(a.resource, a.buy, i),
+        )
+        .join('');
       const rally = actions.some((a) => a.kind === 'train') ? '<p class="hint">Right click on the map: rally point (on a resource, new workers go gather it).</p>' : '';
       const warn = b.needsHouses ? '<p class="warn-text">⚠ Population limit reached: build more houses.</p>' : '';
       return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete">✖ Delete</button>' : ''}${warn}${rally}`;
@@ -431,11 +463,27 @@ export class Hud {
     const have = this.state.economy?.resources;
     const u = UNIT_DEFS[type];
     const st = this.state.statsOf(this.state.you, type);
+    const name = this.state.labelOf(this.state.you, type);
     const ok = !have || canAfford(have, u.cost);
-    const tip = `${u.label}: ${u.strong}. ${u.weak}.\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
+    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
     return `<button class="act with-icon" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${ICONS[type]}</span>
-      <b>${u.label}</b><span class="costs">${costHtml(u.cost, have)}</span></button>`;
+      <b>${esc(name)}${u.faction ? ' ⚜' : ''}</b><span class="costs">${costHtml(u.cost, have)}</span></button>`;
+  }
+
+  /** Botón del Mercado: comprar o vender un lote. */
+  private tradeButton(resource: TradeResource, buy: boolean, i: number): string {
+    const have = this.state.economy?.resources;
+    const price = this.state.market[TRADE_RESOURCES.indexOf(resource)] ?? 0;
+    const metal = buy ? price : sellPrice(price);
+    const ok = !have || (buy ? have.metal >= price : have[resource] >= MARKET_LOT);
+    const tip = buy
+      ? `Buy ${MARKET_LOT} ${RESOURCE_LABELS[resource]} for ${price} metal. Buying makes the price go up.`
+      : `Sell ${MARKET_LOT} ${RESOURCE_LABELS[resource]} for ${metal} metal. Selling makes the price go down.`;
+    return `<button class="act with-icon trade-btn" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit">${ICONS[resource]}</span>
+      <b>${buy ? 'Buy' : 'Sell'} ${MARKET_LOT} ${RESOURCE_LABELS[resource]}</b>
+      <span class="costs"><span class="cost ${buy && have && have.metal < price ? 'short' : ''}"><span class="icon mini">${ICONS.metal}</span>${buy ? '−' : '+'}${metal}</span></span></button>`;
   }
 
   private researchButton(tech: TechId, i: number): string {
@@ -444,8 +492,9 @@ export class Hud {
     const missing = t.requires && !this.input.hasFinished(t.requires) ? BUILDING_DEFS[t.requires].label : '';
     const ok = !missing && (!have || canAfford(have, t.cost));
     const tip = `${t.label}: ${t.description}\n${t.time} s${missing ? `\nYou need a finished ${missing}.` : ''}`;
-    return `<button class="act with-icon ${t.advancesTo ? 'era-btn' : 'tech-btn'}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
-      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit">${t.advancesTo ? ICONS.era : ICONS.tech}</span>
+    const kind = t.advancesTo ? 'era-btn' : t.unitMods ? 'upgrade-btn' : 'tech-btn';
+    return `<button class="act with-icon ${kind}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+      <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${techIcon(tech)}</span>${t.unitMods ? '<span class="up-badge">⬆</span>' : ''}
       <b>${t.label}</b><span class="costs">${missing ? `<span class="cost short">Needs: ${esc(missing)}</span>` : costHtml(t.cost, have)}</span></button>`;
   }
 
@@ -472,6 +521,15 @@ export class Hud {
     this.notices = this.notices.filter((n) => n.until > now).slice(-4);
     setHtml(el('notices'), this.notices.map((n) => `<div class="notice">${esc(n.text)}</div>`).join(''));
   }
+}
+
+/** Contra quién es buena y quién le gana (sale de las tablas de combate). */
+function counterHtml(type: UnitType): string {
+  const good = goodAgainst(type), weak = weakAgainst(type);
+  return (
+    (good.length ? `<div class="counter good">⚔ Good against: ${esc(good.join(', '))}</div>` : '') +
+    (weak.length ? `<div class="counter bad">⚠ Weak against: ${esc(weak.join(', '))}</div>` : '')
+  );
 }
 
 function hpBar(hp: number, max: number): string {

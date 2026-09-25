@@ -5,6 +5,7 @@
 
 import {
   BUILDING_DEFS,
+  FACTIONS,
   MAX_QUEUE,
   TECH_DEFS,
   UNIT_DEFS,
@@ -14,7 +15,7 @@ import {
   type TechId,
   type UnitType,
 } from '../../../shared/data.ts';
-import { buildingMaxHp, hasTech, techBit, unitStats } from '../../../shared/stats.ts';
+import { addTech, buildingMaxHp, hasTech, trainSpeed, unitStats } from '../../../shared/stats.ts';
 import { assignGather } from './gather.ts';
 import { moveGroup } from './movement.ts';
 import { freeTilesAround, type Building, type QueueItem, type World } from './world.ts';
@@ -55,6 +56,7 @@ export function researchError(world: World, playerId: number, tech: TechId): str
   const p = world.players.get(playerId);
   if (!p) return 'Unknown player';
   const def = TECH_DEFS[tech];
+  if (def.faction && def.faction !== p.faction) return `${def.label}: only the ${FACTIONS[def.faction].name} can research it`;
   if (hasTech(p.techs, tech)) return `${def.label}: already researched`;
   if (techQueued(world, playerId, tech)) return `${def.label}: already being researched`;
   if (def.advancesTo !== undefined) {
@@ -120,7 +122,7 @@ export function updateProduction(world: World, dt: number): void {
       continue;
     }
     b.needsHouses = false;
-    item.progress = Math.min(1, item.progress + dt / def.trainTime);
+    item.progress = Math.min(1, item.progress + (dt * trainSpeed(world.factionOf(b.owner), item.unit!)) / def.trainTime);
     // Terminada: sale si hay dónde ponerla (si está rodeado, espera).
     if (item.progress < 1 || !spawn(world, b, item.unit!)) continue;
     b.queue.shift();
@@ -136,7 +138,7 @@ export function completeTech(world: World, playerId: number, tech: TechId): void
   const p = world.players.get(playerId);
   if (!p || hasTech(p.techs, tech)) return;
   const before = p.techs;
-  p.techs |= techBit(tech);
+  p.techs = addTech(p.techs, tech);
   world.techVersion++;
   const def = TECH_DEFS[tech];
   if (def.advancesTo !== undefined) {

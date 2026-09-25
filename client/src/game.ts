@@ -3,7 +3,8 @@
 import { BUILDING_DEFS } from '../../shared/data.ts';
 import type { ServerMessage } from '../../shared/protocol.ts';
 import { ChatBox, DiploPanel } from './diplomacy.ts';
-import { Hud } from './hud.ts';
+import { GuidePanel } from './guide.ts';
+import { Hud, iconOf } from './hud.ts';
 import { Input } from './input.ts';
 import { Minimap } from './minimap.ts';
 import type { Net } from './net.ts';
@@ -19,6 +20,7 @@ export class GameView {
   readonly hud: Hud;
   private readonly minimap: Minimap;
   readonly diplo: DiploPanel;
+  private readonly guide: GuidePanel;
   private readonly chat: ChatBox;
   private readonly canvas = document.getElementById('game') as HTMLCanvasElement;
   private readonly ctx = this.canvas.getContext('2d', { alpha: false })!;
@@ -32,6 +34,7 @@ export class GameView {
     this.hud = new Hud(this.state, this.input);
     this.minimap = new Minimap(document.getElementById('minimap') as HTMLCanvasElement, this.cam, this.state, this.renderer, this.input);
     this.diplo = new DiploPanel(this.state, net);
+    this.guide = new GuidePanel(this.state, iconOf);
     this.chat = new ChatBox(this.state, net);
     this.input.onSelectionChange = () => this.hud.update();
     window.addEventListener('resize', () => this.resize());
@@ -54,6 +57,7 @@ export class GameView {
     }
     this.hud.update();
     this.diplo.update();
+    this.guide.update();
     this.chat.update();
   }
 

@@ -60,7 +60,7 @@ function checkInvariants(w: World, initialTotals: Record<ResourceType, number>):
     if (u.task && !allowed[u.task.kind].includes(u.state))
       errors.push(`unit ${u.id} with task ${u.task.kind} but state ${u.state}`);
     if (!u.task && !['idle', 'moving'].includes(u.state)) errors.push(`unit ${u.id} with no task but state ${u.state}`);
-    if (u.state === 'moving' && u.path.length === 0) errors.push(`unit ${u.id} "moving" with no path`);
+    if (u.state === 'moving' && u.path.length === 0) errors.push(`unit ${u.id} "moving" with no path (${u.type}, task ${JSON.stringify(u.task)}, at ${u.x.toFixed(2)},${u.y.toFixed(2)}, hp ${u.hp})`);
     if (u.carryAmount < 0 || u.carryAmount > 10) errors.push(`unit ${u.id} carrying ${u.carryAmount}`);
   }
   for (const u of w.units.values()) {
@@ -166,6 +166,7 @@ describe('audit: stress test with war (Phase 2)', () => {
     const pick = <T,>(list: T[]): T | undefined => list[Math.floor(rng() * list.length)];
     let fights = 0;
     const trained = new Set<number>();
+    const initialArmy = new Set([...w.units.values()].filter((u) => u.type !== 'worker').map((u) => u.id));
     for (let second = 0; second < 360; second++) {
       for (const p of w.players.values()) {
         const mine = [...w.units.values()].filter((u) => u.owner === p.id);
@@ -206,7 +207,7 @@ describe('audit: stress test with war (Phase 2)', () => {
       }
       for (let t = 0; t < 10; t++) {
         g.step();
-        for (const u of w.units.values()) if (u.type === 'warrior') trained.add(u.id);
+        for (const u of w.units.values()) if (u.type !== 'worker' && !initialArmy.has(u.id)) trained.add(u.id);
         const errors = checkInvariants(w, initial);
         if (errors.length > 0) throw new Error(`second ${second}, tick ${w.tick}: ${errors.slice(0, 5).join(' | ')}`);
       }

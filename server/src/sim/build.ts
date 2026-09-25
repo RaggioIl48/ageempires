@@ -9,6 +9,7 @@ import {
   RESOURCE_TYPES,
   type Cost,
 } from '../../../shared/data.ts';
+import { buildSpeed } from '../../../shared/stats.ts';
 import { assignFarm, farmTaken, stopWork } from './gather.ts';
 import { pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Unit, type World } from './world.ts';
@@ -92,7 +93,7 @@ export function updateBuilders(world: World, dt: number): void {
   // 2) Avanza cada obra según cuántos trabajan en ella.
   for (const [b, builders] of working) {
     const def = BUILDING_DEFS[b.type];
-    const speed = builderSpeed(builders.length);
+    const speed = builderSpeed(builders.length) * buildSpeed(world.factionOf(b.owner));
     if (b.progress < 1) {
       const dp = Math.min(1 - b.progress, (speed * dt) / def.buildTime);
       b.progress += dp;

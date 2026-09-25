@@ -13,7 +13,7 @@ const buildingsOf = (g: ReturnType<typeof flatGame>, owner: number, type: string
 
 describe('construction', () => {
   it('a worker builds a house: pays, raises the foundation and the population goes up', () => {
-    const g = flatGame();
+    const g = flatGame(['germans', 'germans']); // no build-speed bonus (the Romans build faster)
     const w = g.world;
     const u = w.addUnit('worker', 1, 10.5, 10.5);
     g.enqueue(1, { kind: 'build', unitIds: [u.id], building: 'house', tx: 12, ty: 10 });

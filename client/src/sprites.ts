@@ -1,7 +1,7 @@
 // Arte original hecho con formas simples: unidades, edificios y recursos.
 // Todo se dibuja en "px del mundo" (la cámara ya está aplicada).
 
-import { BUILDING_DEFS, type ResourceType, type UnitType } from '../../shared/data.ts';
+import { BUILDING_DEFS, type FactionId, type ResourceType, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
 import { worldToPx } from './view.ts';
 
@@ -16,6 +16,44 @@ export function hash(x: number, y: number): number {
   let h = (x * 374761393 + y * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// ---------- Estilo de cada pueblo ----------
+
+type Helmet = 'cone' | 'round' | 'hood' | 'crest' | 'bare' | 'fur' | 'mongol' | 'straw';
+
+/**
+ * Aspecto de cada pueblo: ropa, casco y escudo de sus soldados, color de sus
+ * caballos y arquitectura de sus edificios. El color del jugador se ve en
+ * escudos, bandas y banderas.
+ */
+interface Look {
+  tunic: string;
+  helmet: Helmet;
+  shield: 'rect' | 'round' | 'oval' | 'none';
+  horse: string;
+  /** Sombrero de los trabajadores. */
+  workerHat: Helmet;
+  /** hip = techos a cuatro aguas; yurt = campamento de yurtas; hut = chozas redondas; long = salones alargados. */
+  arch: 'hip' | 'yurt' | 'hut' | 'long';
+  wall: string;
+  wallDark: string;
+  roof: string;
+  dragons?: boolean;
+}
+
+const LOOKS: Record<FactionId, Look> = {
+  romans: { tunic: '#9b2d20', helmet: 'crest', shield: 'rect', horse: '#8a5a3b', workerHat: 'bare', arch: 'hip', wall: '#e6dcc6', wallDark: '#c2b79d', roof: '#b5483a' },
+  mongols: { tunic: '#3d5c7a', helmet: 'mongol', shield: 'none', horse: '#b58a55', workerHat: 'mongol', arch: 'yurt', wall: '#e8e0cc', wallDark: '#cfc5ab', roof: '#d8cfb8' },
+  gauls: { tunic: '#4e7a3a', helmet: 'bare', shield: 'oval', horse: '#6b4a2b', workerHat: 'bare', arch: 'hut', wall: '#9a7a4e', wallDark: '#7d6240', roof: '#c9a55a' },
+  germans: { tunic: '#6b5a3a', helmet: 'bare', shield: 'round', horse: '#5a4030', workerHat: 'straw', arch: 'long', wall: '#8a5a33', wallDark: '#6d4527', roof: '#b89a4e' },
+  visigoths: { tunic: '#5a3a6b', helmet: 'cone', shield: 'round', horse: '#3e3530', workerHat: 'straw', arch: 'long', wall: '#cfc4ad', wallDark: '#aa9f88', roof: '#9c4a32' },
+  ostrogoths: { tunic: '#8a6a20', helmet: 'cone', shield: 'oval', horse: '#d7c9b0', workerHat: 'straw', arch: 'hip', wall: '#e2dccb', wallDark: '#c2bba8', roof: '#4f6a86' },
+  vikings: { tunic: '#3a4f5c', helmet: 'cone', shield: 'round', horse: '#7a5a3a', workerHat: 'bare', arch: 'long', wall: '#6b4a2b', wallDark: '#553820', roof: '#5a7a3a', dragons: true },
+};
+
+function lookOf(faction: FactionId | undefined): Look {
+  return LOOKS[faction ?? 'romans'] ?? LOOKS.romans;
 }
 
 // ---------- Primitivas ----------
@@ -212,20 +250,23 @@ function flag(ctx: CanvasRenderingContext2D, x: number, y: number, color: string
 export function buildingHeight(type: BuildingView['type']): number {
   return {
     town_center: 90, house: 50, storehouse: 44, farm: 6, barracks: 64,
-    archery_range: 40, stable: 50, tech_center: 66, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
+    archery_range: 40, stable: 50, tech_center: 66, market: 40, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
     castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
   }[type];
 }
 
-export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, color: string): void {
+export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction?: FactionId): void {
   const s = BUILDING_DEFS[b.type].size;
+  const look = lookOf(faction);
+  if (look.arch !== 'hip' && drawCulture(ctx, b, s, color, look)) return;
   switch (b.type) {
     case 'town_center': {
       const k = corners(b, s, 0.25);
       const H = 30;
       poly(ctx, [k.T.px, k.T.py + 4, k.R.px + 8, k.R.py + 4, k.B.px, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
-      box(ctx, k, H, '#c9ae84', '#a38862');
+      box(ctx, k, H, look.wall, look.wallDark);
       box(ctx, k, 6, '#8f8a80', '#77726a');
+      band(ctx, k, H * 0.8, color);
       const d0 = along(k.L, k.B, 0.42), d1 = along(k.L, k.B, 0.62);
       poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 17, d0.px, d0.py - 17], '#4a3222');
       ctx.fillStyle = '#3b2d22';
@@ -233,21 +274,22 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
         const w = along(k.B, k.R, f);
         ctx.fillRect(w.px - 2, w.py - 20, 4, 6);
       }
-      const apex = hipRoof(ctx, k, H, 38, color);
-      flag(ctx, apex.px, apex.py, color);
+      const apex = hipRoof(ctx, k, H, 38, look.roof);
+      flag(ctx, apex.px, apex.py, color, 24);
       break;
     }
     case 'house': {
       const k = corners(b, s, 0.2);
       const H = 18;
       poly(ctx, [k.T.px, k.T.py + 3, k.R.px + 6, k.R.py + 3, k.B.px, k.B.py + 4, k.L.px - 3, k.L.py + 3], 'rgba(0,0,0,0.22)');
-      box(ctx, k, H, '#d9c29a', '#b89f78');
+      box(ctx, k, H, look.wall, look.wallDark);
+      band(ctx, k, H * 0.85, color);
       const d0 = along(k.L, k.B, 0.45), d1 = along(k.L, k.B, 0.65);
       poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 11, d0.px, d0.py - 11], '#5a3d26');
       const w = along(k.B, k.R, 0.5);
       ctx.fillStyle = '#3b2d22';
       ctx.fillRect(w.px - 2, w.py - 13, 4, 5);
-      hipRoof(ctx, k, H, 24, color);
+      hipRoof(ctx, k, H, 24, look.roof);
       break;
     }
     case 'storehouse': {
@@ -264,7 +306,8 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       // Portón grande abierto
       const d0 = along(k.L, k.B, 0.3), d1 = along(k.L, k.B, 0.75);
       poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 14, d0.px, d0.py - 14], '#2e2016');
-      hipRoof(ctx, k, H, 14, shade(color, 0.85));
+      const top = hipRoof(ctx, k, H, 14, look.roof);
+      flag(ctx, top.px, top.py, color, 12);
       // Cajas y un saco afuera
       const c1 = along(k.B, k.R, 0.8);
       ctx.fillStyle = '#b07a44';
@@ -305,7 +348,7 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
         ctx.fillRect(c.px - 2, c.py - H - 5, 4, 5);
       }
       // Techo plano con el color del jugador
-      poly(ctx, [k.T.px, k.T.py - H, k.R.px, k.R.py - H, k.B.px, k.B.py - H, k.L.px, k.L.py - H], shade(color, 0.7));
+      poly(ctx, [k.T.px, k.T.py - H, k.R.px, k.R.py - H, k.B.px, k.B.py - H, k.L.px, k.L.py - H], shade(look.roof, 0.8));
       const d0 = along(k.L, k.B, 0.4), d1 = along(k.L, k.B, 0.6);
       poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 16, d0.px, d0.py - 16], '#3a2c20');
       // Estandarte y lanzas
@@ -322,7 +365,7 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       // Cobertizo al fondo
       const shed = corners(b, 1.6, 0.2);
       box(ctx, shed, 16, '#a8794a', '#8a5f36');
-      hipRoof(ctx, shed, 16, 12, color);
+      hipRoof(ctx, shed, 16, 12, look.roof);
       // Cerca de postes en los bordes de adelante
       for (let i = 0; i <= 8; i++) {
         const a = along(k.L, k.B, i / 8), c = along(k.B, k.R, i / 8);
@@ -351,7 +394,9 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
         const a = along(k.L, k.B, f), c = along(k.L, k.B, f + 0.18);
         poly(ctx, [a.px, a.py, c.px, c.py, c.px, c.py - 13, a.px, a.py - 13], '#2e2016');
       }
-      hipRoof(ctx, k, H, 26, shade(color, 0.95));
+      band(ctx, k, H * 0.85, color);
+      const ridge = hipRoof(ctx, k, H, 26, look.roof);
+      flag(ctx, ridge.px, ridge.py, color, 12);
       // Paja y un caballo asomado
       const h = along(k.B, k.R, 0.5);
       ellipse(ctx, h.px + 4, h.py + 2, 6, 4, '#d8b85a');
@@ -498,6 +543,26 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       flag(ctx, k.B.px, k.B.py - H, color, 16);
       break;
     }
+    case 'market': {
+      fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, 'rgba(170,140,90,0.45)');
+      const stalls: [number, number, string][] = [[0.8, 0.8, '#c0392b'], [2.2, 0.8, '#e0b020'], [0.8, 2.2, '#2f6fd6'], [2.2, 2.2, color]];
+      for (const [dx, dy, awning] of stalls) {
+        const p = worldToPx(b.tx + dx, b.ty + dy);
+        ctx.fillStyle = '#8a5a33';
+        ctx.fillRect(p.px - 10, p.py - 16, 2, 16);
+        ctx.fillRect(p.px + 8, p.py - 16, 2, 16);
+        ctx.fillStyle = '#b07a44';
+        ctx.fillRect(p.px - 10, p.py - 7, 20, 6);
+        poly(ctx, [p.px - 13, p.py - 15, p.px + 13, p.py - 15, p.px + 10, p.py - 22, p.px - 10, p.py - 22], awning);
+        for (let i = 0; i < 4; i++) {
+          ctx.fillStyle = ['#d8434f', '#8fa9c4', '#d9b27c', '#a8a8a2'][i];
+          ctx.fillRect(p.px - 8 + i * 4, p.py - 10, 3, 3);
+        }
+      }
+      const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
+      flag(ctx, c.px, c.py, color, 26);
+      break;
+    }
     // ---- Edificios únicos de cada pueblo ----
     case 'castrum': {
       // Fuerte romano: muro bajo de piedra, torres en las esquinas y el cuartel general al centro.
@@ -574,6 +639,161 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
   }
 }
 
+/** Banda del color del jugador alrededor de un edificio (para saber de quién es). */
+function band(ctx: CanvasRenderingContext2D, k: ReturnType<typeof corners>, h: number, color: string): void {
+  line(ctx, k.L.px, k.L.py - h, k.B.px, k.B.py - h, color, 2.5);
+  line(ctx, k.B.px, k.B.py - h, k.R.px, k.R.py - h, shade(color, 0.8), 2.5);
+}
+
+/** Choza redonda gala: pared de barro y ramas, techo cónico de paja. */
+function hut(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, look: Look, color: string): void {
+  const h = r * 0.8;
+  ellipse(ctx, x + 2, y + 1, r + 2, r * 0.45, 'rgba(0,0,0,0.22)');
+  ctx.fillStyle = look.wall;
+  ctx.fillRect(x - r, y - h, r * 2, h);
+  ellipse(ctx, x, y, r, r * 0.4, look.wall);
+  ctx.fillStyle = look.wallDark;
+  ctx.fillRect(x, y - h, r, h);
+  ellipse(ctx, x + r * 0.5, y - 0.5, r * 0.5, r * 0.3, look.wallDark);
+  ctx.fillStyle = '#3b2818';
+  ctx.fillRect(x - r * 0.35, y - h * 0.8, r * 0.4, h * 0.8);
+  ctx.fillStyle = color;
+  ctx.fillRect(x - r, y - h * 0.9, r * 2, 2);
+  poly(ctx, [x - r - 3, y - h, x, y - h - r * 1.5, x + r + 3, y - h, x, y - h + r * 0.35], shade(look.roof, 1.05));
+  poly(ctx, [x, y - h - r * 1.5, x + r + 3, y - h, x, y - h + r * 0.35], shade(look.roof, 0.8));
+}
+
+/** Empalizada de troncos puntiagudos en los bordes de adelante. */
+function palisade(ctx: CanvasRenderingContext2D, b: { tx: number; ty: number }, s: number, h = 12): void {
+  const k = corners(b, s, 0.05);
+  for (const [p, q] of [[k.L, k.B], [k.B, k.R]] as const)
+    for (let i = 0; i <= 12; i++) {
+      const a = along(p, q, i / 12);
+      poly(ctx, [a.px - 2, a.py, a.px - 2, a.py - h, a.px, a.py - h - 3, a.px + 2, a.py - h, a.px + 2, a.py], i % 2 ? '#7d5431' : '#6b4a2b');
+    }
+}
+
+/** Corral con un caballo (establos). */
+function corral(ctx: CanvasRenderingContext2D, b: { tx: number; ty: number }, s: number, look: Look): void {
+  const k = corners(b, s, 0.15);
+  for (let i = 0; i <= 8; i++) {
+    const a = along(k.L, k.B, i / 8), c = along(k.B, k.R, i / 8);
+    line(ctx, a.px, a.py, a.px, a.py - 7, '#6b4a2b', 1.5);
+    line(ctx, c.px, c.py, c.px, c.py - 7, '#6b4a2b', 1.5);
+  }
+  line(ctx, k.L.px, k.L.py - 5, k.B.px, k.B.py - 5, '#8b6a3e', 1.2);
+  line(ctx, k.B.px, k.B.py - 5, k.R.px, k.R.py - 5, '#8b6a3e', 1.2);
+  const h = worldToPx(b.tx + s - 0.8, b.ty + s - 0.9);
+  ellipse(ctx, h.px, h.py - 7, 7, 3.5, look.horse);
+  poly(ctx, [h.px + 5, h.py - 9, h.px + 10, h.py - 13, h.px + 11, h.py - 11, h.px + 7, h.py - 6], shade(look.horse, 0.9));
+  for (const dx of [-4, -1, 3, 5]) line(ctx, h.px + dx, h.py - 5, h.px + dx, h.py, shade(look.horse, 0.7), 1.3);
+}
+
+/** Dianas de tiro (campos de tiro de cualquier pueblo). */
+function targets(ctx: CanvasRenderingContext2D, b: { tx: number; ty: number }, color: string): void {
+  for (const [dx, dy] of [[2.3, 0.8], [2.3, 2.0]]) {
+    const p = worldToPx(b.tx + dx, b.ty + dy);
+    line(ctx, p.px, p.py, p.px, p.py - 10, '#6b4a2b', 2);
+    ellipse(ctx, p.px, p.py - 16, 7, 7, '#e8dcb5');
+    ellipse(ctx, p.px, p.py - 16, 5, 5, '#c0392b');
+    ellipse(ctx, p.px, p.py - 16, 3, 3, '#e8dcb5');
+    ellipse(ctx, p.px, p.py - 16, 1.5, 1.5, color);
+  }
+}
+
+/**
+ * Edificios comunes con la arquitectura de cada pueblo (yurtas mongolas,
+ * chozas galas, salones germanos/godos/vikingos). Devuelve false si ese
+ * edificio usa el dibujo general.
+ */
+function drawCulture(ctx: CanvasRenderingContext2D, b: BuildingView, s: number, color: string, look: Look): boolean {
+  const at = (dx: number, dy: number) => worldToPx(b.tx + dx, b.ty + dy);
+  const hall = (bx: number, by: number, size: number, rise = 22) =>
+    longHall(ctx, { tx: b.tx + bx, ty: b.ty + by }, size, color, { wall: look.wall, wallDark: look.wallDark, roof: look.roof, rise, dragons: look.dragons });
+  switch (b.type) {
+    case 'town_center':
+      if (look.arch === 'yurt') {
+        fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(150,130,90,0.35)');
+        for (const [dx, dy, r] of [[0.6, 0.6, 16], [2.4, 0.6, 16], [0.6, 2.4, 16]] as const) yurt(ctx, at(dx, dy).px, at(dx, dy).py, r, color);
+        const c = at(1.8, 1.8);
+        yurt(ctx, c.px, c.py, 30, color);
+        flag(ctx, c.px, c.py - 46, color, 22);
+        const pole = at(2.7, 2.7);
+        line(ctx, pole.px, pole.py, pole.px, pole.py - 34, '#5a3d26', 2);
+        for (let i = 0; i < 5; i++) line(ctx, pole.px, pole.py - 34 + i * 2, pole.px - 3 + i * 1.5, pole.py - 24 + i * 2, '#3a2a1a', 1); // estandarte de crines
+      } else if (look.arch === 'hut') {
+        fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(120,100,60,0.35)');
+        for (const [dx, dy, r] of [[0.6, 0.6, 14], [2.4, 0.6, 14], [0.6, 2.4, 14]] as const) hut(ctx, at(dx, dy).px, at(dx, dy).py, r, look, color);
+        const c = at(1.7, 1.7);
+        hut(ctx, c.px, c.py, 26, look, color);
+        flag(ctx, c.px, c.py - 58, color, 20);
+        palisade(ctx, b, s, 10);
+      } else {
+        hall(0.1, 0.1, s - 0.2, 30);
+        palisade(ctx, b, s, 9);
+      }
+      return true;
+    case 'house':
+      if (look.arch === 'yurt') yurt(ctx, at(1, 1).px, at(1, 1).py, 22, color);
+      else if (look.arch === 'hut') hut(ctx, at(1, 1).px, at(1, 1).py, 19, look, color);
+      else hall(0.05, 0.05, s - 0.1, 18);
+      return true;
+    case 'storehouse':
+      if (look.arch === 'yurt' || look.arch === 'hut') {
+        const c = at(0.8, 0.8);
+        if (look.arch === 'yurt') yurt(ctx, c.px, c.py, 16, color);
+        else hut(ctx, c.px, c.py, 15, look, color);
+        const p = at(1.6, 1.5);
+        for (let i = 0; i < 3; i++) ellipse(ctx, p.px - 6 + i * 6, p.py - 3, 4, 3, '#d9b27c', '#8a5a2b'); // troncos y sacos
+        ellipse(ctx, p.px + 2, p.py - 8, 4, 3, '#e0cfa0');
+      } else hall(0.05, 0.05, s - 0.1, 16);
+      return true;
+    case 'barracks':
+      if (look.arch === 'yurt' || look.arch === 'hut') {
+        for (const [dx, dy, r] of [[0.9, 0.9, 19], [2.2, 1.5, 15]] as const)
+          look.arch === 'yurt' ? yurt(ctx, at(dx, dy).px, at(dx, dy).py, r, color) : hut(ctx, at(dx, dy).px, at(dx, dy).py, r, look, color);
+        const r = at(1.2, 2.4);
+        for (let i = 0; i < 4; i++) line(ctx, r.px - 6 + i * 4, r.py, r.px - 5 + i * 4, r.py - 18, '#6b4a2b', 1.3); // lanzas
+        ellipse(ctx, r.px + 10, r.py - 7, 4, 5, color, '#d9d2c0', 1); // escudo
+        palisade(ctx, b, s, 9);
+      } else {
+        hall(0.1, 0.1, s - 0.2, 24);
+        const r = at(2.6, 2.7);
+        for (let i = 0; i < 3; i++) line(ctx, r.px + i * 3, r.py, r.px + i * 3 + 1, r.py - 16, '#6b4a2b', 1.2);
+      }
+      return true;
+    case 'stable':
+      if (look.arch === 'yurt') yurt(ctx, at(0.9, 0.9).px, at(0.9, 0.9).py, 18, color);
+      else if (look.arch === 'hut') hut(ctx, at(0.9, 0.9).px, at(0.9, 0.9).py, 16, look, color);
+      else hall(0.1, 0.1, 1.9, 16);
+      corral(ctx, b, s, look);
+      return true;
+    case 'archery_range':
+      fillFootprint(ctx, b.tx + 0.15, b.ty + 0.15, s - 0.3, 'rgba(160,130,80,0.45)');
+      if (look.arch === 'yurt') yurt(ctx, at(0.8, 0.8).px, at(0.8, 0.8).py, 16, color);
+      else if (look.arch === 'hut') hut(ctx, at(0.8, 0.8).px, at(0.8, 0.8).py, 15, look, color);
+      else hall(0.1, 0.1, 1.5, 12);
+      targets(ctx, b, color);
+      return true;
+    case 'tech_center':
+      if (look.arch === 'yurt') {
+        const c = at(1.5, 1.5);
+        yurt(ctx, c.px, c.py, 32, color);
+        flag(ctx, c.px, c.py - 50, color, 18);
+      } else if (look.arch === 'hut') {
+        const c = at(1.5, 1.5);
+        hut(ctx, c.px, c.py, 28, look, color);
+        for (const [dx, dy] of [[0.2, 2.8], [2.8, 0.2], [2.8, 2.8]] as const) {
+          const p = at(dx, dy);
+          poly(ctx, [p.px - 3, p.py, p.px - 2.5, p.py - 14, p.px + 2.5, p.py - 15, p.px + 3, p.py], '#9d9a92'); // piedras sagradas
+        }
+      } else hall(0.1, 0.1, s - 0.2, 26);
+      return true;
+    default:
+      return false;
+  }
+}
+
 /** Torre pequeña de esquina (castrum). */
 function miniTower(ctx: CanvasRenderingContext2D, p: P, h: number, color: string): void {
   ctx.fillStyle = '#a99e88';
@@ -647,14 +867,14 @@ function longHall(
 }
 
 /** Cimiento: se ve el edificio "subiendo" y un andamio de madera. */
-export function drawConstruction(ctx: CanvasRenderingContext2D, b: BuildingView, color: string): void {
+export function drawConstruction(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction?: FactionId): void {
   const s = BUILDING_DEFS[b.type].size;
   fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(120,100,70,0.55)');
   outlineFootprint(ctx, b.tx, b.ty, s, '#6b5236', 1.2);
   if (b.type === 'farm') {
     // La granja se "ara" de a poco.
     ctx.globalAlpha = 0.3 + b.progress * 0.7;
-    drawBuilding(ctx, { ...b, food: 0 }, color);
+    drawBuilding(ctx, { ...b, food: 0 }, color, faction);
     ctx.globalAlpha = 1;
     return;
   }
@@ -665,7 +885,7 @@ export function drawConstruction(ctx: CanvasRenderingContext2D, b: BuildingView,
   ctx.beginPath();
   ctx.rect(left, top, right - left, bottom - top + 20);
   ctx.clip();
-  drawBuilding(ctx, b, color);
+  drawBuilding(ctx, b, color, faction);
   ctx.restore();
   // Andamio
   const L = worldToPx(b.tx, b.ty + s), B = worldToPx(b.tx + s, b.ty + s), R = worldToPx(b.tx + s, b.ty);
@@ -711,30 +931,83 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
 /** Altura de vuelo de los aviones (px). */
 export const FLY_HEIGHT = 40;
 
-export function drawUnit(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: number, color: string, now: number): void {
+/**
+ * Dibuja una unidad. `faction` cambia el aspecto (ropa, casco, escudo,
+ * caballo) y `elite` marca con una estrella dorada a las unidades mejoradas.
+ */
+export function drawUnit(
+  ctx: CanvasRenderingContext2D,
+  u: UnitView,
+  x: number,
+  y: number,
+  color: string,
+  now: number,
+  faction?: FactionId,
+  elite = false,
+): void {
+  drawUnitBody(ctx, u, x, y, color, now, lookOf(faction));
+  if (elite) {
+    const top = u.type === 'airplane' ? y - FLY_HEIGHT - 12 : y - UNIT_LOOK[u.type].top + 1;
+    star(ctx, x, top, 3.2);
+  }
+}
+
+/** Estrella dorada (unidad mejorada). */
+function star(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  const pts: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r;
+    pts.push(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  poly(ctx, pts, '#f0c14b');
+}
+
+/** Escudo según el pueblo, con el color del jugador. */
+function shieldOf(ctx: CanvasRenderingContext2D, x: number, y: number, look: Look, color: string): void {
+  switch (look.shield) {
+    case 'rect':
+      poly(ctx, [x - 4, y - 8, x + 2, y - 9, x + 2, y + 6, x - 4, y + 7], color);
+      line(ctx, x - 1, y - 8, x - 1, y + 6, '#e8c872', 1);
+      break;
+    case 'oval':
+      ellipse(ctx, x, y, 3.6, 6.5, color, '#d9c27a', 1);
+      break;
+    case 'round':
+      ellipse(ctx, x, y, 5, 5.5, color, '#d9d2c0', 1.2);
+      ellipse(ctx, x, y, 1.4, 1.4, '#d9d2c0');
+      break;
+    case 'none':
+      break;
+  }
+}
+
+function drawUnitBody(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: number, color: string, now: number, look: Look): void {
   const t = now / 1000 + u.id * 0.37;
   const walking = u.walk === 1;
   const attacking = u.state === 'attacking' && !walking;
   switch (u.type) {
     case 'worker':
-      return drawWorker(ctx, u, x, y, color, t, walking);
-    case 'warrior':
-      return drawWarrior(ctx, u, x, y, color, t, walking);
+      return drawWorker(ctx, u, x, y, color, t, walking, look);
+    case 'warrior': {
+      const bob = soldier(ctx, x, y, color, t, walking, look.tunic, look.helmet);
+      shieldOf(ctx, x - 6, y - 12 - bob, look.shield === 'none' ? { ...look, shield: 'round' } : look, color);
+      const a = attacking ? Math.sin(t * 8) * 1.1 - 0.4 : -1.2;
+      const hx = x + 5, hy = y - 13 - bob;
+      line(ctx, hx, hy, hx + Math.cos(a) * 11, hy + Math.sin(a) * 11, '#cfd3d8', 2);
+      return;
+    }
     case 'scout':
-      return drawHorseman(ctx, x, y, color, t, walking, attacking, false);
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, false, look.helmet === 'mongol' ? 'bow' : 'lance', look.horse, look.helmet);
     case 'knight':
-      return drawHorseman(ctx, x, y, color, t, walking, attacking, true);
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, true, 'lance', shade(look.horse, 0.85), look.helmet);
     case 'spearman': {
-      const bob = soldier(ctx, x, y, color, t, walking, '#7c6a52', 'cone');
-      const thrust = attacking ? Math.max(0, Math.sin(t * 8)) * 4 : 0;
-      const tipX = x + 10 + thrust, tipY = y - 34 - bob - thrust;
-      line(ctx, x + 4 + thrust * 0.3, y - 5 - bob, tipX, tipY, '#8b6a3e', 1.6);
-      poly(ctx, [tipX, tipY, tipX - 1.5, tipY + 5, tipX + 1.5, tipY + 5], '#cfd3d8');
-      ellipse(ctx, x - 6, y - 12 - bob, 3.5, 5, shade(color, 0.8), '#d9d2c0', 1);
+      const bob = soldier(ctx, x, y, color, t, walking, look.tunic, look.helmet);
+      spear(ctx, x, y, bob, t, attacking, 1);
+      shieldOf(ctx, x - 6, y - 12 - bob, look.shield === 'none' ? { ...look, shield: 'round' } : look, color);
       return;
     }
     case 'archer': {
-      const bob = soldier(ctx, x, y, color, t, walking, '#5e6b3a', 'hood');
+      const bob = soldier(ctx, x, y, color, t, walking, look.tunic, look.helmet === 'cone' || look.helmet === 'crest' ? 'hood' : look.helmet);
       const cx = x + 4, cy = y - 14 - bob;
       ctx.strokeStyle = '#7a5230';
       ctx.lineWidth = 1.6;
@@ -903,7 +1176,7 @@ function drawScorpion(ctx: CanvasRenderingContext2D, x: number, y: number, color
   if (!attacking || Math.sin(t * 1.8) < 0.3) line(ctx, x - 5, y - 11, x + 12, y - 15.5, '#3b2a1a', 1.2); // virote cargado
 }
 
-function drawWorker(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: number, color: string, t: number, walking: boolean): void {
+function drawWorker(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: number, color: string, t: number, walking: boolean, look: Look): void {
   const bob = walking ? Math.abs(Math.sin(t * 10)) * 1.5 : 0;
   const step = walking ? Math.sin(t * 10) * 2 : 0;
   ellipse(ctx, x, y, 6, 3, 'rgba(0,0,0,0.3)');
@@ -915,7 +1188,7 @@ function drawWorker(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: nu
   ctx.fillStyle = color;
   ctx.fillRect(x - 3.5, y - 15 - bob, 7, 9);
   ellipse(ctx, x, y - 19 - bob, 3.5, 3.5, '#e2b68c');
-  ellipse(ctx, x, y - 21.5 - bob, 5, 1.6, '#d8c070');
+  headgear(ctx, x, y - 19 - bob, look.workerHat);
   if (u.carryType && u.carryAmount) {
     ctx.fillStyle = RESOURCE_COLORS[u.carryType];
     const sz = 2 + Math.min(4, u.carryAmount / 3);
@@ -933,28 +1206,45 @@ function drawWorker(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: nu
   }
 }
 
-function drawWarrior(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: number, color: string, t: number, walking: boolean): void {
-  const bob = walking ? Math.abs(Math.sin(t * 9)) * 1.5 : 0;
-  const step = walking ? Math.sin(t * 9) * 2 : 0;
-  ellipse(ctx, x, y, 7, 3.5, 'rgba(0,0,0,0.3)');
-  ctx.fillStyle = '#2e2620';
-  ctx.fillRect(x - 3.5 + step * 0.5, y - 7, 2.5, 7);
-  ctx.fillRect(x + 1 - step * 0.5, y - 7, 2.5, 7);
-  // Torso con armadura y tabardo del jugador
-  ctx.fillStyle = '#6f757d';
-  ctx.fillRect(x - 5, y - 18 - bob, 10, 12);
-  ctx.fillStyle = color;
-  ctx.fillRect(x - 3.5, y - 16 - bob, 7, 10);
-  // Cabeza con casco
-  ellipse(ctx, x, y - 21 - bob, 3.6, 3.6, '#e2b68c');
-  poly(ctx, [x - 4.5, y - 21 - bob, x, y - 27 - bob, x + 4.5, y - 21 - bob], '#8a9099');
-  // Escudo redondo
-  ellipse(ctx, x - 6, y - 12 - bob, 4.5, 5.5, shade(color, 0.8), '#d9d2c0', 1.2);
-  // Arma (maza/espada) que se balancea al atacar
-  const attacking = u.state === 'attacking' && !walking;
-  const a = attacking ? Math.sin(t * 8) * 1.1 - 0.4 : -1.2;
-  const hx = x + 5, hy = y - 13 - bob;
-  line(ctx, hx, hy, hx + Math.cos(a) * 11, hy + Math.sin(a) * 11, '#cfd3d8', 2);
+/** Casco o sombrero sobre una cabeza con centro (x, hy). */
+function headgear(ctx: CanvasRenderingContext2D, x: number, hy: number, helmet: Helmet): void {
+  switch (helmet) {
+    case 'straw':
+      ellipse(ctx, x, hy - 2.5, 5, 1.6, '#d8c070');
+      break;
+    case 'bare':
+      ctx.beginPath();
+      ctx.ellipse(x, hy - 1, 4.2, 3, 0, Math.PI, 0);
+      ctx.fillStyle = '#c98a3c';
+      ctx.fill();
+      break;
+    case 'mongol':
+      // Gorro de piel con punta
+      ellipse(ctx, x, hy - 1.5, 4.6, 1.8, '#7a5a3a');
+      poly(ctx, [x - 3.5, hy - 2, x + 3.5, hy - 2, x + 1, hy - 7, x - 1, hy - 7.5], '#b5483a');
+      break;
+    case 'crest':
+      ctx.beginPath();
+      ctx.ellipse(x, hy - 1, 4.6, 3.8, 0, Math.PI, 0);
+      ctx.fillStyle = '#b8a47a';
+      ctx.fill();
+      ellipse(ctx, x, hy - 6, 4, 1.8, '#c0392b');
+      break;
+    case 'cone':
+      poly(ctx, [x - 4.5, hy, x, hy - 6, x + 4.5, hy], '#8a9099');
+      line(ctx, x + 1.5, hy - 0.5, x + 1.5, hy + 3, '#8a9099', 1.2); // protector nasal
+      break;
+    case 'round':
+      ctx.beginPath();
+      ctx.ellipse(x, hy - 1, 4.8, 3.8, 0, Math.PI, 0);
+      ctx.fillStyle = '#4b5536';
+      ctx.fill();
+      line(ctx, x - 5.5, hy - 1, x + 5.5, hy - 1, '#3a4229', 1.2);
+      break;
+    case 'hood':
+    case 'fur':
+      break; // se dibujan con la cabeza (ver soldier)
+  }
 }
 
 /** Soldado de a pie: piernas, cuerpo con el color del jugador y casco. Devuelve el "rebote" al caminar. */
@@ -966,7 +1256,7 @@ function soldier(
   t: number,
   walking: boolean,
   uniform: string,
-  helmet: 'cone' | 'round' | 'hood' | 'crest' | 'bare' | 'fur',
+  helmet: Helmet,
 ): number {
   const bob = walking ? Math.abs(Math.sin(t * 9)) * 1.5 : 0;
   const step = walking ? Math.sin(t * 9) * 2 : 0;
@@ -976,8 +1266,11 @@ function soldier(
   ctx.fillRect(x + 1 - step * 0.5, y - 7, 2.5, 7);
   ctx.fillStyle = uniform;
   ctx.fillRect(x - 5, y - 18 - bob, 10, 12);
+  // Tabardo con el color del jugador (el resto de la ropa es la del pueblo).
   ctx.fillStyle = color;
-  ctx.fillRect(x - 3.5, y - 16 - bob, 7, 6);
+  ctx.fillRect(x - 2.5, y - 17 - bob, 5, 8);
+  ctx.fillStyle = shade(uniform, 0.7);
+  ctx.fillRect(x - 5, y - 9 - bob, 10, 1.5);
   if (helmet === 'hood' || helmet === 'fur') {
     // Capucha (arquero) o piel de oso (berserker)
     ellipse(ctx, x, y - 21 - bob, 4.6, 4.6, helmet === 'fur' ? '#6b4a2b' : shade(uniform, 0.8));
@@ -989,27 +1282,7 @@ function soldier(
     return bob;
   }
   ellipse(ctx, x, y - 21 - bob, 3.6, 3.6, '#e2b68c');
-  if (helmet === 'bare') {
-    // Sin casco: pelo largo (galos, germanos)
-    ctx.beginPath();
-    ctx.ellipse(x, y - 22 - bob, 4.2, 3, 0, Math.PI, 0);
-    ctx.fillStyle = '#c98a3c';
-    ctx.fill();
-  } else if (helmet === 'crest') {
-    // Casco romano con cimera roja
-    ctx.beginPath();
-    ctx.ellipse(x, y - 22 - bob, 4.6, 3.8, 0, Math.PI, 0);
-    ctx.fillStyle = '#b8a47a';
-    ctx.fill();
-    ellipse(ctx, x, y - 27 - bob, 4, 1.8, '#c0392b');
-  } else if (helmet === 'cone') poly(ctx, [x - 4.5, y - 21 - bob, x, y - 27 - bob, x + 4.5, y - 21 - bob], '#8a9099');
-  else {
-    ctx.beginPath();
-    ctx.ellipse(x, y - 22 - bob, 4.8, 3.8, 0, Math.PI, 0);
-    ctx.fillStyle = '#4b5536';
-    ctx.fill();
-    line(ctx, x - 5.5, y - 22 - bob, x + 5.5, y - 22 - bob, '#3a4229', 1.2);
-  }
+  headgear(ctx, x, y - 21 - bob, helmet);
   return bob;
 }
 
@@ -1025,6 +1298,7 @@ function drawHorseman(
   heavy: boolean,
   weapon: 'lance' | 'bow' = 'lance',
   horseColor?: string,
+  riderHat?: Helmet,
 ): void {
   const gallop = walking ? Math.sin(t * 14) : 0;
   ellipse(ctx, x, y, 11, 4.5, 'rgba(0,0,0,0.3)');
@@ -1055,8 +1329,9 @@ function drawHorseman(
     ctx.fillStyle = color;
     ctx.fillRect(x - 2, y - 22 - gallop, 4, 6);
   }
-  ellipse(ctx, x, y - 26 - gallop, 3.2, 3.2, heavy ? '#8a9099' : '#e2b68c');
-  if (heavy) poly(ctx, [x - 3.5, y - 27 - gallop, x, y - 32 - gallop, x + 3.5, y - 27 - gallop], '#aab0b8');
+  ellipse(ctx, x, y - 26 - gallop, 3.2, 3.2, heavy && riderHat !== 'mongol' ? '#8a9099' : '#e2b68c');
+  if (riderHat === 'mongol' || riderHat === 'crest' || riderHat === 'bare') headgear(ctx, x, y - 26 - gallop, riderHat);
+  else if (heavy) poly(ctx, [x - 3.5, y - 27 - gallop, x, y - 32 - gallop, x + 3.5, y - 27 - gallop], '#aab0b8');
   if (weapon === 'bow') {
     bow(ctx, x + 4, y - 20 - gallop, attacking ? Math.max(0, Math.sin(t * 6)) * 4 : 0);
     return;

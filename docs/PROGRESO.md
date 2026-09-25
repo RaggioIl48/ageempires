@@ -224,6 +224,37 @@ Spearmen vs Keshig battle, long walls (line, cost, stopping without stone, build
 gate on a wall, center deposits, the Modern Age cost; the full progression test now runs once
 for each of the 7 peoples.
 
+## Upgrades, abilities, mid-game economy, looks and the army guide (2026-09-24)
+
+**Upgrades (AoE style)**: Man-at-Arms (Tribal), Pikeman, Crossbowman, Light Cavalry, Cavalier (Medieval),
+Veteran Riflemen and Armored Cars (Industrial), plus an **elite version of each of the 14 unique units**
+(e.g. the Mongol *Elite Horse Archer* with a recurve bow: +1 range, +35% attack; the Roman *Praetorian*).
+Units already on the map improve too; upgraded units show a gold star and their new name.
+
+**Abilities of each people (Total War style)**: cavalry **charge** (first melee hit after 4 s without
+fighting: ×1.5; Visigoths ×1.8; Ostrogoths ×2.2), Roman engineering (build 30% faster), Mongol and German
+hordes (cavalry / infantry train 25% faster), Gallic druids (the Nemeton heals nearby units),
+Viking Berserkergang (infantry heals; Berserkers even faster).
+
+**Mid-game economy**: storehouse technologies (Double-Bit Axe, Stone Mining, Metal Mining, Horse Collar,
+Bow Saw, Shaft Mining), Hand Cart at the Town Center, farms with 400 food, and a **Market** where you buy
+and sell food, wood and stone for metal (shared prices: buying raises them, selling lowers them).
+
+**Looks of each people**: soldiers change tunic, helmet and shield (Roman crest and scutum, Mongol fur hat
+and horseback bow, Gallic long hair and oval shield, Norse nasal helmets and round shields); common
+buildings change architecture (Roman terracotta, Mongol yurt camps, Gallic round huts, Germanic/Gothic/
+Viking longhouses with thatch, tiles or turf and dragon heads).
+
+**Army guide (📖 Army)**: every unit of your people by age with its stats, what it beats and what beats
+it (computed from the combat tables, only naming enemies from the same ages), and its upgrades; plus your
+people's strengths, weaknesses and abilities and a short explanation of how combat works.
+
+**Walls**: two clicks (start and end), as in AoE; dragging also works.
+
+**Fix**: a unit walking where a building was just placed kept a "walking" state with no path.
+
+**Tests**: 212 (upgrades, 53-bit tech masks, charge, healing, build/train speed, Market, counters).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

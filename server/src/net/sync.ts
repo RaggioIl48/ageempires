@@ -18,7 +18,7 @@ import {
   type EventTuple,
   type UnitTuple,
 } from '../../../shared/codec.ts';
-import { TICK_RATE } from '../../../shared/data.ts';
+import { TICK_RATE, TRADE_RESOURCES } from '../../../shared/data.ts';
 import { encodeTiles, type DeltaMessage, type EconomyView, type RoomSettings, type ServerMessage } from '../../../shared/protocol.ts';
 import { diploView } from '../sim/diplomacy.ts';
 import { buildingView, type Game } from '../sim/game.ts';
@@ -83,6 +83,7 @@ export class ClientSync {
   private lastDiplo = -1;
   private lastNews = -1;
   private lastTech = -1;
+  private lastMarket = -1;
 
   /** playerId 0 = observador (el profesor): ve todo y la economía de todos. */
   constructor(readonly playerId: number) {}
@@ -186,6 +187,11 @@ export class ClientSync {
       const pt: number[] = [];
       for (const pl of w.players.values()) pt.push(pl.id, pl.era, pl.techs);
       msg.pt = pt;
+    }
+    // Precios del Mercado (iguales para todos).
+    if (w.marketVersion !== this.lastMarket) {
+      this.lastMarket = w.marketVersion;
+      msg.mk = TRADE_RESOURCES.map((r) => w.market[r]);
     }
     // El profesor recibe las noticias diplomáticas como avisos.
     if (this.playerId === 0) {

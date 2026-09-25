@@ -16,7 +16,7 @@ import {
   type ServerMessage,
   type UnitView,
 } from '../../shared/protocol.ts';
-import { buildingMaxHp, unitStats, type UnitStats } from '../../shared/stats.ts';
+import { buildingMaxHp, unitLabel, unitStats, type UnitStats } from '../../shared/stats.ts';
 
 export interface ClientUnit {
   v: UnitView;
@@ -85,6 +85,8 @@ export class ClientState {
   techs = new Map<number, number>();
   /** Sube cuando alguien cambia de era o investiga algo. */
   techVersion = 0;
+  /** Precios del Mercado [comida, madera, piedra], en metal por lote. */
+  market: number[] = [];
 
   /** Relación entre dos jugadores (uno mismo cuenta como aliado). */
   relation(a: number, b: number): Relation {
@@ -205,6 +207,7 @@ export class ClientState {
       this.diploLocked = d.dip.locked;
       this.diploVersion++;
     }
+    if (d.mk) this.market = d.mk;
     if (d.pt) {
       for (let i = 0; i + 2 < d.pt.length; i += 3) {
         this.eras.set(d.pt[i], d.pt[i + 1]);
@@ -241,6 +244,11 @@ export class ClientState {
   /** Estadísticas reales de una unidad (facción y tecnologías de su dueño). */
   statsOf(owner: number, type: UnitType): UnitStats {
     return unitStats(this.faction(owner), type, this.techsOf(owner));
+  }
+
+  /** Nombre de una unidad de ese jugador (con sus evoluciones: Piquero, élites…). */
+  labelOf(owner: number, type: UnitType): string {
+    return unitLabel(type, this.techsOf(owner));
   }
 
   maxHpOf(b: BuildingView): number {

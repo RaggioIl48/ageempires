@@ -146,6 +146,7 @@ export class LobbyScreen {
         <b>${esc(f.name)}</b><i>«${esc(f.motto)}»</i>
         <span class="up">▲ ${f.strengths.map(esc).join('<br>▲ ')}</span>
         <span class="down">▼ ${f.weaknesses.map(esc).join('<br>▼ ')}</span>
+        <span class="abil">✦ ${f.abilities.map(esc).join('<br>✦ ')}</span>
         <span class="uniq">⚜ Medieval Age: <b>${esc(BUILDING_DEFS[u.building!].label)}</b> · ${u.units.map((x) => esc(UNIT_DEFS[x].label)).join(', ')}</span></button>`;
     }).join('');
     el('lobby-colors').innerHTML = PLAYER_COLORS.map((c) => {

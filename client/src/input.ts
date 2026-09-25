@@ -16,7 +16,9 @@ import {
   unitAvailable,
   type BuildingType,
   type TechId,
+  type TradeResource,
   type UnitType,
+  TRADE_RESOURCES,
 } from '../../shared/data.ts';
 import type { BuildingView } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
@@ -35,8 +37,11 @@ const DOUBLE_CLICK_MS = 350;
 /** Teclas de la cuadrícula de acciones (sin W/A/S/D, que mueven la cámara). */
 export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'] as const;
 
-/** Lo que se puede hacer con un edificio: entrenar una unidad o investigar una tecnología. */
-export type BuildingAction = { kind: 'train'; unit: UnitType } | { kind: 'research'; tech: TechId };
+/** Lo que se puede hacer con un edificio: entrenar, investigar o comerciar (Mercado). */
+export type BuildingAction =
+  | { kind: 'train'; unit: UnitType }
+  | { kind: 'research'; tech: TechId }
+  | { kind: 'trade'; resource: TradeResource; buy: boolean };
 
 /** ¿Qué objeto hay bajo el punto de la pantalla? Las unidades tienen prioridad. */
 export function pick(state: ClientState, cam: Camera, sx: number, sy: number, now: number): Picked {
@@ -209,9 +214,11 @@ export class Input {
     for (const tech of def.researches) {
       const t = TECH_DEFS[tech];
       if (hasTech(mask, tech) || queued.has(tech)) continue;
+      if (t.faction && t.faction !== s.faction(s.you)) continue;
       if (t.advancesTo !== undefined ? t.advancesTo !== era + 1 : era < t.era) continue;
       out.push({ kind: 'research', tech });
     }
+    if (def.market) for (const resource of TRADE_RESOURCES) for (const buy of [true, false]) out.push({ kind: 'trade', resource, buy });
     return out;
   }
 
@@ -228,6 +235,7 @@ export class Input {
     const a = this.buildingActions(b)[index];
     if (a?.kind === 'train') this.net.command({ kind: 'train', buildingId: b.id, unit: a.unit });
     else if (a?.kind === 'research') this.net.command({ kind: 'research', buildingId: b.id, tech: a.tech });
+    else if (a?.kind === 'trade') this.net.command({ kind: 'trade', buildingId: b.id, resource: a.resource, buy: a.buy });
   }
 
   cancelTrain(index: number): void {

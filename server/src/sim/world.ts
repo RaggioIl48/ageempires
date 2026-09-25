@@ -19,7 +19,9 @@ import {
   type ResourceType,
   type Resources,
   type TechId,
+  type TradeResource,
   type UnitType,
+  MARKET_START,
 } from '../../../shared/data.ts';
 import type { GameEvent, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
@@ -60,6 +62,8 @@ export interface Unit {
   /** Hacia dónde apuntaba el último camino de persecución (para no recalcular a cada paso). */
   chaseGoal: Point | null;
   repathIn: number; // pasos hasta poder recalcular la persecución
+  /** Paso del último golpe dado (para la carga de caballería). */
+  lastStrike: number;
 }
 
 export interface ResourceNode {
@@ -152,6 +156,9 @@ export class World {
   pendingWars: PendingWar[] = [];
   /** Sube cuando algún jugador cambia de era o investiga algo. */
   techVersion = 0;
+  /** Precios del Mercado (metal por lote), iguales para todos; y su versión (para la red). */
+  market: Record<TradeResource, number> = { ...MARKET_START };
+  marketVersion = 0;
   /**
    * Dueño de la unidad que está buscando camino ahora: las puertas dejan pasar
    * a su dueño y a sus aliados (0 = nadie).
@@ -361,7 +368,11 @@ export class World {
       if (spot) {
         u.x = spot.x + 0.5;
         u.y = spot.y + 0.5;
-        u.path = [];
+        // Quien caminaba sigue hacia su destino (si el edificio estorba, el movimiento
+        // busca otra ruta); quien tenía una tarea deja que su tarea recalcule el camino.
+        const dest = u.path[u.path.length - 1];
+        u.path = u.state === 'moving' && dest ? [dest] : [];
+        if (u.state === 'moving' && u.path.length === 0) u.state = 'idle';
       }
     }
   }
@@ -386,6 +397,7 @@ export class World {
       cooldown: 0,
       chaseGoal: null,
       repathIn: 0,
+      lastStrike: -Infinity,
     };
     this.units.set(u.id, u);
     return u;

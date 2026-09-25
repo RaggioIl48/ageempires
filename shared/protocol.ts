@@ -9,6 +9,7 @@ import {
   FACTIONS,
   PLAYER_COLORS,
   TECH_DEFS,
+  TRADE_RESOURCES,
   UNIT_DEFS,
   type BuildingType,
   type DiploAction,
@@ -17,6 +18,7 @@ import {
   type ResourceType,
   type Resources,
   type TechId,
+  type TradeResource,
   type UnitType,
 } from './data.ts';
 import type { BuildingTuple, EventTuple, UnitTuple } from './codec.ts';
@@ -106,7 +108,8 @@ export interface EconomyView {
 export type GameEvent =
   /** s: 0 flecha, 1 bala, 2 proyectil de cañón. */
   | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number }
-  | { k: 'hit'; x: number; y: number }
+  /** c: 1 = golpe de carga (más grande). */
+  | { k: 'hit'; x: number; y: number; c?: 1 }
   | { k: 'death'; x: number; y: number }
   | { k: 'destroyed'; x: number; y: number; size: number };
 
@@ -190,6 +193,8 @@ export type Command =
   | { kind: 'construct'; unitIds: number[]; targetId: number }
   | { kind: 'attack'; unitIds: number[]; targetId: number }
   | { kind: 'train'; buildingId: number; unit: UnitType }
+  /** Comprar (buy) o vender un lote de un recurso en el Mercado propio. */
+  | { kind: 'trade'; buildingId: number; resource: TradeResource; buy: boolean }
   /** Investigar una tecnología (o avanzar de era). */
   | { kind: 'research'; buildingId: number; tech: TechId }
   | { kind: 'cancelTrain'; buildingId: number; index: number }
@@ -251,6 +256,8 @@ export interface DeltaMessage {
   dip?: DiploView;
   /** Era y tecnologías de cada jugador: [id, era, máscara, …] (cuando cambian). */
   pt?: number[];
+  /** Precios del Mercado [comida, madera, piedra] (cuando cambian). */
+  mk?: number[];
 }
 
 export type ServerMessage =
@@ -436,6 +443,10 @@ function parseCommand(c: Record<string, unknown>): Command | null {
   switch (c.kind) {
     case 'train':
       return isId(c.buildingId) && isKey(UNIT_DEFS, c.unit) ? { kind: 'train', buildingId: c.buildingId, unit: c.unit } : null;
+    case 'trade':
+      return isId(c.buildingId) && typeof c.resource === 'string' && (TRADE_RESOURCES as readonly string[]).includes(c.resource) && typeof c.buy === 'boolean'
+        ? { kind: 'trade', buildingId: c.buildingId, resource: c.resource as TradeResource, buy: c.buy }
+        : null;
     case 'research':
       return isId(c.buildingId) && isKey(TECH_DEFS, c.tech) ? { kind: 'research', buildingId: c.buildingId, tech: c.tech } : null;
     case 'cancelTrain':

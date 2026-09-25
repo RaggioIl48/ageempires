@@ -3,6 +3,7 @@
 // and train every unit.
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS, BUILD_MENU, FACTION_ORDER, TECH_DEFS, UNIT_DEFS, unitAvailable, type BuildingType, type TechId, type UnitType } from '../../shared/data.ts';
+import { hasTech, maskOf } from '../../shared/stats.ts';
 import type { Building } from '../src/sim/world.ts';
 import { newGame, runUntil, workersOf } from './helpers.ts';
 
@@ -51,7 +52,8 @@ describe('full progression on a generated map', () => {
       g.enqueue(1, { kind: 'research', buildingId: where.id, tech });
       g.step();
       expect(where.queue.some((q) => q.tech === tech), `${tech} queued: ${g.takeNotices(1).join(' / ')}`).toBe(true);
-      runUntil(g, () => (me.techs & (1 << Object.keys(TECH_DEFS).indexOf(tech))) !== 0, TECH_DEFS[tech].time + 5);
+      runUntil(g, () => hasTech(me.techs, tech), TECH_DEFS[tech].time + 5);
+      expect(hasTech(me.techs, tech), tech).toBe(true);
     };
 
     // Houses first so population never blocks training.
@@ -82,7 +84,7 @@ describe('full progression on a generated map', () => {
       // Every technology of this age.
       for (const tech of Object.keys(TECH_DEFS) as TechId[]) {
         const t = TECH_DEFS[tech];
-        if (t.advancesTo !== undefined || t.era !== era) continue;
+        if (t.advancesTo !== undefined || t.era !== era || (t.faction && t.faction !== faction)) continue;
         const where = [...built.values()].find((b) => BUILDING_DEFS[b.type].researches.includes(tech))!;
         research(where, tech);
       }
@@ -95,7 +97,8 @@ describe('full progression on a generated map', () => {
 
     const mine = (Object.keys(UNIT_DEFS) as UnitType[]).filter((u) => !UNIT_DEFS[u].faction || UNIT_DEFS[u].faction === me.faction);
     expect([...trained].sort()).toEqual(mine.sort());
-    expect(me.techs).toBe((1 << Object.keys(TECH_DEFS).length) - 1);
+    const mineTechs = (Object.keys(TECH_DEFS) as TechId[]).filter((t) => !TECH_DEFS[t].faction || TECH_DEFS[t].faction === faction);
+    expect(me.techs).toBe(maskOf(mineTechs));
     for (const type of BUILD_MENU) {
       const d = BUILDING_DEFS[type];
       if (d.faction && d.faction !== me.faction) expect(built.has(type), type).toBe(false);

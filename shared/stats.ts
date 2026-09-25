@@ -3,10 +3,13 @@
 // cliente (para mostrarlas), así ambos siempre coinciden.
 //
 // Las tecnologías de un jugador se guardan como una "máscara" de bits: un
-// número donde cada bit dice si una tecnología ya está investigada.
+// número donde cada bit dice si una tecnología ya está investigada. Se usan
+// potencias de 2 con aritmética normal (no `|`/`&`, que solo llegan a 32 bits):
+// así caben hasta 53 tecnologías.
 
 import {
   BUILDING_DEFS,
+  CHARGE_BONUS,
   DAMAGE_BONUS,
   FACTIONS,
   FARM_GATHER_RATE,
@@ -29,13 +32,23 @@ import {
 } from './data.ts';
 
 export const TECH_IDS = Object.keys(TECH_DEFS) as TechId[];
-const TECH_BIT = new Map(TECH_IDS.map((t, i) => [t, 1 << i]));
+if (TECH_IDS.length > 53) throw new Error('Too many technologies for a numeric mask');
+const TECH_BIT = new Map(TECH_IDS.map((t, i) => [t, 2 ** i]));
 
 export function techBit(t: TechId): number {
   return TECH_BIT.get(t) ?? 0;
 }
 export function hasTech(mask: number, t: TechId): boolean {
-  return (mask & techBit(t)) !== 0;
+  const bit = techBit(t);
+  return bit > 0 && Math.floor(mask / bit) % 2 === 1;
+}
+/** Máscara con una tecnología más. */
+export function addTech(mask: number, t: TechId): number {
+  return hasTech(mask, t) ? mask : mask + techBit(t);
+}
+/** Máscara con todas estas tecnologías. */
+export function maskOf(techs: readonly TechId[]): number {
+  return techs.reduce((m, t) => addTech(m, t), 0);
 }
 /** Tecnologías de una máscara, en orden. */
 export function techsOf(mask: number): TechId[] {
@@ -52,11 +65,14 @@ export interface UnitStats {
   /** Ventaja propia de esta unidad (además de la de su tipo). */
   bonus?: Partial<Record<Category, number>>;
   flies: boolean;
+  /** Vida que recupera por segundo (0 = no se cura sola). */
+  regen: number;
 }
 
-/** Suma las mejoras de la facción y de las tecnologías para un tipo de unidad. */
-function modsFor(faction: FactionId, cat: Category, mask: number): Required<StatMods> {
-  const out = { hp: 1, attack: 1, speed: 1, armor: 0, range: 0 };
+/** Suma las mejoras de la facción, las tecnologías y las evoluciones para un tipo de unidad. */
+function modsFor(faction: FactionId, type: UnitType, mask: number): Required<StatMods> {
+  const cat = UNIT_DEFS[type].category;
+  const out = { hp: 1, attack: 1, speed: 1, armor: 0, range: 0, regen: 0 };
   const add = (m: StatMods | undefined) => {
     if (!m) return;
     out.hp *= m.hp ?? 1;
@@ -64,9 +80,15 @@ function modsFor(faction: FactionId, cat: Category, mask: number): Required<Stat
     out.speed *= m.speed ?? 1;
     out.armor += m.armor ?? 0;
     out.range += m.range ?? 0;
+    out.regen += m.regen ?? 0;
   };
   add(FACTIONS[faction].units[cat]);
-  if (mask) for (const t of techsOf(mask)) add(TECH_DEFS[t].units?.[cat]);
+  out.regen += FACTIONS[faction].traits?.regen?.[cat] ?? 0;
+  if (mask)
+    for (const t of techsOf(mask)) {
+      add(TECH_DEFS[t].units?.[cat]);
+      add(TECH_DEFS[t].unitMods?.[type]);
+    }
   return out;
 }
 
@@ -78,7 +100,7 @@ export function unitStats(faction: FactionId, type: UnitType, mask = 0): UnitSta
   let s = unitCache.get(key);
   if (!s) {
     const def = UNIT_DEFS[type];
-    const m = modsFor(faction, def.category, mask);
+    const m = modsFor(faction, type, mask);
     s = {
       hp: Math.round(def.hp * m.hp),
       speed: def.speed * m.speed,
@@ -92,10 +114,38 @@ export function unitStats(faction: FactionId, type: UnitType, mask = 0): UnitSta
       category: def.category,
       bonus: def.bonus,
       flies: def.flies === true,
+      regen: (def.regen ?? 0) + m.regen,
     };
     unitCache.set(key, s);
   }
   return s;
+}
+
+/** Nombre de la unidad según sus evoluciones (Lancero → Piquero, élites…). */
+export function unitLabel(type: UnitType, mask = 0): string {
+  let label = UNIT_DEFS[type].label;
+  if (mask) for (const t of techsOf(mask)) label = TECH_DEFS[t].rename?.[type] ?? label;
+  return label;
+}
+
+/** ¿Ya evolucionó esta unidad (alguna mejora propia investigada)? */
+export function isUpgraded(type: UnitType, mask = 0): boolean {
+  return mask > 0 && techsOf(mask).some((t) => TECH_DEFS[t].unitMods?.[type] !== undefined);
+}
+
+/** Multiplicador de la carga de caballería de un pueblo. */
+export function chargeOf(faction: FactionId): number {
+  return FACTIONS[faction].traits?.charge ?? CHARGE_BONUS;
+}
+
+/** Velocidad de entrenamiento de un tipo de unidad para un pueblo (1 = normal). */
+export function trainSpeed(faction: FactionId, type: UnitType): number {
+  return FACTIONS[faction].traits?.trainSpeed?.[UNIT_DEFS[type].category] ?? 1;
+}
+
+/** Velocidad de construcción de los trabajadores de un pueblo (1 = normal). */
+export function buildSpeed(faction: FactionId): number {
+  return FACTIONS[faction].traits?.buildSpeed ?? 1;
 }
 
 export function buildingMaxHp(faction: FactionId, type: BuildingType, mask = 0): number {

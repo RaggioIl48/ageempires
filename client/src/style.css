@@ -590,6 +590,10 @@ tr.off {
 .faction .down {
   color: #ff9d8f;
 }
+.faction .abil {
+  color: #9fd4ff;
+  font-size: 12px;
+}
 .faction .uniq {
   margin-top: 4px;
   padding-top: 4px;
@@ -978,4 +982,52 @@ select.tiny-select {
   #players {
     display: none;
   }
+}
+
+/* ---------- Guía del ejército ---------- */
+#guide-panel {
+  position: fixed;
+  top: calc(var(--top-h) + 8px);
+  left: 10px;
+  width: min(600px, calc(100vw - 20px));
+  max-height: calc(100vh - var(--top-h) - var(--bar-h) - 24px);
+  overflow-y: auto;
+  font-size: 12px;
+  z-index: 5;
+}
+.g-people {
+  margin-bottom: 6px;
+}
+.g-people .up { color: #9dffa8; }
+.g-people .down { color: #ff9d8f; }
+.g-abil { color: #f0c14b; margin-top: 3px; }
+.g-rules { margin: 6px 0; color: var(--muted); }
+.g-rules summary { cursor: pointer; color: var(--accent); }
+.g-rules p { margin: 4px 0; }
+.g-tabs { display: flex; gap: 4px; margin: 6px 0 2px; }
+.g-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.g-card {
+  padding: 6px 8px;
+  background: rgba(28, 21, 15, 0.8);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+}
+.g-card.unique { border-color: #d4a23a; }
+.g-head { display: flex; gap: 6px; align-items: center; }
+.g-head .icon.unit { width: 28px; height: 28px; }
+.g-stats { margin: 3px 0; font-variant-numeric: tabular-nums; }
+.g-ups { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(138, 106, 63, 0.5); }
+.counter { font-size: 11px; }
+.counter.good { color: #9dffa8; }
+.counter.bad { color: #ff9d8f; }
+.uniq-tag { font-size: 10px; color: #f0c14b; font-weight: 400; }
+.elite { color: #f0c14b; }
+.act.upgrade-btn { border-color: #9dffa8; }
+.act.trade-btn { border-color: #e0b020; }
+.act .up-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 10px;
+  color: #9dffa8;
 }

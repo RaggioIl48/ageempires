@@ -89,6 +89,8 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Build | With workers: **Q E R T F G Z X C V B N M** in the order of the buttons (more buildings appear with each age; your people's unique building appears in the Medieval Age; Shift: place several) |
 | Wall | Choose **Wall**, **click where it starts and click where it ends** (or drag): one order builds the whole line; workers move on from one section to the next. A **Gate** placed on your own wall replaces that section |
 | Train / research | With a building: the same keys, in the order of the buttons (units, technologies, advancing era) · click an item in the queue to cancel it (refunds the cost) |
+| Army guide | **📖 Army** in the top bar: your units by age, what they beat, what beats them, upgrades and your people's abilities |
+| Market | Medieval Age building: buy or sell 100 food, wood or stone for metal |
 | Advance age | Select the Town Center (**H**, the "⌂ Town Center" button, or click your faction/age in the top bar) and press **"Advance to the … Age"** (★). It needs a finished Barracks, then a Tech Center, then a Factory |
 | Delete | **Delete** key (an unfinished foundation refunds what is left to build) |
 | Camera | WASD or arrows · middle-button drag · minimap |

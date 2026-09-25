@@ -133,6 +133,8 @@ export interface UnitDef {
   shot?: 'bullet' | 'shell';
   /** Unidad única: solo la entrena este pueblo. */
   faction?: FactionId;
+  /** Se cura sola (vida por segundo). */
+  regen?: number;
   /** Para la interfaz: en qué es buena y en qué no. */
   strong: string;
   weak: string;
@@ -300,7 +302,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   berserker: {
     label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 70, wood: 30 }, trainTime: 18,
     attack: melee(14, 1.4), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
-    bonus: { infantry: 1.3 },
+    bonus: { infantry: 1.3 }, regen: 1.5,
     strong: 'Battle fury: the strongest attack on foot', weak: 'No armor',
   },
   huscarl: {
@@ -328,7 +330,7 @@ export const INTERACT_RANGE = 1.25;
 export type BuildingType =
   | 'town_center' | 'house' | 'storehouse' | 'farm' | 'barracks'
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
-  | 'workshop' | 'factory'
+  | 'workshop' | 'factory' | 'market'
   // Edificio único de cada pueblo (Edad Media)
   | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall';
 
@@ -358,6 +360,10 @@ export interface BuildingDef {
   era: number;
   /** Edificio único: solo lo construye este pueblo. */
   faction?: FactionId;
+  /** Cura a las unidades propias cercanas (druidas del Nemeton). */
+  healAura?: { radius: number; hps: number };
+  /** Mercado: compra y venta de recursos a cambio de metal. */
+  market?: boolean;
 }
 
 const DEFENSE = { melee: 1, ranged: 5 };
@@ -366,7 +372,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     label: 'Town Center',
     description: 'Your main base. Trains workers, researches the next age and shoots arrows.',
     size: 3, hp: 2000, cost: { wood: 275, stone: 100 }, buildTime: 120, popProvided: 5, dropoff: RESOURCE_TYPES,
-    trains: ['worker'], researches: ['era2', 'era3', 'era4', 'tools', 'wheelbarrow', 'plow'],
+    trains: ['worker'], researches: ['era2', 'era3', 'era4', 'tools', 'wheelbarrow', 'plow', 'hand_cart'],
     armor: { melee: 3, ranged: 6 }, sight: 8, attack: ranged(5, 6, 2), solid: true, buildable: false, era: 1,
   },
   house: {
@@ -376,28 +382,29 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   },
   storehouse: {
     label: 'Storehouse', description: 'Resource drop-off. Build it near forests and mines to save walking.',
-    size: 2, hp: 800, cost: { wood: 60 }, buildTime: 25, popProvided: 0, dropoff: RESOURCE_TYPES, trains: [], researches: [],
+    size: 2, hp: 800, cost: { wood: 60 }, buildTime: 25, popProvided: 0, dropoff: RESOURCE_TYPES, trains: [],
+    researches: ['double_axe', 'stone_mining', 'metal_mining', 'horse_collar', 'bow_saw', 'shaft_mining'],
     armor: DEFENSE, sight: 3, solid: true, buildable: true, era: 1,
   },
   farm: {
     label: 'Farm', description: 'Food source for one worker. Best next to a drop-off.',
     size: 3, hp: 300, cost: { wood: 60 }, buildTime: 15, popProvided: 0, dropoff: [], trains: [], researches: [],
-    armor: { melee: 0, ranged: 0 }, sight: 1, solid: false, food: 300, buildable: true, era: 1,
+    armor: { melee: 0, ranged: 0 }, sight: 1, solid: false, food: 400, buildable: true, era: 1,
   },
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
     size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['warrior', 'scout', 'spearman', 'rifleman', 'machine_gun', 'antitank'], researches: [],
+    trains: ['warrior', 'scout', 'spearman', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'veteran_riflemen'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 1,
   },
   archery_range: {
     label: 'Archery Range', description: 'Trains archers.',
-    size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [], trains: ['archer'], researches: [],
+    size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [], trains: ['archer'], researches: ['crossbow'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 2,
   },
   stable: {
     label: 'Stable', description: 'Trains scouts and knights.',
-    size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [], trains: ['scout', 'knight'], researches: [],
+    size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [], trains: ['scout', 'knight'], researches: ['light_cavalry', 'cavalier'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 2,
   },
   tech_center: {
@@ -430,58 +437,64 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   factory: {
     label: 'Factory', description: 'Builds vehicles, tanks and airplanes. Needed for the Modern Age.',
     size: 3, hp: 1800, cost: { wood: 250, stone: 150, metal: 150 }, buildTime: 60, popProvided: 0, dropoff: [],
-    trains: ['light_vehicle', 'tank', 'mech_infantry', 'airplane'], researches: [],
+    trains: ['light_vehicle', 'tank', 'mech_infantry', 'airplane'], researches: ['armored_cars'],
     armor: { melee: 2, ranged: 6 }, sight: 4, solid: true, buildable: true, era: 3,
+  },
+
+  market: {
+    label: 'Market', description: 'Trade: buy and sell food, wood and stone for metal. Prices go up when people buy and down when they sell.',
+    size: 3, hp: 1300, cost: { wood: 175 }, buildTime: 45, popProvided: 0, dropoff: [], trains: [], researches: [],
+    armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 2, market: true,
   },
 
   // ---- Unique buildings (Medieval Age) ----
   castrum: {
     label: 'Castrum', description: 'Roman fort: shoots arrows. Trains Legionaries and Scorpions.',
     size: 3, hp: 2200, cost: { wood: 150, stone: 150 }, buildTime: 60, popProvided: 0, dropoff: [],
-    trains: ['legionary', 'scorpion'], researches: [],
+    trains: ['legionary', 'scorpion'], researches: ['elite_legionary', 'elite_scorpion'],
     armor: { melee: 3, ranged: 7 }, sight: 7, attack: ranged(6, 6, 2), solid: true, buildable: true, era: 2, faction: 'romans',
   },
   ordu: {
     label: 'Ordu', description: "The Khan's camp: +10 population. Trains Horse Archers and Keshig.",
     size: 3, hp: 1000, cost: { wood: 120, food: 80 }, buildTime: 35, popProvided: 10, dropoff: [],
-    trains: ['horse_archer', 'keshig'], researches: [],
+    trains: ['horse_archer', 'keshig'], researches: ['elite_horse_archer', 'elite_keshig'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'mongols',
   },
   nemeton: {
-    label: 'Nemeton', description: 'Sacred grove of the druids, built with wood only. Trains Naked Fanatics and Chosen Swordsmen.',
+    label: 'Nemeton', description: 'Sacred grove of the druids: heals your units nearby. Built with wood only. Trains Naked Fanatics and Chosen Swordsmen.',
     size: 3, hp: 1100, cost: { wood: 220 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['fanatic', 'chosen_swordsman'], researches: [],
-    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'gauls',
+    trains: ['fanatic', 'chosen_swordsman'], researches: ['elite_fanatic', 'elite_chosen_swordsman'],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'gauls', healAura: { radius: 6, hps: 2 },
   },
   war_hall: {
     label: 'War Hall', description: 'Hall of the war chiefs: food and wood drop-off. Trains Chosen Spearmen and Axe Throwers.',
     size: 3, hp: 1300, cost: { wood: 200 }, buildTime: 45, popProvided: 0, dropoff: ['food', 'wood'],
-    trains: ['chosen_spearman', 'axe_thrower'], researches: [],
+    trains: ['chosen_spearman', 'axe_thrower'], researches: ['elite_chosen_spearman', 'elite_axe_thrower'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'germans',
   },
   royal_hall: {
     label: 'Royal Hall', description: 'Court of the Visigoth kings: drop-off for all resources. Trains Gothic Knights and Armored Archers.',
     size: 3, hp: 1500, cost: { wood: 150, stone: 100 }, buildTime: 50, popProvided: 0, dropoff: RESOURCE_TYPES,
-    trains: ['gothic_knight', 'armored_archer'], researches: [],
+    trains: ['gothic_knight', 'armored_archer'], researches: ['elite_gothic_knight', 'elite_armored_archer'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'visigoths',
   },
   royal_palace: {
     label: 'Royal Palace', description: "Theodoric's palace: +5 population and stone/metal drop-off. Trains Gothic Lancers and Heavy Spearmen.",
     size: 3, hp: 1500, cost: { wood: 150, stone: 120 }, buildTime: 50, popProvided: 5, dropoff: ['stone', 'metal'],
-    trains: ['gothic_lancer', 'heavy_spearman'], researches: [],
+    trains: ['gothic_lancer', 'heavy_spearman'], researches: ['elite_gothic_lancer', 'elite_heavy_spearman'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'ostrogoths',
   },
   mead_hall: {
     label: 'Mead Hall', description: 'Great longhouse: +5 population and food/wood drop-off. Trains Berserkers and Huscarls.',
     size: 3, hp: 1300, cost: { wood: 200 }, buildTime: 45, popProvided: 5, dropoff: ['food', 'wood'],
-    trains: ['berserker', 'huscarl'], researches: [],
+    trains: ['berserker', 'huscarl'], researches: ['elite_berserker', 'elite_huscarl'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'vikings',
   },
 };
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
   'house', 'storehouse', 'farm', 'barracks', 'tower', 'wall', 'gate',
-  'archery_range', 'stable', 'tech_center',
+  'archery_range', 'stable', 'tech_center', 'market',
   'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',
 ];
@@ -500,6 +513,24 @@ export function buildingAvailable(type: BuildingType, era: number, faction?: Fac
   return d.buildable && era >= d.era;
 }
 
+// ---------- Mercado ----------
+/** Recursos que se compran y venden en el Mercado (el metal es la moneda). */
+export type TradeResource = 'food' | 'wood' | 'stone';
+export const TRADE_RESOURCES: readonly TradeResource[] = ['food', 'wood', 'stone'];
+/** Cantidad por operación. */
+export const MARKET_LOT = 100;
+/** Precio inicial en metal por cada lote de 100. */
+export const MARKET_START: Record<TradeResource, number> = { food: 100, wood: 100, stone: 130 };
+/** Cuánto sube el precio al comprar (y baja al vender) un lote. */
+export const MARKET_STEP = 4;
+export const MARKET_MIN = 25;
+export const MARKET_MAX = 400;
+/** Al vender se recibe esta fracción del precio (el mercader se queda con el resto). */
+export const MARKET_SELL_FACTOR = 0.7;
+export function sellPrice(price: number): number {
+  return Math.floor(price * MARKET_SELL_FACTOR);
+}
+
 /** Reparar cuesta esta fracción del precio del edificio (proporcional a la vida recuperada). */
 export const REPAIR_COST_FACTOR = 0.5;
 /** Elementos que caben en la cola de un edificio. */
@@ -516,13 +547,25 @@ export interface StatMods {
   armor?: number;
   /** Alcance extra en casillas (solo ataques a distancia). */
   range?: number;
+  /** Curación extra (vida por segundo, se suma). */
+  regen?: number;
 }
 
 // ---------- Tecnologías ----------
-export type TechId =
+/** Unidades únicas: cada una tiene su versión de élite (se investiga en el edificio único). */
+export const UNIQUE_UNITS = [
+  'legionary', 'scorpion', 'horse_archer', 'keshig', 'fanatic', 'chosen_swordsman', 'chosen_spearman',
+  'axe_thrower', 'gothic_knight', 'armored_archer', 'gothic_lancer', 'heavy_spearman', 'berserker', 'huscarl',
+] as const;
+export type UniqueUnitType = (typeof UNIQUE_UNITS)[number];
+
+type BaseTechId =
   | 'era2' | 'era3' | 'era4'
-  | 'tools' | 'wheelbarrow' | 'plow'
-  | 'forge' | 'armor_tech' | 'masonry' | 'ballistics' | 'machinery' | 'plating';
+  | 'tools' | 'wheelbarrow' | 'plow' | 'hand_cart'
+  | 'double_axe' | 'stone_mining' | 'metal_mining' | 'horse_collar' | 'bow_saw' | 'shaft_mining'
+  | 'forge' | 'armor_tech' | 'masonry' | 'ballistics' | 'machinery' | 'plating'
+  | 'man_at_arms' | 'pikeman' | 'crossbow' | 'light_cavalry' | 'cavalier' | 'veteran_riflemen' | 'armored_cars';
+export type TechId = BaseTechId | `elite_${UniqueUnitType}`;
 
 export interface TechDef {
   label: string;
@@ -536,15 +579,21 @@ export interface TechDef {
   /** Avance de era: la era a la que lleva. */
   advancesTo?: number;
   units?: Partial<Record<Category, StatMods>>;
+  /** Mejora de un tipo de unidad concreto (evolución, como en AoE). */
+  unitMods?: Partial<Record<UnitType, StatMods>>;
+  /** Nombre nuevo de la unidad mejorada (p. ej. Lancero → Piquero). */
+  rename?: Partial<Record<UnitType, string>>;
+  /** Solo para este pueblo (élites de las unidades únicas). */
+  faction?: FactionId;
   gather?: Partial<Record<ResourceType, number>>;
   farm?: number;
   carry?: number;
   buildingHp?: number;
 }
 
-export const TECH_DEFS: Record<TechId, TechDef> = {
+const BASE_TECHS: Record<BaseTechId, TechDef> = {
   era2: {
-    label: 'Advance to the Medieval Age', description: 'Spearman, archer, knight, stable, archery range and the tech center.',
+    label: 'Advance to the Medieval Age', description: 'Unique units and building of your people, upgrades, market, stable, archery range and tech center.',
     cost: { food: 500, metal: 150 }, time: 60, era: 1, requires: 'barracks', advancesTo: 2,
   },
   era3: {
@@ -555,6 +604,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     label: 'Advance to the Modern Age', description: 'Tanks, anti-tank teams, mechanized infantry, heavy artillery and airplanes.',
     cost: { food: 6000, wood: 3000, stone: 3000, metal: 6000 }, time: 300, era: 3, requires: 'factory', advancesTo: 4,
   },
+  // ---- Economía ----
   tools: {
     label: 'Tools', description: 'Workers gather wood, stone and metal 15% faster.',
     cost: { food: 100, wood: 100 }, time: 30, era: 1, gather: { wood: 1.15, stone: 1.15, metal: 1.15 },
@@ -567,6 +617,35 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     label: 'Plow', description: 'Farms produce 25% faster.',
     cost: { food: 100, wood: 150 }, time: 40, era: 2, farm: 1.25,
   },
+  hand_cart: {
+    label: 'Hand Cart', description: 'Workers carry 5 more and walk 10% faster.',
+    cost: { food: 300, wood: 200 }, time: 55, era: 3, carry: 5, units: { worker: { speed: 1.1 } },
+  },
+  double_axe: {
+    label: 'Double-Bit Axe', description: 'Workers chop wood 20% faster.',
+    cost: { food: 100, wood: 50 }, time: 25, era: 2, gather: { wood: 1.2 },
+  },
+  stone_mining: {
+    label: 'Stone Mining', description: 'Workers mine stone 20% faster.',
+    cost: { food: 100, wood: 75 }, time: 30, era: 2, gather: { stone: 1.2 },
+  },
+  metal_mining: {
+    label: 'Metal Mining', description: 'Workers mine metal 20% faster.',
+    cost: { food: 100, wood: 75 }, time: 30, era: 2, gather: { metal: 1.2 },
+  },
+  horse_collar: {
+    label: 'Horse Collar', description: 'Farms produce 20% faster.',
+    cost: { food: 75, wood: 75 }, time: 25, era: 2, farm: 1.2,
+  },
+  bow_saw: {
+    label: 'Bow Saw', description: 'Workers chop wood 20% faster.',
+    cost: { food: 200, wood: 100 }, time: 40, era: 3, gather: { wood: 1.2 },
+  },
+  shaft_mining: {
+    label: 'Shaft Mining', description: 'Workers mine stone and metal 20% faster.',
+    cost: { food: 200, wood: 150 }, time: 45, era: 3, gather: { stone: 1.2, metal: 1.2 },
+  },
+  // ---- Militares generales ----
   forge: {
     label: 'Forge', description: 'Infantry and cavalry: +15% attack.',
     cost: { food: 150, metal: 100 }, time: 45, era: 2, units: { infantry: { attack: 1.15 }, cavalry: { attack: 1.15 } },
@@ -592,11 +671,78 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     label: 'Plating', description: 'Tanks and airplanes: +15% hit points and +2 armor.',
     cost: { metal: 400 }, time: 75, era: 4, units: { armor: { hp: 1.15, armor: 2 }, air: { hp: 1.15, armor: 2 } },
   },
+  // ---- Evoluciones de unidades (como en AoE) ----
+  man_at_arms: {
+    label: 'Man-at-Arms', description: 'Warriors become Men-at-Arms: +30% health, +35% attack, +1 armor.',
+    cost: { food: 100, wood: 60 }, time: 35, era: 1,
+    unitMods: { warrior: { hp: 1.3, attack: 1.35, armor: 1 } }, rename: { warrior: 'Man-at-Arms' },
+  },
+  pikeman: {
+    label: 'Pikeman', description: 'Spearmen become Pikemen: +30% health, +40% attack.',
+    cost: { food: 150, wood: 120 }, time: 40, era: 2,
+    unitMods: { spearman: { hp: 1.3, attack: 1.4 } }, rename: { spearman: 'Pikeman' },
+  },
+  crossbow: {
+    label: 'Crossbowman', description: 'Archers become Crossbowmen: +40% attack, +15% health, +1 range.',
+    cost: { food: 125, metal: 75 }, time: 40, era: 2,
+    unitMods: { archer: { attack: 1.4, hp: 1.15, range: 1 } }, rename: { archer: 'Crossbowman' },
+  },
+  light_cavalry: {
+    label: 'Light Cavalry', description: 'Scouts become Light Cavalry: +50% health, +50% attack, +1 armor.',
+    cost: { food: 150, metal: 50 }, time: 40, era: 2,
+    unitMods: { scout: { hp: 1.5, attack: 1.5, armor: 1 } }, rename: { scout: 'Light Cavalry' },
+  },
+  cavalier: {
+    label: 'Cavalier', description: 'Knights become Cavaliers: +25% health, +25% attack, +1 armor.',
+    cost: { food: 250, metal: 150 }, time: 50, era: 2,
+    unitMods: { knight: { hp: 1.25, attack: 1.25, armor: 1 } }, rename: { knight: 'Cavalier' },
+  },
+  veteran_riflemen: {
+    label: 'Veteran Riflemen', description: 'Riflemen become veterans: +30% health, +20% attack.',
+    cost: { food: 200, metal: 150 }, time: 50, era: 3,
+    unitMods: { rifleman: { hp: 1.3, attack: 1.2 } }, rename: { rifleman: 'Veteran Rifleman' },
+  },
+  armored_cars: {
+    label: 'Armored Cars', description: 'Light vehicles become Armored Cars: +30% health, +1 armor.',
+    cost: { metal: 250 }, time: 50, era: 3,
+    unitMods: { light_vehicle: { hp: 1.3, armor: 1 } }, rename: { light_vehicle: 'Armored Car' },
+  },
 };
+
+/** Élites: nombre especial y mejora extra para algunas (p. ej. el arco recurvo mongol). */
+const ELITE: Partial<Record<UniqueUnitType, { name: string; mods: StatMods; note: string }>> = {
+  legionary: { name: 'Praetorian', mods: { hp: 1.3, attack: 1.25, armor: 2 }, note: "the emperor's own guard: +30% health, +25% attack, +2 armor" },
+  scorpion: { name: 'Heavy Scorpion', mods: { attack: 1.3, hp: 1.25, range: 1 }, note: '+30% attack, +25% health, +1 range' },
+  horse_archer: { name: 'Elite Horse Archer', mods: { attack: 1.35, hp: 1.25, armor: 1, range: 1 }, note: 'recurve bow: +35% attack, +1 range, +25% health, +1 armor' },
+  keshig: { name: "Khan's Keshig", mods: { hp: 1.3, attack: 1.3, armor: 1, speed: 1.05 }, note: '+30% health and attack, +1 armor, +5% speed' },
+  berserker: { name: 'Elite Berserker', mods: { hp: 1.3, attack: 1.25, regen: 1 }, note: '+30% health, +25% attack, heals 1 more health per second' },
+};
+
+function eliteTechs(): Record<`elite_${UniqueUnitType}`, TechDef> {
+  const out = {} as Record<`elite_${UniqueUnitType}`, TechDef>;
+  for (const u of UNIQUE_UNITS) {
+    const d = UNIT_DEFS[u];
+    const e = ELITE[u] ?? { name: `Elite ${d.label}`, mods: { hp: 1.25, attack: 1.25, armor: 1 }, note: '+25% health, +25% attack, +1 armor' };
+    out[`elite_${u}`] = {
+      label: e.name,
+      description: `${d.label} becomes ${e.name}: ${e.note}.`,
+      cost: { food: 250, metal: 200 }, time: 60, era: 2, faction: d.faction,
+      unitMods: { [u]: e.mods }, rename: { [u]: e.name },
+    };
+  }
+  return out;
+}
+
+export const TECH_DEFS: Record<TechId, TechDef> = { ...BASE_TECHS, ...eliteTechs() };
 
 /** ¿Es un avance de era? */
 export function isEraTech(t: TechId): boolean {
   return TECH_DEFS[t].advancesTo !== undefined;
+}
+
+/** ¿Es la evolución de una unidad (Piquero, élites…)? */
+export function isUpgradeTech(t: TechId): boolean {
+  return TECH_DEFS[t].unitMods !== undefined;
 }
 
 // ---------- Facciones ----------
@@ -614,8 +760,21 @@ export interface FactionDef {
   gather?: Partial<Record<ResourceType, number>>;
   /** Multiplicador de la vida de los edificios. */
   buildingHp?: number;
+  /** Habilidades especiales (mecánicas propias de este pueblo). */
+  traits?: {
+    /** Velocidad de construcción de los trabajadores. */
+    buildSpeed?: number;
+    /** Velocidad de entrenamiento por tipo de unidad. */
+    trainSpeed?: Partial<Record<Category, number>>;
+    /** Curación propia por tipo de unidad (vida por segundo). */
+    regen?: Partial<Record<Category, number>>;
+    /** Multiplicador de la carga de caballería (reemplaza al normal). */
+    charge?: number;
+  };
   strengths: string[];
   weaknesses: string[];
+  /** Habilidades explicadas para la interfaz. */
+  abilities: string[];
 }
 export const FACTIONS: Record<FactionId, FactionDef> = {
   romans: {
@@ -625,6 +784,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     buildingHp: 1.1,
     strengths: ['Infantry: +15% health and +1 armor', 'Siege: +15% attack', 'Buildings: +10% health'],
     weaknesses: ['Cavalry: −15% attack'],
+    traits: { buildSpeed: 1.3 },
+    abilities: ['Roman engineering: workers build 30% faster', 'The Castrum shoots arrows like a fort'],
   },
   mongols: {
     name: 'Mongols',
@@ -634,6 +795,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     buildingHp: 0.85,
     strengths: ['Cavalry: +15% speed and +10% attack', 'Food: +10% gathering'],
     weaknesses: ['Infantry: −20% health', 'Buildings: −15% health'],
+    traits: { trainSpeed: { cavalry: 1.25 } },
+    abilities: ['Steppe riders: cavalry trains 25% faster', 'The Ordu gives +10 population'],
   },
   gauls: {
     name: 'Gauls',
@@ -643,6 +806,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     buildingHp: 0.9,
     strengths: ['Infantry: +15% attack and +5% speed', 'Wood: +15% gathering'],
     weaknesses: ['Ranged: −10% attack', 'Buildings: −10% health'],
+    abilities: ['Druids: the Nemeton heals your units nearby (+2 health per second)'],
   },
   germans: {
     name: 'Germans',
@@ -651,6 +815,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     gather: { food: 1.1, wood: 1.1 },
     strengths: ['Infantry: +10% health', 'Food and wood: +10% gathering'],
     weaknesses: ['Siege: −20% attack'],
+    traits: { trainSpeed: { infantry: 1.25 } },
+    abilities: ['Barbarian hordes: infantry trains 25% faster', 'The War Hall is a food and wood drop-off'],
   },
   visigoths: {
     name: 'Visigoths',
@@ -658,6 +824,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     units: { cavalry: { hp: 1.15 }, ranged: { range: 1 }, infantry: { attack: 0.9 } },
     strengths: ['Cavalry: +15% health', 'Ranged: +1 range'],
     weaknesses: ['Infantry: −10% attack'],
+    traits: { charge: 1.8 },
+    abilities: ['Heavy charge: cavalry charges deal ×1.8 damage', 'The Royal Hall is a drop-off for all resources'],
   },
   ostrogoths: {
     name: 'Ostrogoths',
@@ -666,6 +834,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     gather: { stone: 1.15 },
     strengths: ['Cavalry: +20% attack', 'Stone: +15% gathering'],
     weaknesses: ['Ranged: −15% attack'],
+    traits: { charge: 2.2 },
+    abilities: ['Lance of Theodoric: cavalry charges deal ×2.2 damage', 'The Royal Palace gives +5 population'],
   },
   vikings: {
     name: 'Vikings',
@@ -674,6 +844,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     gather: { wood: 1.1, metal: 1.1 },
     strengths: ['Infantry: +10% attack and +10% speed', 'Wood and metal: +10% gathering'],
     weaknesses: ['Cavalry: −25% health'],
+    traits: { regen: { infantry: 0.5 } },
+    abilities: ['Berserkergang: infantry heals 0.5 health per second', 'Berserkers heal even faster'],
   },
 };
 export const FACTION_ORDER: readonly FactionId[] = ['romans', 'mongols', 'gauls', 'germans', 'visigoths', 'ostrogoths', 'vikings'];
@@ -684,6 +856,10 @@ export function uniquesOf(faction: FactionId): { units: UnitType[]; building: Bu
     building: (Object.keys(BUILDING_DEFS) as BuildingType[]).find((b) => BUILDING_DEFS[b].faction === faction),
   };
 }
+
+/** Carga de caballería: tras unos segundos sin pelear, el primer golpe cuerpo a cuerpo hace más daño. */
+export const CHARGE_BONUS = 1.5;
+export const CHARGE_READY_SEC = 4;
 
 // ---------- Diplomacia ----------
 /** Relación entre dos jugadores: en guerra, en paz (no se atacan) o aliados. */

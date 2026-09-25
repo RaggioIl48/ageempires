@@ -3,6 +3,7 @@
 
 import { BUILDING_DEFS, TILE_MOUNTAIN, TILE_WATER, type BuildingType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
+import { isUpgraded } from '../../shared/stats.ts';
 import {
   UNIT_LOOK,
   buildingHeight,
@@ -185,8 +186,8 @@ export class Renderer {
     list.sort((a, b) => a.depth - b.depth);
 
     for (const b of flat) {
-      if (b.progress < 1) drawConstruction(ctx, b, state.color(b.owner));
-      else drawBuilding(ctx, b, state.color(b.owner));
+      if (b.progress < 1) drawConstruction(ctx, b, state.color(b.owner), state.faction(b.owner));
+      else drawBuilding(ctx, b, state.color(b.owner), state.faction(b.owner));
     }
 
     // Marcas de selección en el suelo (debajo de todo).
@@ -218,13 +219,13 @@ export class Renderer {
         }
         case 'building': {
           const color = state.color(d.b.owner);
-          if (d.b.progress < 1) drawConstruction(ctx, d.b, color);
-          else drawBuilding(ctx, d.b, color);
+          if (d.b.progress < 1) drawConstruction(ctx, d.b, color, state.faction(d.b.owner));
+          else drawBuilding(ctx, d.b, color, state.faction(d.b.owner));
           break;
         }
         case 'unit': {
           const p = worldToPx(d.x, d.y);
-          drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now);
+          drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)));
           break;
         }
       }
@@ -293,7 +294,7 @@ export class Renderer {
         fillFootprint(ctx, t.x, t.y, 1, t.ok ? 'rgba(80,220,110,0.35)' : 'rgba(230,60,60,0.4)');
         if (!t.ok) continue;
         ctx.globalAlpha = 0.55;
-        drawBuilding(ctx, { id: 0, owner: state.you, type: 'wall', tx: t.x, ty: t.y, hp: 1, progress: 1 }, state.color(state.you));
+        drawBuilding(ctx, { id: 0, owner: state.you, type: 'wall', tx: t.x, ty: t.y, hp: 1, progress: 1 }, state.color(state.you), state.faction(state.you));
         ctx.globalAlpha = 1;
       }
     } else if (ghost) {
@@ -301,7 +302,7 @@ export class Renderer {
       fillFootprint(ctx, ghost.tx, ghost.ty, s, ghost.ok ? 'rgba(80,220,110,0.35)' : 'rgba(230,60,60,0.4)');
       outlineFootprint(ctx, ghost.tx, ghost.ty, s, ghost.ok ? '#7dff8a' : '#ff6b6b', 2);
       ctx.globalAlpha = 0.55;
-      drawBuilding(ctx, { id: 0, owner: state.you, type: ghost.type, tx: ghost.tx, ty: ghost.ty, hp: 1, progress: 1, food: BUILDING_DEFS[ghost.type].food }, state.color(state.you));
+      drawBuilding(ctx, { id: 0, owner: state.you, type: ghost.type, tx: ghost.tx, ty: ghost.ty, hp: 1, progress: 1, food: BUILDING_DEFS[ghost.type].food }, state.color(state.you), state.faction(state.you));
       ctx.globalAlpha = 1;
     }
 
@@ -367,10 +368,12 @@ export class Renderer {
         case 'hit': {
           const p = worldToPx(e.x, e.y);
           ctx.globalAlpha = 1 - age;
-          ctx.fillStyle = '#fff3b0';
-          for (let i = 0; i < 4; i++) {
-            const ang = i * (Math.PI / 2) + 0.4;
-            ctx.fillRect(p.px + Math.cos(ang) * 5 * (0.5 + age) - 1, p.py - 14 + Math.sin(ang) * 5 * (0.5 + age) - 1, 2, 2);
+          ctx.fillStyle = e.c ? '#ffb347' : '#fff3b0';
+          // Golpe de carga: más chispas y más grandes.
+          const n = e.c ? 8 : 4, spread = e.c ? 10 : 5, sz = e.c ? 3 : 2;
+          for (let i = 0; i < n; i++) {
+            const ang = i * ((Math.PI * 2) / n) + 0.4;
+            ctx.fillRect(p.px + Math.cos(ang) * spread * (0.5 + age) - 1, p.py - 14 + Math.sin(ang) * spread * (0.5 + age) - 1, sz, sz);
           }
           ctx.globalAlpha = 1;
           break;
