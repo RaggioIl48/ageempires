@@ -99,7 +99,7 @@ describe('eras', () => {
     for (const [type, def] of Object.entries(UNIT_DEFS) as [UnitType, (typeof UNIT_DEFS)[UnitType]][]) {
       const where = Object.values(BUILDING_DEFS).filter((b) => b.trains.includes(type) && b.era <= def.untilEra);
       expect(where.length, type).toBeGreaterThan(0);
-      expect(unitAvailable(type, def.era)).toBe(true);
+      expect(unitAvailable(type, def.era, def.faction)).toBe(true);
     }
   });
 
@@ -133,22 +133,22 @@ describe('eras', () => {
 describe('technologies', () => {
   it('tools: faster wood, stone and metal; plow: faster farms; wheelbarrow: carries more', () => {
     const tools = techBit('tools');
-    expect(gatherRate('legion', 'wood', false, tools)).toBeCloseTo(gatherRate('legion', 'wood') * 1.15);
-    expect(gatherRate('legion', 'food', false, tools)).toBe(gatherRate('legion', 'food'));
-    expect(gatherRate('legion', 'food', true, techBit('plow'))).toBeCloseTo(gatherRate('legion', 'food', true) * 1.25);
+    expect(gatherRate('romans', 'wood', false, tools)).toBeCloseTo(gatherRate('romans', 'wood') * 1.15);
+    expect(gatherRate('romans', 'food', false, tools)).toBe(gatherRate('romans', 'food'));
+    expect(gatherRate('romans', 'food', true, techBit('plow'))).toBeCloseTo(gatherRate('romans', 'food', true) * 1.25);
     expect(carryCapacity(techBit('wheelbarrow'))).toBe(carryCapacity() + 5);
   });
 
   it('forge raises the attack of infantry and cavalry, but not of archers', () => {
     const f = techBit('forge');
-    expect(unitStats('legion', 'spearman', f).attack.damage).toBeCloseTo(UNIT_DEFS.spearman.attack.damage * 1.15, 1);
-    expect(unitStats('legion', 'archer', f).attack.damage).toBe(unitStats('legion', 'archer').attack.damage);
+    expect(unitStats('germans', 'spearman', f).attack.damage).toBeCloseTo(UNIT_DEFS.spearman.attack.damage * 1.15, 1);
+    expect(unitStats('germans', 'archer', f).attack.damage).toBe(unitStats('germans', 'archer').attack.damage);
   });
 
   it('ballistics: +1 range for ranged units, and it adds to the faction bonus', () => {
-    const base = unitStats('forest', 'rifleman').attack.range;
-    expect(unitStats('forest', 'rifleman', techBit('ballistics')).attack.range).toBe(base + 1);
-    expect(base).toBe(UNIT_DEFS.rifleman.attack.range + 1); // Guardia del Bosque
+    const base = unitStats('visigoths', 'rifleman').attack.range;
+    expect(unitStats('visigoths', 'rifleman', techBit('ballistics')).attack.range).toBe(base + 1);
+    expect(base).toBe(UNIT_DEFS.rifleman.attack.range + 1); // Visigoths
   });
 
   it('a researched technology works in the game: workers gather faster', () => {
@@ -167,8 +167,8 @@ describe('technologies', () => {
     completeTech(w, 1, 'era2');
     tc.hp = tc.maxHp / 2;
     completeTech(w, 1, 'masonry');
-    expect(tc.maxHp).toBe(buildingMaxHp('legion', 'town_center', w.players.get(1)!.techs));
-    expect(tc.maxHp).toBe(Math.round(2000 * 1.2));
+    expect(tc.maxHp).toBe(buildingMaxHp('romans', 'town_center', w.players.get(1)!.techs));
+    expect(tc.maxHp).toBe(Math.round(2000 * 1.1 * 1.2)); // Romans: +10% buildings
     expect(tc.hp).toBeCloseTo(tc.maxHp / 2);
   });
 
@@ -187,7 +187,7 @@ describe('technologies', () => {
 
 describe('advanced units', () => {
   it('spearmen beat knights; knights beat archers', () => {
-    const spear = unitStats('legion', 'spearman'), knight = unitStats('legion', 'knight'), archer = unitStats('legion', 'archer');
+    const spear = unitStats('germans', 'spearman'), knight = unitStats('germans', 'knight'), archer = unitStats('germans', 'archer');
     const spearHitsKnight = damage(spear.attack, 'infantry', 'cavalry', knight.armor, spear.bonus);
     expect(spearHitsKnight).toBe(Math.round(6 * 2 - 2));
     // Time to kill (in hits × cooldown): a spearman kills a knight faster than it dies... in pairs of 2 vs 1 cost-wise
@@ -196,12 +196,12 @@ describe('advanced units', () => {
   });
 
   it('the anti-tank team destroys tanks; a machine gun shreds infantry', () => {
-    const at = unitStats('legion', 'antitank'), tank = unitStats('legion', 'tank');
+    const at = unitStats('germans', 'antitank'), tank = unitStats('germans', 'tank');
     expect(damage(at.attack, 'infantry', 'armor', tank.armor, at.bonus)).toBe(14 * 3.5 - 8);
-    // Liga del Río: no ranged bonuses or penalties.
-    const mg = unitStats('river', 'machine_gun'), rifle = unitStats('river', 'rifleman');
+    // Germans: no ranged bonuses or penalties.
+    const mg = unitStats('germans', 'machine_gun'), rifle = unitStats('germans', 'rifleman');
     expect(damage(mg.attack, 'ranged', 'ranged', rifle.armor, mg.bonus)).toBe(6 - 1);
-    const mech = unitStats('river', 'mech_infantry');
+    const mech = unitStats('germans', 'mech_infantry');
     expect(damage(mg.attack, 'ranged', 'infantry', mech.armor, mg.bonus)).toBe(Math.round(6 * 2.5 - 3));
   });
 

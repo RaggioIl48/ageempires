@@ -227,7 +227,7 @@ export class ClientState {
   }
 
   faction(playerId: number): FactionId {
-    return this.players.get(playerId)?.faction ?? 'legion';
+    return this.players.get(playerId)?.faction ?? 'romans';
   }
 
   eraOf(playerId: number): number {
@@ -269,6 +269,11 @@ export class ClientState {
    * Mismas reglas que el servidor: dentro del mapa, sobre pasto, sin nada encima.
    */
   canPlace(type: BuildingType, tx: number, ty: number): boolean {
+    // Una puerta puede ir sobre una pieza de muralla propia (la reemplaza).
+    if (type === 'gate') {
+      const b = this.buildingAt(tx, ty);
+      if (b && b.owner === this.you && b.type === 'wall') return true;
+    }
     const s = BUILDING_DEFS[type].size;
     for (let y = ty; y < ty + s; y++)
       for (let x = tx; x < tx + s; x++) {

@@ -28,7 +28,7 @@ export function runUntil(game: Game, cond: () => boolean, maxSeconds = 300): num
  * Mapa plano y vacío de 40×40, controlado al detalle para pruebas precisas.
  * Jugador 1 con Centro Urbano en (4,4); jugador 2 con Centro Urbano en (33,33).
  */
-export function flatGame(factions: [FactionId, FactionId] = ['legion', 'legion']): Game {
+export function flatGame(factions: [FactionId, FactionId] = ['romans', 'romans']): Game {
   const w = new World(40);
   w.addPlayer(1, 'Uno', '#2f6fd6', { x: 5, y: 5 }, factions[0]);
   w.addPlayer(2, 'Dos', '#d63a2f', { x: 34, y: 34 }, factions[1]);

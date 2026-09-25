@@ -184,6 +184,8 @@ export type Command =
   | { kind: 'gather'; unitIds: number[]; targetId: number }
   /** Colocar un edificio nuevo y mandar a construirlo. */
   | { kind: 'build'; unitIds: number[]; building: BuildingType; tx: number; ty: number }
+  /** Muralla larga de una sola orden: de (x0, y0) a (x1, y1). */
+  | { kind: 'wall'; unitIds: number[]; x0: number; y0: number; x1: number; y1: number }
   /** Ayudar a construir o reparar un edificio propio. */
   | { kind: 'construct'; unitIds: number[]; targetId: number }
   | { kind: 'attack'; unitIds: number[]; targetId: number }
@@ -461,6 +463,10 @@ function parseCommand(c: Record<string, unknown>): Command | null {
     case 'construct':
     case 'attack':
       return isId(c.targetId) ? { kind: c.kind, unitIds, targetId: c.targetId } : null;
+    case 'wall':
+      return isTile(c.x0) && isTile(c.y0) && isTile(c.x1) && isTile(c.y1)
+        ? { kind: 'wall', unitIds, x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }
+        : null;
     case 'build':
       return isKey(BUILDING_DEFS, c.building) && isTile(c.tx) && isTile(c.ty)
         ? { kind: 'build', unitIds, building: c.building, tx: c.tx, ty: c.ty }

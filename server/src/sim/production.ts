@@ -29,7 +29,8 @@ export function queueUnit(world: World, playerId: number, b: Building, unit: Uni
   if (b.progress < 1) return 'The building is not finished yet';
   if (!BUILDING_DEFS[b.type].trains.includes(unit)) return null;
   const def = UNIT_DEFS[unit];
-  if (!unitAvailable(unit, world.eraOf(playerId)))
+  if (def.faction && def.faction !== world.factionOf(playerId)) return null; // unidad única de otro pueblo
+  if (!unitAvailable(unit, world.eraOf(playerId), world.factionOf(playerId)))
     return world.eraOf(playerId) < def.era ? `${def.label}: you need the ${eraLabel(def.era)}` : `${def.label} is no longer trained in this age`;
   if (b.queue.length >= MAX_QUEUE) return `The queue is full (maximum ${MAX_QUEUE})`;
   if (!world.spend(playerId, def.cost)) return 'Not enough resources';

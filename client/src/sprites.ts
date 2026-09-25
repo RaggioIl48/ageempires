@@ -213,6 +213,7 @@ export function buildingHeight(type: BuildingView['type']): number {
   return {
     town_center: 90, house: 50, storehouse: 44, farm: 6, barracks: 64,
     archery_range: 40, stable: 50, tech_center: 66, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
+    castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
   }[type];
 }
 
@@ -497,7 +498,152 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       flag(ctx, k.B.px, k.B.py - H, color, 16);
       break;
     }
+    // ---- Edificios únicos de cada pueblo ----
+    case 'castrum': {
+      // Fuerte romano: muro bajo de piedra, torres en las esquinas y el cuartel general al centro.
+      const k = corners(b, s, 0.12);
+      const H = 16;
+      poly(ctx, [k.T.px, k.T.py + 4, k.R.px + 8, k.R.py + 4, k.B.px, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
+      fillFootprint(ctx, b.tx + 0.12, b.ty + 0.12, s - 0.24, '#a89878');
+      miniTower(ctx, k.T, 30, color);
+      const hq = corners({ tx: b.tx + 0.8, ty: b.ty + 0.8 }, 1.4, 0);
+      box(ctx, hq, 20, '#d8cdb3', '#b5aa90');
+      hipRoof(ctx, hq, 20, 14, '#b5483a');
+      box(ctx, k, H, '#b9ae98', '#978d78');
+      ctx.fillStyle = '#c9bfa9';
+      for (let i = 0; i <= 6; i++) {
+        const a = along(k.L, k.B, i / 6), c = along(k.B, k.R, i / 6);
+        ctx.fillRect(a.px - 2, a.py - H - 4, 4, 4);
+        ctx.fillRect(c.px - 2, c.py - H - 4, 4, 4);
+      }
+      const g0 = along(k.L, k.B, 0.42), g1 = along(k.L, k.B, 0.58);
+      poly(ctx, [g0.px, g0.py, g1.px, g1.py, g1.px, g1.py - 12, g0.px, g0.py - 12], '#4a3222');
+      miniTower(ctx, k.L, 30, color);
+      miniTower(ctx, k.R, 30, color);
+      miniTower(ctx, k.B, 32, color);
+      flag(ctx, hq.C.px, hq.C.py - 34, color, 18);
+      break;
+    }
+    case 'ordu': {
+      // Campamento mongol: yurtas blancas con franjas del color del jugador.
+      fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, 'rgba(150,130,90,0.35)');
+      for (const [dx, dy, r] of [[0.8, 0.8, 14], [2.3, 0.8, 14], [0.8, 2.3, 14], [1.8, 1.8, 21]] as const) {
+        const p = worldToPx(b.tx + dx, b.ty + dy);
+        yurt(ctx, p.px, p.py, r, color);
+      }
+      const pole = worldToPx(b.tx + 2.6, b.ty + 2.6);
+      flag(ctx, pole.px, pole.py, color, 30);
+      break;
+    }
+    case 'nemeton': {
+      // Bosque sagrado galo: círculo de piedras y un roble con cintas.
+      fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, 'rgba(90,120,60,0.45)');
+      const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
+      const stones: [number, number][] = [];
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        stones.push([Math.cos(a) * 1.25, Math.sin(a) * 1.25]);
+      }
+      const drawStone = ([sx, sy]: [number, number]) => {
+        const p = worldToPx(b.tx + s / 2 + sx, b.ty + s / 2 + sy);
+        poly(ctx, [p.px - 3, p.py, p.px - 2.5, p.py - 13, p.px + 2.5, p.py - 14, p.px + 3, p.py], '#9d9a92');
+        poly(ctx, [p.px + 0.5, p.py - 14, p.px + 2.5, p.py - 14, p.px + 3, p.py, p.px + 0.5, p.py], '#7e7b74');
+      };
+      stones.filter(([, sy], i) => sy + stones[i][0] < 0).forEach(drawStone); // las de atrás
+      ctx.fillStyle = '#5b3f25';
+      ctx.fillRect(c.px - 4, c.py - 34, 8, 34);
+      ellipse(ctx, c.px, c.py - 46, 32, 22, '#3f7a36');
+      ellipse(ctx, c.px - 13, c.py - 54, 17, 14, '#4a8a3e');
+      ellipse(ctx, c.px + 13, c.py - 57, 15, 12, '#58a04d');
+      for (const dx of [-18, -7, 8, 19]) line(ctx, c.px + dx, c.py - 38, c.px + dx + 1, c.py - 24, color, 2.5);
+      stones.filter(([, sy], i) => sy + stones[i][0] >= 0).forEach(drawStone); // las de adelante
+      break;
+    }
+    case 'war_hall':
+      longHall(ctx, b, s, color, { wall: '#8a5a33', wallDark: '#6d4527', roof: '#b89a4e', rise: 24 });
+      break;
+    case 'mead_hall':
+      longHall(ctx, b, s, color, { wall: '#6b4a2b', wallDark: '#553820', roof: '#4e4a3a', rise: 28, dragons: true });
+      break;
+    case 'royal_hall':
+      longHall(ctx, b, s, color, { wall: '#cfc4ad', wallDark: '#aa9f88', roof: '#9c4a32', rise: 22 });
+      break;
+    case 'royal_palace':
+      longHall(ctx, b, s, color, { wall: '#e2dccb', wallDark: '#c2bba8', roof: color, rise: 22, columns: true });
+      break;
   }
+}
+
+/** Torre pequeña de esquina (castrum). */
+function miniTower(ctx: CanvasRenderingContext2D, p: P, h: number, color: string): void {
+  ctx.fillStyle = '#a99e88';
+  ctx.fillRect(p.px - 5, p.py - h, 10, h);
+  ctx.fillStyle = '#8a806c';
+  ctx.fillRect(p.px, p.py - h, 5, h);
+  poly(ctx, [p.px - 7, p.py - h, p.px + 7, p.py - h, p.px, p.py - h - 10], shade(color, 0.9));
+}
+
+/** Yurta: base cilíndrica blanca, techo en cúpula y una franja de color. */
+function yurt(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string): void {
+  ellipse(ctx, x + 2, y + 1, r + 2, r * 0.45, 'rgba(0,0,0,0.22)');
+  const h = r * 0.9;
+  ctx.fillStyle = '#e8e0cc';
+  ctx.fillRect(x - r, y - h, r * 2, h);
+  ellipse(ctx, x, y, r, r * 0.4, '#e8e0cc');
+  ctx.fillStyle = color;
+  ctx.fillRect(x - r, y - h * 0.55, r * 2, 2.5);
+  ctx.beginPath();
+  ctx.ellipse(x, y - h, r, r * 0.75, 0, Math.PI, 0);
+  ctx.fillStyle = '#d8cfb8';
+  ctx.fill();
+  ellipse(ctx, x, y - h, r, r * 0.35, '#cfc5ab');
+  ellipse(ctx, x, y - h - r * 0.6, 2, 1.2, '#6b4a2b');
+  ctx.fillStyle = '#8a5a33';
+  ctx.fillRect(x - 2, y - h * 0.7, 4, h * 0.7);
+}
+
+/** Salón alargado con techo a dos aguas (germanos, godos, vikingos). */
+function longHall(
+  ctx: CanvasRenderingContext2D,
+  b: { tx: number; ty: number },
+  s: number,
+  color: string,
+  o: { wall: string; wallDark: string; roof: string; rise: number; dragons?: boolean; columns?: boolean },
+): void {
+  const k = corners(b, s, 0.2);
+  const H = 22;
+  poly(ctx, [k.T.px, k.T.py + 4, k.R.px + 8, k.R.py + 4, k.B.px, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
+  box(ctx, k, H, o.wall, o.wallDark);
+  if (o.columns) {
+    ctx.fillStyle = '#f4f1ea';
+    for (let i = 1; i < 6; i++) {
+      const a = along(k.L, k.B, i / 6);
+      ctx.fillRect(a.px - 1.5, a.py - H + 2, 3, H - 2);
+    }
+  }
+  // Puerta y escudos con el color del jugador
+  const d0 = along(k.L, k.B, 0.42), d1 = along(k.L, k.B, 0.58);
+  poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 14, d0.px, d0.py - 14], '#2e2016');
+  for (const f of [0.18, 0.78]) {
+    const p = along(k.L, k.B, f);
+    ellipse(ctx, p.px, p.py - 13, 3.5, 4, color, '#d9d2c0', 1);
+  }
+  // Techo a dos aguas: la cumbrera va de la mitad de T-L a la mitad de R-B.
+  const top = (p: P) => ({ px: p.px, py: p.py - H });
+  const rl = along(top(k.T), top(k.L), 0.5), rr = along(top(k.R), top(k.B), 0.5);
+  const ridgeL = { px: rl.px, py: rl.py - o.rise }, ridgeR = { px: rr.px, py: rr.py - o.rise };
+  poly(ctx, [top(k.T).px, top(k.T).py, top(k.R).px, top(k.R).py, ridgeR.px, ridgeR.py, ridgeL.px, ridgeL.py], shade(o.roof, 0.75));
+  poly(ctx, [top(k.R).px, top(k.R).py, top(k.B).px, top(k.B).py, ridgeR.px, ridgeR.py], shade(o.wallDark, 0.9)); // hastial
+  poly(ctx, [top(k.L).px, top(k.L).py, top(k.B).px, top(k.B).py, ridgeR.px, ridgeR.py, ridgeL.px, ridgeL.py], shade(o.roof, 1.05));
+  line(ctx, ridgeL.px, ridgeL.py, ridgeR.px, ridgeR.py, shade(o.roof, 0.6), 1.5);
+  if (o.dragons) {
+    // Cabezas de dragón talladas en los extremos de la cumbrera
+    for (const r of [ridgeL, ridgeR]) {
+      line(ctx, r.px - 4, r.py + 2, r.px + 3, r.py - 7, '#3b2818', 2);
+      line(ctx, r.px + 4, r.py + 2, r.px - 3, r.py - 7, '#3b2818', 2);
+    }
+  }
+  flag(ctx, ridgeR.px, ridgeR.py, color, 16);
 }
 
 /** Cimiento: se ve el edificio "subiendo" y un andamio de madera. */
@@ -547,6 +693,20 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   heavy_artillery: { half: 19, top: 30, ring: 19 },
   tank: { half: 18, top: 30, ring: 18 },
   airplane: { half: 18, top: 60, ring: 15 },
+  legionary: { half: 10, top: 30, ring: 11 },
+  scorpion: { half: 14, top: 22, ring: 14 },
+  horse_archer: { half: 13, top: 32, ring: 13 },
+  keshig: { half: 14, top: 36, ring: 14 },
+  fanatic: { half: 9, top: 28, ring: 10 },
+  chosen_swordsman: { half: 10, top: 28, ring: 11 },
+  chosen_spearman: { half: 10, top: 34, ring: 11 },
+  axe_thrower: { half: 9, top: 28, ring: 10 },
+  gothic_knight: { half: 14, top: 36, ring: 14 },
+  armored_archer: { half: 9, top: 28, ring: 10 },
+  gothic_lancer: { half: 14, top: 38, ring: 14 },
+  heavy_spearman: { half: 10, top: 34, ring: 11 },
+  berserker: { half: 10, top: 28, ring: 10 },
+  huscarl: { half: 10, top: 30, ring: 11 },
 };
 /** Altura de vuelo de los aviones (px). */
 export const FLY_HEIGHT = 40;
@@ -622,7 +782,125 @@ export function drawUnit(ctx: CanvasRenderingContext2D, u: UnitView, x: number, 
       return drawTank(ctx, x, y, color, t, walking, attacking);
     case 'airplane':
       return drawPlane(ctx, x, y, color, t);
+    // ---- Unidades únicas ----
+    case 'legionary': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#9b2d20', 'crest');
+      stab(ctx, x, y, bob, t, attacking, 8);
+      // Escudo rectangular (scutum) con el color del jugador
+      poly(ctx, [x - 10, y - 20 - bob, x - 4, y - 21 - bob, x - 4, y - 6 - bob, x - 10, y - 5 - bob], color);
+      line(ctx, x - 7, y - 20 - bob, x - 7, y - 6 - bob, '#e8c872', 1);
+      return;
+    }
+    case 'scorpion':
+      return drawScorpion(ctx, x, y, color, t, attacking);
+    case 'horse_archer':
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, false, 'bow');
+    case 'keshig':
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, true, 'lance', '#b58a55');
+    case 'fanatic': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#d9a47a', 'bare');
+      const a = attacking ? Math.sin(t * 9) * 1.2 - 0.6 : -1.4;
+      line(ctx, x + 4, y - 13 - bob, x + 4 + Math.cos(a) * 15, y - 13 - bob + Math.sin(a) * 15, '#d6d9de', 2);
+      return;
+    }
+    case 'chosen_swordsman': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#3f6b3a', 'round');
+      stab(ctx, x, y, bob, t, attacking, 12);
+      ellipse(ctx, x - 6.5, y - 13 - bob, 3.8, 6.5, shade(color, 0.85), '#d9c27a', 1);
+      return;
+    }
+    case 'chosen_spearman': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#5a4a36', 'round');
+      spear(ctx, x, y, bob, t, attacking, 1.15);
+      ellipse(ctx, x - 6, y - 12 - bob, 4.5, 5.5, shade(color, 0.8), '#d9d2c0', 1.2);
+      return;
+    }
+    case 'axe_thrower': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#6b5a3a', 'bare');
+      axe(ctx, x + 5, y - 14 - bob, attacking ? Math.sin(t * 5) * 1.2 - 0.8 : -1.1, 8);
+      return;
+    }
+    case 'gothic_knight':
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, true, 'lance', '#3e3530');
+    case 'armored_archer': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#7a7f86', 'round');
+      bow(ctx, x + 4, y - 14 - bob, attacking ? Math.max(0, Math.sin(t * 5)) * 4 : 0);
+      return;
+    }
+    case 'gothic_lancer':
+      return drawHorseman(ctx, x, y, color, t, walking, attacking, true, 'lance', '#d7c9b0');
+    case 'heavy_spearman': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#7a7f86', 'cone');
+      spear(ctx, x, y, bob, t, attacking, 1.15);
+      poly(ctx, [x - 10, y - 19 - bob, x - 3, y - 20 - bob, x - 3, y - 7 - bob, x - 6.5, y - 4 - bob, x - 10, y - 7 - bob], shade(color, 0.85));
+      return;
+    }
+    case 'berserker': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#d9a47a', 'fur');
+      const a = attacking ? Math.sin(t * 11) * 1.3 - 0.5 : -1.2;
+      axe(ctx, x + 5, y - 13 - bob, a, 9);
+      axe(ctx, x - 5, y - 13 - bob, Math.PI - a, 9);
+      return;
+    }
+    case 'huscarl': {
+      const bob = soldier(ctx, x, y, color, t, walking, '#6f757d', 'cone');
+      axe(ctx, x + 5, y - 13 - bob, attacking ? Math.sin(t * 6) * 1.2 - 0.9 : -1.4, 14);
+      ellipse(ctx, x - 6.5, y - 12 - bob, 5, 6, color, '#d9d2c0', 1.2);
+      ellipse(ctx, x - 6.5, y - 12 - bob, 1.5, 1.5, '#d9d2c0');
+      return;
+    }
   }
+}
+
+/** Espada corta que se clava al atacar. */
+function stab(ctx: CanvasRenderingContext2D, x: number, y: number, bob: number, t: number, attacking: boolean, len: number): void {
+  const push = attacking ? Math.max(0, Math.sin(t * 8)) * 4 : 0;
+  line(ctx, x + 4 + push, y - 12 - bob, x + 4 + len + push, y - 14 - bob, '#d6d9de', 2);
+}
+
+/** Lanza larga (lanceros). */
+function spear(ctx: CanvasRenderingContext2D, x: number, y: number, bob: number, t: number, attacking: boolean, k: number): void {
+  const thrust = attacking ? Math.max(0, Math.sin(t * 8)) * 4 : 0;
+  const tipX = x + 10 * k + thrust, tipY = y - 34 * k - bob - thrust;
+  line(ctx, x + 4 + thrust * 0.3, y - 5 - bob, tipX, tipY, '#8b6a3e', 1.6);
+  poly(ctx, [tipX, tipY, tipX - 1.5, tipY + 5, tipX + 1.5, tipY + 5], '#cfd3d8');
+}
+
+/** Hacha: mango y hoja. `a` = ángulo del golpe. */
+function axe(ctx: CanvasRenderingContext2D, hx: number, hy: number, a: number, len: number): void {
+  const ex = hx + Math.cos(a) * len, ey = hy + Math.sin(a) * len;
+  line(ctx, hx, hy, ex, ey, '#6b4a2b', 1.6);
+  ellipse(ctx, ex, ey, 2.6, 2, '#cfd3d8');
+}
+
+/** Arco con cuerda (se tensa al atacar). */
+function bow(ctx: CanvasRenderingContext2D, cx: number, cy: number, pull: number): void {
+  ctx.strokeStyle = '#7a5230';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, -1.2, 1.2);
+  ctx.stroke();
+  const ex = Math.cos(1.2) * 8, ey = Math.sin(1.2) * 8;
+  line(ctx, cx + ex, cy - ey, cx - pull, cy, '#e8e0c8', 0.8);
+  line(ctx, cx - pull, cy, cx + ex, cy + ey, '#e8e0c8', 0.8);
+}
+
+/** Escorpión romano: lanzavirotes de madera sobre un trípode. */
+function drawScorpion(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, t: number, attacking: boolean): void {
+  ellipse(ctx, x, y, 12, 4.5, 'rgba(0,0,0,0.3)');
+  line(ctx, x, y - 9, x - 7, y, '#6b4a2b', 2);
+  line(ctx, x, y - 9, x + 6, y, '#6b4a2b', 2);
+  line(ctx, x, y - 9, x - 1, y + 1, '#6b4a2b', 2);
+  const recoil = attacking ? Math.max(0, Math.sin(t * 1.8)) ** 8 * 2 : 0;
+  line(ctx, x - 9 - recoil, y - 9, x + 11 - recoil, y - 15, '#8b6a3e', 3); // corredera
+  ctx.strokeStyle = '#5a3d26';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y - 20);
+  ctx.quadraticCurveTo(x + 7, y - 13, x + 3, y - 5);
+  ctx.stroke();
+  poly(ctx, [x - 3, y - 16, x + 2, y - 17, x + 2, y - 10, x - 3, y - 9], color); // escudo del frente
+  if (!attacking || Math.sin(t * 1.8) < 0.3) line(ctx, x - 5, y - 11, x + 12, y - 15.5, '#3b2a1a', 1.2); // virote cargado
 }
 
 function drawWorker(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: number, color: string, t: number, walking: boolean): void {
@@ -688,7 +966,7 @@ function soldier(
   t: number,
   walking: boolean,
   uniform: string,
-  helmet: 'cone' | 'round' | 'hood',
+  helmet: 'cone' | 'round' | 'hood' | 'crest' | 'bare' | 'fur',
 ): number {
   const bob = walking ? Math.abs(Math.sin(t * 9)) * 1.5 : 0;
   const step = walking ? Math.sin(t * 9) * 2 : 0;
@@ -700,13 +978,31 @@ function soldier(
   ctx.fillRect(x - 5, y - 18 - bob, 10, 12);
   ctx.fillStyle = color;
   ctx.fillRect(x - 3.5, y - 16 - bob, 7, 6);
-  if (helmet === 'hood') {
-    ellipse(ctx, x, y - 21 - bob, 4.6, 4.6, shade(uniform, 0.8));
+  if (helmet === 'hood' || helmet === 'fur') {
+    // Capucha (arquero) o piel de oso (berserker)
+    ellipse(ctx, x, y - 21 - bob, 4.6, 4.6, helmet === 'fur' ? '#6b4a2b' : shade(uniform, 0.8));
     ellipse(ctx, x + 0.8, y - 21 - bob, 2.8, 3, '#e2b68c');
+    if (helmet === 'fur') {
+      ellipse(ctx, x - 3.2, y - 25 - bob, 1.5, 1.5, '#5a3d26');
+      ellipse(ctx, x + 3.2, y - 25 - bob, 1.5, 1.5, '#5a3d26');
+    }
     return bob;
   }
   ellipse(ctx, x, y - 21 - bob, 3.6, 3.6, '#e2b68c');
-  if (helmet === 'cone') poly(ctx, [x - 4.5, y - 21 - bob, x, y - 27 - bob, x + 4.5, y - 21 - bob], '#8a9099');
+  if (helmet === 'bare') {
+    // Sin casco: pelo largo (galos, germanos)
+    ctx.beginPath();
+    ctx.ellipse(x, y - 22 - bob, 4.2, 3, 0, Math.PI, 0);
+    ctx.fillStyle = '#c98a3c';
+    ctx.fill();
+  } else if (helmet === 'crest') {
+    // Casco romano con cimera roja
+    ctx.beginPath();
+    ctx.ellipse(x, y - 22 - bob, 4.6, 3.8, 0, Math.PI, 0);
+    ctx.fillStyle = '#b8a47a';
+    ctx.fill();
+    ellipse(ctx, x, y - 27 - bob, 4, 1.8, '#c0392b');
+  } else if (helmet === 'cone') poly(ctx, [x - 4.5, y - 21 - bob, x, y - 27 - bob, x + 4.5, y - 21 - bob], '#8a9099');
   else {
     ctx.beginPath();
     ctx.ellipse(x, y - 22 - bob, 4.8, 3.8, 0, Math.PI, 0);
@@ -727,6 +1023,8 @@ function drawHorseman(
   walking: boolean,
   attacking: boolean,
   heavy: boolean,
+  weapon: 'lance' | 'bow' = 'lance',
+  horseColor?: string,
 ): void {
   const gallop = walking ? Math.sin(t * 14) : 0;
   ellipse(ctx, x, y, 11, 4.5, 'rgba(0,0,0,0.3)');
@@ -741,7 +1039,7 @@ function drawHorseman(
     ctx.stroke();
   }
   // Cuerpo y cabeza del caballo
-  const horse = heavy ? '#5a4a3e' : '#8a5a3b';
+  const horse = horseColor ?? (heavy ? '#5a4a3e' : '#8a5a3b');
   ellipse(ctx, x, y - 10 - gallop * 0.8, 10, 5, horse);
   poly(ctx, [x + 7, y - 13 - gallop, x + 14, y - 19 - gallop, x + 16, y - 16 - gallop, x + 10, y - 9 - gallop], shade(horse, 0.9));
   ctx.fillStyle = '#3a2618';
@@ -759,6 +1057,10 @@ function drawHorseman(
   }
   ellipse(ctx, x, y - 26 - gallop, 3.2, 3.2, heavy ? '#8a9099' : '#e2b68c');
   if (heavy) poly(ctx, [x - 3.5, y - 27 - gallop, x, y - 32 - gallop, x + 3.5, y - 27 - gallop], '#aab0b8');
+  if (weapon === 'bow') {
+    bow(ctx, x + 4, y - 20 - gallop, attacking ? Math.max(0, Math.sin(t * 6)) * 4 : 0);
+    return;
+  }
   // Lanza
   const thrust = attacking ? Math.max(0, Math.sin(t * 8)) * 4 : 0;
   const len = heavy ? 1.3 : 1;

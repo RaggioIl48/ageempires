@@ -129,11 +129,29 @@ function repair(world: World, b: Building, builders: Unit[], amount: number): vo
   b.hp += dhp;
 }
 
-/** Al terminar: quien construyó una granja se queda a trabajarla; el resto queda libre. */
+/** Distancia (casillas) para pasar solo al siguiente cimiento propio (p. ej. el tramo de muralla de al lado). */
+const NEXT_FOUNDATION_RANGE = 4;
+
+/**
+ * Al terminar: quien construyó una granja se queda a trabajarla; si hay otro
+ * cimiento propio muy cerca (como el siguiente tramo de una muralla), sigue
+ * con ese; si no, queda libre.
+ */
 function afterWork(world: World, u: Unit, b: Building): void {
   if (b.type === 'farm' && u.type === 'worker' && !farmTaken(world, b, u)) {
     assignFarm(world, u, b);
     return;
   }
-  stopWork(u);
+  let next: Building | null = null;
+  let best = NEXT_FOUNDATION_RANGE;
+  for (const o of world.buildings.values()) {
+    if (o === b || o.owner !== u.owner || o.progress >= 1 || o.hp <= 0) continue;
+    const d = distanceToRect(u.x, u.y, o.tx, o.ty, o.size);
+    if (d <= best) {
+      best = d;
+      next = o;
+    }
+  }
+  if (next) assignBuild(world, u, next);
+  else stopWork(u);
 }

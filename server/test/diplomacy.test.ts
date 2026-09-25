@@ -35,8 +35,8 @@ describe('diplomacy', () => {
     expect(warrior.task).toBeNull();
     g.enqueue(1, { kind: 'attack', unitIds: [warrior.id], targetId: friend.id });
     run(g, 5);
-    expect(friend.hp).toBe(unitStats('legion', 'worker').hp);
-    expect(nearMyTc.hp).toBe(unitStats('legion', 'worker').hp);
+    expect(friend.hp).toBe(unitStats('romans', 'worker').hp);
+    expect(nearMyTc.hp).toBe(unitStats('romans', 'worker').hp);
     expect(g.takeNotices(1).some((n) => n.includes('ally'))).toBe(true);
   });
 
@@ -85,7 +85,7 @@ describe('diplomacy', () => {
     expect(g.takeNotices(3).some((n) => n.includes('declared war'))).toBe(true);
     run(g, WAR_DELAY_SEC - 2);
     expect(w.relation(1, 2)).toBe('peace');
-    expect(a.hp + b.hp).toBe(2 * unitStats('legion', 'warrior').hp); // nobody attacked during the warning
+    expect(a.hp + b.hp).toBe(2 * unitStats('romans', 'warrior').hp); // nobody attacked during the warning
     run(g, 3);
     expect(w.relation(1, 2)).toBe('war');
     run(g, 2);

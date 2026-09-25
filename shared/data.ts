@@ -33,8 +33,8 @@ export interface NodeDef {
 export const NODE_DEFS: Record<NodeType, NodeDef> = {
   tree: { label: 'Tree', resource: 'wood', amount: 100 },
   berries: { label: 'Berry bush', resource: 'food', amount: 150 },
-  stone: { label: 'Stone quarry', resource: 'stone', amount: 350 },
-  metal: { label: 'Metal vein', resource: 'metal', amount: 350 },
+  stone: { label: 'Stone quarry', resource: 'stone', amount: 400 },
+  metal: { label: 'Metal vein', resource: 'metal', amount: 400 },
 };
 
 // ---------- Eras ----------
@@ -101,7 +101,15 @@ export type UnitType =
   | 'worker' | 'scout' | 'warrior'
   | 'spearman' | 'archer' | 'knight'
   | 'rifleman' | 'machine_gun' | 'light_vehicle' | 'artillery'
-  | 'tank' | 'mech_infantry' | 'antitank' | 'heavy_artillery' | 'airplane';
+  | 'tank' | 'mech_infantry' | 'antitank' | 'heavy_artillery' | 'airplane'
+  // Unidades únicas de cada pueblo (Edad Media)
+  | 'legionary' | 'scorpion'
+  | 'horse_archer' | 'keshig'
+  | 'fanatic' | 'chosen_swordsman'
+  | 'chosen_spearman' | 'axe_thrower'
+  | 'gothic_knight' | 'armored_archer'
+  | 'gothic_lancer' | 'heavy_spearman'
+  | 'berserker' | 'huscarl';
 
 export interface UnitDef {
   label: string;
@@ -123,6 +131,8 @@ export interface UnitDef {
   flies?: boolean;
   /** Cómo se dibuja su disparo: flecha (por defecto), bala o proyectil de cañón. */
   shot?: 'bullet' | 'shell';
+  /** Unidad única: solo la entrena este pueblo. */
+  faction?: FactionId;
   /** Para la interfaz: en qué es buena y en qué no. */
   strong: string;
   weak: string;
@@ -212,6 +222,93 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     attack: ranged(25, 3, 2.5), armor: { melee: 0, ranged: 2 }, category: 'air', era: 4, untilEra: 4, flies: true,
     strong: 'Flies over everything. Punishes tanks and artillery', weak: 'Shot down by riflemen and towers',
   },
+
+  // ---- Unique units (Medieval Age), inspired by Total War ----
+  // Romans
+  legionary: {
+    label: 'Legionary', hp: 85, speed: 1.3, sight: 4, pop: 1, cost: { food: 70, metal: 40 }, trainTime: 22,
+    attack: melee(9), armor: { melee: 3, ranged: 4 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans',
+    strong: 'Heavy shield wall: holds any line', weak: 'Slow and costly',
+  },
+  scorpion: {
+    label: 'Scorpion', hp: 60, speed: 1.0, sight: 8, pop: 1, cost: { wood: 120, metal: 60 }, trainTime: 28,
+    attack: ranged(14, 8, 3.5), armor: { melee: 0, ranged: 2 }, category: 'siege', era: 2, untilEra: 2, faction: 'romans',
+    bonus: { infantry: 2, cavalry: 1.5, building: 1.5 },
+    strong: 'Bolt thrower: pierces infantry from afar', weak: 'Defenseless up close',
+  },
+  // Mongols
+  horse_archer: {
+    label: 'Horse Archer', hp: 70, speed: 2.6, sight: 7, pop: 1, cost: { food: 60, wood: 50, metal: 30 }, trainTime: 20,
+    attack: ranged(6, 5, 1.6), armor: { melee: 0, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'mongols',
+    strong: 'Shoots from horseback: hit and run', weak: 'Fragile against spearmen and archers',
+  },
+  keshig: {
+    label: 'Keshig', hp: 120, speed: 2.5, sight: 5, pop: 1, cost: { food: 80, metal: 80 }, trainTime: 26,
+    attack: melee(11, 1.8), armor: { melee: 2, ranged: 3 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'mongols',
+    strong: "The Khan's elite guard", weak: 'Expensive; loses to spearmen',
+  },
+  // Gauls
+  fanatic: {
+    label: 'Naked Fanatic', hp: 55, speed: 1.8, sight: 4, pop: 1, cost: { food: 60, wood: 20 }, trainTime: 14,
+    attack: melee(12, 1.3), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'gauls',
+    strong: 'Huge attack and fast', weak: 'No armor: arrows cut them down',
+  },
+  chosen_swordsman: {
+    label: 'Chosen Swordsman', hp: 80, speed: 1.4, sight: 4, pop: 1, cost: { food: 70, metal: 40 }, trainTime: 20,
+    attack: melee(10), armor: { melee: 2, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'gauls',
+    bonus: { infantry: 1.5, building: 2 },
+    strong: 'Elite swordsman: beats other infantry', weak: 'Loses to archers',
+  },
+  // Germans
+  chosen_spearman: {
+    label: 'Chosen Spearman', hp: 70, speed: 1.3, sight: 4, pop: 1, cost: { food: 60, wood: 30, metal: 10 }, trainTime: 18,
+    attack: melee(8), armor: { melee: 2, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'germans',
+    bonus: { cavalry: 2.5 },
+    strong: 'Wall of spears: stops any cavalry', weak: 'Loses to archers',
+  },
+  axe_thrower: {
+    label: 'Axe Thrower', hp: 50, speed: 1.5, sight: 5, pop: 1, cost: { food: 50, wood: 40 }, trainTime: 16,
+    attack: ranged(9, 3, 2), armor: { melee: 1, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2, faction: 'germans',
+    bonus: { infantry: 1.6 },
+    strong: 'Thrown axes break infantry', weak: 'Very short range',
+  },
+  // Visigoths
+  gothic_knight: {
+    label: 'Gothic Knight', hp: 130, speed: 2.2, sight: 5, pop: 1, cost: { food: 90, metal: 90 }, trainTime: 28,
+    attack: melee(12, 1.8), armor: { melee: 3, ranged: 3 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
+    strong: 'The heaviest cavalry', weak: 'Very expensive; loses to spearmen',
+  },
+  armored_archer: {
+    label: 'Armored Archer', hp: 55, speed: 1.3, sight: 6, pop: 1, cost: { wood: 50, metal: 40 }, trainTime: 18,
+    attack: ranged(6, 6, 2), armor: { melee: 2, ranged: 3 }, category: 'ranged', era: 2, untilEra: 2, faction: 'visigoths',
+    strong: 'Armored: survives other archers', weak: 'Slow',
+  },
+  // Ostrogoths
+  gothic_lancer: {
+    label: 'Gothic Lancer', hp: 110, speed: 2.6, sight: 5, pop: 1, cost: { food: 80, metal: 70 }, trainTime: 24,
+    attack: melee(10, 1.6), armor: { melee: 2, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'ostrogoths',
+    bonus: { cavalry: 1.5 },
+    strong: 'Fast shock cavalry: wins cavalry duels', weak: 'Loses to spearmen',
+  },
+  heavy_spearman: {
+    label: 'Heavy Spearman', hp: 80, speed: 1.2, sight: 4, pop: 1, cost: { food: 60, metal: 30 }, trainTime: 18,
+    attack: melee(7), armor: { melee: 3, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'ostrogoths',
+    bonus: { cavalry: 2 },
+    strong: 'Armored spear wall against cavalry', weak: 'Slow',
+  },
+  // Vikings
+  berserker: {
+    label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 70, wood: 30 }, trainTime: 18,
+    attack: melee(14, 1.4), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
+    bonus: { infantry: 1.3 },
+    strong: 'Battle fury: the strongest attack on foot', weak: 'No armor',
+  },
+  huscarl: {
+    label: 'Huscarl', hp: 90, speed: 1.3, sight: 4, pop: 1, cost: { food: 80, metal: 50 }, trainTime: 22,
+    attack: melee(11), armor: { melee: 3, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
+    bonus: { infantry: 1.4, building: 2 },
+    strong: 'Elite guard with a great axe', weak: 'Expensive',
+  },
 };
 
 /** Economía del trabajador: cuánto carga y a qué ritmo recolecta (unidades/seg). */
@@ -231,7 +328,9 @@ export const INTERACT_RANGE = 1.25;
 export type BuildingType =
   | 'town_center' | 'house' | 'storehouse' | 'farm' | 'barracks'
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
-  | 'workshop' | 'factory';
+  | 'workshop' | 'factory'
+  // Edificio único de cada pueblo (Edad Media)
+  | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall';
 
 export interface BuildingDef {
   label: string;
@@ -257,6 +356,8 @@ export interface BuildingDef {
   buildable: boolean;
   /** Era desde la que se puede construir. */
   era: number;
+  /** Edificio único: solo lo construye este pueblo. */
+  faction?: FactionId;
 }
 
 const DEFENSE = { melee: 1, ranged: 5 };
@@ -311,12 +412,12 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     armor: { melee: 3, ranged: 8 }, sight: 8, attack: ranged(7, 7, 2), solid: true, buildable: true, era: 1,
   },
   wall: {
-    label: 'Wall', description: 'Blocks the way. Hold Shift to place several in a row.',
+    label: 'Wall', description: 'Blocks the way. Click where it starts and where it ends: one order builds the whole line.',
     size: 1, hp: 700, cost: { stone: 5 }, buildTime: 6, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: { melee: 5, ranged: 10 }, sight: 1, solid: true, buildable: true, era: 1,
   },
   gate: {
-    label: 'Gate', description: 'Part of the wall: lets you and your allies through.',
+    label: 'Gate', description: 'Lets you and your allies through. Place it on your own wall to turn that section into a gate.',
     size: 1, hp: 700, cost: { stone: 20 }, buildTime: 10, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: { melee: 5, ranged: 10 }, sight: 2, solid: true, buildable: true, era: 1,
   },
@@ -332,18 +433,71 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     trains: ['light_vehicle', 'tank', 'mech_infantry', 'airplane'], researches: [],
     armor: { melee: 2, ranged: 6 }, sight: 4, solid: true, buildable: true, era: 3,
   },
+
+  // ---- Unique buildings (Medieval Age) ----
+  castrum: {
+    label: 'Castrum', description: 'Roman fort: shoots arrows. Trains Legionaries and Scorpions.',
+    size: 3, hp: 2200, cost: { wood: 150, stone: 150 }, buildTime: 60, popProvided: 0, dropoff: [],
+    trains: ['legionary', 'scorpion'], researches: [],
+    armor: { melee: 3, ranged: 7 }, sight: 7, attack: ranged(6, 6, 2), solid: true, buildable: true, era: 2, faction: 'romans',
+  },
+  ordu: {
+    label: 'Ordu', description: "The Khan's camp: +10 population. Trains Horse Archers and Keshig.",
+    size: 3, hp: 1000, cost: { wood: 120, food: 80 }, buildTime: 35, popProvided: 10, dropoff: [],
+    trains: ['horse_archer', 'keshig'], researches: [],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'mongols',
+  },
+  nemeton: {
+    label: 'Nemeton', description: 'Sacred grove of the druids, built with wood only. Trains Naked Fanatics and Chosen Swordsmen.',
+    size: 3, hp: 1100, cost: { wood: 220 }, buildTime: 40, popProvided: 0, dropoff: [],
+    trains: ['fanatic', 'chosen_swordsman'], researches: [],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'gauls',
+  },
+  war_hall: {
+    label: 'War Hall', description: 'Hall of the war chiefs: food and wood drop-off. Trains Chosen Spearmen and Axe Throwers.',
+    size: 3, hp: 1300, cost: { wood: 200 }, buildTime: 45, popProvided: 0, dropoff: ['food', 'wood'],
+    trains: ['chosen_spearman', 'axe_thrower'], researches: [],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'germans',
+  },
+  royal_hall: {
+    label: 'Royal Hall', description: 'Court of the Visigoth kings: drop-off for all resources. Trains Gothic Knights and Armored Archers.',
+    size: 3, hp: 1500, cost: { wood: 150, stone: 100 }, buildTime: 50, popProvided: 0, dropoff: RESOURCE_TYPES,
+    trains: ['gothic_knight', 'armored_archer'], researches: [],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'visigoths',
+  },
+  royal_palace: {
+    label: 'Royal Palace', description: "Theodoric's palace: +5 population and stone/metal drop-off. Trains Gothic Lancers and Heavy Spearmen.",
+    size: 3, hp: 1500, cost: { wood: 150, stone: 120 }, buildTime: 50, popProvided: 5, dropoff: ['stone', 'metal'],
+    trains: ['gothic_lancer', 'heavy_spearman'], researches: [],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'ostrogoths',
+  },
+  mead_hall: {
+    label: 'Mead Hall', description: 'Great longhouse: +5 population and food/wood drop-off. Trains Berserkers and Huscarls.',
+    size: 3, hp: 1300, cost: { wood: 200 }, buildTime: 45, popProvided: 5, dropoff: ['food', 'wood'],
+    trains: ['berserker', 'huscarl'], researches: [],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'vikings',
+  },
 };
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
   'house', 'storehouse', 'farm', 'barracks', 'tower', 'wall', 'gate',
   'archery_range', 'stable', 'tech_center',
+  'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',
 ];
 
-/** ¿Se puede entrenar esta unidad en esta era? */
-export function unitAvailable(type: UnitType, era: number): boolean {
+/** ¿Se puede entrenar esta unidad en esta era (y con este pueblo, si es única)? */
+export function unitAvailable(type: UnitType, era: number, faction?: FactionId): boolean {
   const d = UNIT_DEFS[type];
+  if (d.faction && d.faction !== faction) return false;
   return era >= d.era && era <= d.untilEra;
+}
+
+/** ¿Puede este pueblo construir este edificio en esta era? */
+export function buildingAvailable(type: BuildingType, era: number, faction?: FactionId): boolean {
+  const d = BUILDING_DEFS[type];
+  if (d.faction && d.faction !== faction) return false;
+  return d.buildable && era >= d.era;
 }
 
 /** Reparar cuesta esta fracción del precio del edificio (proporcional a la vida recuperada). */
@@ -399,7 +553,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
   },
   era4: {
     label: 'Advance to the Modern Age', description: 'Tanks, anti-tank teams, mechanized infantry, heavy artillery and airplanes.',
-    cost: { food: 2000, stone: 600, metal: 1000 }, time: 150, era: 3, requires: 'factory', advancesTo: 4,
+    cost: { food: 6000, wood: 3000, stone: 3000, metal: 6000 }, time: 300, era: 3, requires: 'factory', advancesTo: 4,
   },
   tools: {
     label: 'Tools', description: 'Workers gather wood, stone and metal 15% faster.',
@@ -447,11 +601,12 @@ export function isEraTech(t: TechId): boolean {
 
 // ---------- Facciones ----------
 /**
- * Cada facción tiene especialidades (estilo Total War): algunos tipos de
- * unidad son más fuertes y otros más débiles. Los números son multiplicadores
- * (1.2 = +20 %). Así un mismo tipo de unidad no rinde igual en cada ejército.
+ * Pueblos históricos de la Edad Media (estilo Total War). Cada uno tiene
+ * especialidades: algunos tipos de unidad son más fuertes y otros más débiles
+ * (multiplicadores: 1.2 = +20 %). Además, al llegar a la Edad Media cada
+ * pueblo desbloquea su edificio único y dos unidades únicas.
  */
-export type FactionId = 'legion' | 'wind' | 'forest' | 'forge' | 'river' | 'mountain';
+export type FactionId = 'romans' | 'mongols' | 'gauls' | 'germans' | 'visigoths' | 'ostrogoths' | 'vikings';
 export interface FactionDef {
   name: string;
   motto: string;
@@ -463,55 +618,72 @@ export interface FactionDef {
   weaknesses: string[];
 }
 export const FACTIONS: Record<FactionId, FactionDef> = {
-  legion: {
-    name: 'Northern Legion',
-    motto: 'Shield walls that never step back',
-    units: { infantry: { hp: 1.2, armor: 1 }, ranged: { attack: 0.9 } },
-    strengths: ['Infantry: +20% health and +1 armor'],
-    weaknesses: ['Ranged: −10% attack'],
+  romans: {
+    name: 'Romans',
+    motto: 'Discipline conquers the world',
+    units: { infantry: { hp: 1.15, armor: 1 }, siege: { attack: 1.15 }, cavalry: { attack: 0.85 } },
+    buildingHp: 1.1,
+    strengths: ['Infantry: +15% health and +1 armor', 'Siege: +15% attack', 'Buildings: +10% health'],
+    weaknesses: ['Cavalry: −15% attack'],
   },
-  wind: {
-    name: 'Wind Clan',
-    motto: 'Nobody rides faster',
-    units: { cavalry: { attack: 1.2, hp: 1.15, speed: 1.1 }, air: { speed: 1.1 }, siege: { attack: 0.8 } },
-    strengths: ['Cavalry and vehicles: +20% attack, +15% health, +10% speed', 'Airplanes: +10% speed'],
+  mongols: {
+    name: 'Mongols',
+    motto: 'The steppe is our home, the horse our wall',
+    units: { cavalry: { speed: 1.15, attack: 1.1 }, infantry: { hp: 0.8 } },
+    gather: { food: 1.1 },
+    buildingHp: 0.85,
+    strengths: ['Cavalry: +15% speed and +10% attack', 'Food: +10% gathering'],
+    weaknesses: ['Infantry: −20% health', 'Buildings: −15% health'],
+  },
+  gauls: {
+    name: 'Gauls',
+    motto: 'The forest fights with us',
+    units: { infantry: { attack: 1.15, speed: 1.05 }, ranged: { attack: 0.9 } },
+    gather: { wood: 1.15 },
+    buildingHp: 0.9,
+    strengths: ['Infantry: +15% attack and +5% speed', 'Wood: +15% gathering'],
+    weaknesses: ['Ranged: −10% attack', 'Buildings: −10% health'],
+  },
+  germans: {
+    name: 'Germans',
+    motto: 'From the dark woods we strike',
+    units: { infantry: { hp: 1.1 }, siege: { attack: 0.8 } },
+    gather: { food: 1.1, wood: 1.1 },
+    strengths: ['Infantry: +10% health', 'Food and wood: +10% gathering'],
     weaknesses: ['Siege: −20% attack'],
   },
-  forest: {
-    name: 'Forest Guard',
-    motto: 'The arrow arrives before the enemy',
-    units: { ranged: { attack: 1.15, range: 1 }, cavalry: { hp: 0.85 } },
-    gather: { wood: 1.1 },
-    strengths: ['Ranged: +15% attack and +1 range', 'Wood: +10% gathering'],
-    weaknesses: ['Cavalry: −15% health'],
-  },
-  forge: {
-    name: 'Forge Guild',
-    motto: 'Our machines bring down any wall',
-    units: { siege: { attack: 1.25, hp: 1.2 }, armor: { hp: 1.1 }, cavalry: { attack: 0.8 } },
-    buildingHp: 1.2,
-    strengths: ['Siege: +25% attack and +20% health', 'Tanks: +10% health', 'Buildings: +20% health'],
-    weaknesses: ['Cavalry: −20% attack'],
-  },
-  river: {
-    name: 'River League',
-    motto: 'Full granaries win the long war',
-    units: { worker: { hp: 1.2 }, infantry: { attack: 0.9 } },
-    gather: { food: 1.15, metal: 1.15 },
-    strengths: ['Food and metal: +15% gathering', 'Workers: +20% health'],
+  visigoths: {
+    name: 'Visigoths',
+    motto: 'Heirs of Rome, masters of Hispania',
+    units: { cavalry: { hp: 1.15 }, ranged: { range: 1 }, infantry: { attack: 0.9 } },
+    strengths: ['Cavalry: +15% health', 'Ranged: +1 range'],
     weaknesses: ['Infantry: −10% attack'],
   },
-  mountain: {
-    name: 'Mountain Folk',
-    motto: 'Stone upon stone, nobody knocks us down',
-    units: { infantry: { speed: 0.95 }, cavalry: { speed: 0.95 } },
-    gather: { stone: 1.2 },
-    buildingHp: 1.25,
-    strengths: ['Buildings: +25% health', 'Stone: +20% gathering'],
-    weaknesses: ['Infantry and cavalry: −5% speed'],
+  ostrogoths: {
+    name: 'Ostrogoths',
+    motto: 'The lance of Theodoric',
+    units: { cavalry: { attack: 1.2 }, ranged: { attack: 0.85 } },
+    gather: { stone: 1.15 },
+    strengths: ['Cavalry: +20% attack', 'Stone: +15% gathering'],
+    weaknesses: ['Ranged: −15% attack'],
+  },
+  vikings: {
+    name: 'Vikings',
+    motto: 'Valhalla awaits the brave',
+    units: { infantry: { attack: 1.1, speed: 1.1 }, cavalry: { hp: 0.75 } },
+    gather: { wood: 1.1, metal: 1.1 },
+    strengths: ['Infantry: +10% attack and +10% speed', 'Wood and metal: +10% gathering'],
+    weaknesses: ['Cavalry: −25% health'],
   },
 };
-export const FACTION_ORDER: readonly FactionId[] = ['legion', 'wind', 'forest', 'forge', 'river', 'mountain'];
+export const FACTION_ORDER: readonly FactionId[] = ['romans', 'mongols', 'gauls', 'germans', 'visigoths', 'ostrogoths', 'vikings'];
+/** Unidades y edificio únicos de un pueblo (para mostrarlos en la sala de espera). */
+export function uniquesOf(faction: FactionId): { units: UnitType[]; building: BuildingType | undefined } {
+  return {
+    units: (Object.keys(UNIT_DEFS) as UnitType[]).filter((u) => UNIT_DEFS[u].faction === faction),
+    building: (Object.keys(BUILDING_DEFS) as BuildingType[]).find((b) => BUILDING_DEFS[b].faction === faction),
+  };
+}
 
 // ---------- Diplomacia ----------
 /** Relación entre dos jugadores: en guerra, en paz (no se atacan) o aliados. */

@@ -287,14 +287,14 @@ describe('production', () => {
 
 describe('combat', () => {
   it('damage formula: attack × type advantage − armor (minimum 1)', () => {
-    const warrior = unitStats('legion', 'warrior');
-    const scout = unitStats('legion', 'scout');
-    const worker = unitStats('legion', 'worker');
+    const warrior = unitStats('romans', 'warrior');
+    const scout = unitStats('romans', 'scout');
+    const worker = unitStats('romans', 'worker');
     // Warrior (6) against scout (cavalry, 0 melee armor): 6 × 1.5 = 9
     expect(damage(UNIT_DEFS.warrior.attack, 'infantry', 'cavalry', scout.armor)).toBe(9);
     // Scout (4) against worker: 4 × 1.5 = 6
     expect(damage(UNIT_DEFS.scout.attack, 'cavalry', 'worker', worker.armor)).toBe(6);
-    // Worker (3) against warrior (legion: armor 1+1=2): 3 − 2 = 1
+    // Worker (3) against warrior (Romans: armor 1+1=2): 3 − 2 = 1
     expect(damage(UNIT_DEFS.worker.attack, 'worker', 'infantry', warrior.armor)).toBe(1);
   });
 
@@ -322,16 +322,15 @@ describe('combat', () => {
     expect(w.units.has(scout.id)).toBe(false);
   });
 
-  it('factions: Clan del Viento (red) cavalry beats Gremio de la Forja (yellow) cavalry', () => {
-    const red = unitStats('wind', 'scout');
-    const yellow = unitStats('forge', 'scout');
-    expect(red.hp).toBeGreaterThan(yellow.hp);
+  it('factions: Mongol cavalry beats Roman cavalry, but the Romans are better at siege', () => {
+    const red = unitStats('mongols', 'scout');
+    const yellow = unitStats('romans', 'scout');
     expect(red.attack.damage).toBeGreaterThan(yellow.attack.damage);
     expect(red.speed).toBeGreaterThan(yellow.speed);
-    // ...but the yellow faction is better at siege.
-    expect(FACTIONS.forge.units.siege!.attack!).toBeGreaterThan(FACTIONS.wind.units.siege!.attack!);
-    // Real duel: 1 red scout against 1 yellow scout.
-    const g = flatGame(['wind', 'forge']);
+    // ...but the Romans are better at siege.
+    expect(FACTIONS.romans.units.siege!.attack!).toBeGreaterThan(FACTIONS.mongols.units.siege?.attack ?? 1);
+    // Real duel: 1 Mongol scout against 1 Roman scout.
+    const g = flatGame(['mongols', 'romans']);
     const w = g.world;
     const r = w.addUnit('scout', 1, 15.5, 15.5);
     const y = w.addUnit('scout', 2, 16.5, 15.5);
@@ -375,7 +374,7 @@ describe('combat', () => {
     }
     expect(w.units.has(intruder.id)).toBe(false);
     expect(shots.reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
-    expect(own.hp).toBe(unitStats('legion', 'worker').hp);
+    expect(own.hp).toBe(unitStats('romans', 'worker').hp);
   });
 
   it('warriors bring down a house: it disappears, frees the tiles and its owner is notified', () => {
@@ -399,7 +398,7 @@ describe('combat', () => {
     g.enqueue(1, { kind: 'attack', unitIds: [warrior.id], targetId: friend.id });
     g.enqueue(1, { kind: 'attack', unitIds: [warrior.id], targetId: tc.id });
     run(g, 5);
-    expect(friend.hp).toBe(unitStats('legion', 'worker').hp);
+    expect(friend.hp).toBe(unitStats('romans', 'worker').hp);
     expect(tc.hp).toBe(tc.maxHp);
   });
 

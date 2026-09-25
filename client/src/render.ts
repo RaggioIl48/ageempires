@@ -100,6 +100,8 @@ export interface Ghost {
   tx: number;
   ty: number;
   ok: boolean;
+  /** Muralla que se está arrastrando: cada casilla y si se puede construir. */
+  line?: { x: number; y: number; ok: boolean }[];
 }
 
 type Drawable =
@@ -286,7 +288,15 @@ export class Renderer {
     this.drawEffects(ctx, state, now);
 
     // Previsualización del edificio a colocar.
-    if (ghost) {
+    if (ghost?.line) {
+      for (const t of ghost.line) {
+        fillFootprint(ctx, t.x, t.y, 1, t.ok ? 'rgba(80,220,110,0.35)' : 'rgba(230,60,60,0.4)');
+        if (!t.ok) continue;
+        ctx.globalAlpha = 0.55;
+        drawBuilding(ctx, { id: 0, owner: state.you, type: 'wall', tx: t.x, ty: t.y, hp: 1, progress: 1 }, state.color(state.you));
+        ctx.globalAlpha = 1;
+      }
+    } else if (ghost) {
       const s = BUILDING_DEFS[ghost.type].size;
       fillFootprint(ctx, ghost.tx, ghost.ty, s, ghost.ok ? 'rgba(80,220,110,0.35)' : 'rgba(230,60,60,0.4)');
       outlineFootprint(ctx, ghost.tx, ghost.ty, s, ghost.ok ? '#7dff8a' : '#ff6b6b', 2);

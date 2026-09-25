@@ -1,7 +1,7 @@
 // Pantallas fuera del juego: inicio (nombre + código), sala de espera
 // (facción y color) y panel del profesor.
 
-import { FACTIONS, FACTION_ORDER, PLAYER_COLORS, type FactionId } from '../../shared/data.ts';
+import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
 import { CODE_LENGTH, type ClientMessage, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
 
 export function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -141,10 +141,12 @@ export class LobbyScreen {
       .join('');
     el('lobby-factions').innerHTML = FACTION_ORDER.map((id) => {
       const f = FACTIONS[id];
+      const u = uniquesOf(id);
       return `<button type="button" class="faction ${mine?.faction === id ? 'chosen' : ''}" data-faction="${id}">
         <b>${esc(f.name)}</b><i>«${esc(f.motto)}»</i>
         <span class="up">▲ ${f.strengths.map(esc).join('<br>▲ ')}</span>
-        <span class="down">▼ ${f.weaknesses.map(esc).join('<br>▼ ')}</span></button>`;
+        <span class="down">▼ ${f.weaknesses.map(esc).join('<br>▼ ')}</span>
+        <span class="uniq">⚜ Medieval Age: <b>${esc(BUILDING_DEFS[u.building!].label)}</b> · ${u.units.map((x) => esc(UNIT_DEFS[x].label)).join(', ')}</span></button>`;
     }).join('');
     el('lobby-colors').innerHTML = PLAYER_COLORS.map((c) => {
       const owner = room.members.find((m) => m.color === c);

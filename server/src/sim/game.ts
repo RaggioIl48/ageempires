@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, TICK_MS, eraLabel } from '../../../shared/data.ts';
+import { BUILDING_DEFS, FACTIONS, TICK_MS, eraLabel } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -12,6 +12,7 @@ import type {
   UnitView,
 } from '../../../shared/protocol.ts';
 import { canHitAir, scaleCost } from '../../../shared/stats.ts';
+import { wallLine } from '../../../shared/wall.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
 import { assignAttack, removeDead, targetOf, updateCombat } from './combat.ts';
 import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
@@ -118,12 +119,42 @@ export class Game {
       case 'build': {
         const def = BUILDING_DEFS[cmd.building];
         if (!def.buildable || workers.length === 0) return;
+        if (def.faction && def.faction !== w.factionOf(playerId))
+          return w.notify(playerId, `${def.label}: only the ${FACTIONS[def.faction].name} can build it`);
+        // Una puerta sobre una pieza de muralla propia la reemplaza.
+        if (cmd.building === 'gate') {
+          const old = w.buildings.get(w.inBounds(cmd.tx, cmd.ty) ? w.occupant[cmd.ty * w.size + cmd.tx] : 0);
+          if (old && old.owner === playerId && old.type === 'wall') {
+            if (!w.canAfford(playerId, def.cost)) return w.notify(playerId, 'Not enough resources');
+            w.removeBuilding(old.id);
+          }
+        }
         if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
         if (error) return w.notify(playerId, error);
         if (!w.spend(playerId, def.cost)) return w.notify(playerId, 'Not enough resources');
         const b = w.addBuilding(cmd.building, playerId, cmd.tx, cmd.ty, false)!;
         for (const u of workers) assignBuild(w, u, b);
+        break;
+      }
+      case 'wall': {
+        const def = BUILDING_DEFS.wall;
+        if (workers.length === 0) return;
+        if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
+        const placed: Building[] = [];
+        let poor = false;
+        for (const t of wallLine(cmd.x0, cmd.y0, cmd.x1, cmd.y1)) {
+          if (w.placementError('wall', t.x, t.y)) continue; // lo ocupado se salta
+          if (!w.spend(playerId, def.cost)) {
+            poor = true;
+            break;
+          }
+          placed.push(w.addBuilding('wall', playerId, t.x, t.y, false)!);
+        }
+        if (poor) w.notify(playerId, 'Not enough stone for the whole wall');
+        if (placed.length === 0) return poor ? undefined : w.notify(playerId, 'You cannot build there');
+        // Los trabajadores se reparten a lo largo de la muralla; al terminar su tramo siguen con el de al lado.
+        workers.forEach((u, i) => assignBuild(w, u, placed[Math.floor((i * placed.length) / workers.length)]));
         break;
       }
       case 'construct': {

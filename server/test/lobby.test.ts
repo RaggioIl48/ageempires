@@ -155,9 +155,9 @@ describe('students in the lobby', () => {
     const { send, student } = setup();
     const ana = student('Ana');
     const bruno = student('Bruno');
-    send(ana, { t: 'choose', faction: 'wind', color: '#e0b020' });
+    send(ana, { t: 'choose', faction: 'mongols', color: '#e0b020' });
     const view = ana.last('room')!.room.members.find((m) => m.name === 'Ana')!;
-    expect(view.faction).toBe('wind');
+    expect(view.faction).toBe('mongols');
     expect(view.color).toBe('#e0b020');
     send(bruno, { t: 'choose', color: '#e0b020' });
     expect(bruno.last('error')?.message).toMatch(/color/);
@@ -193,8 +193,8 @@ describe('game', () => {
     const s = setup();
     const ana = s.student('Ana');
     const bruno = s.student('Bruno');
-    s.send(ana, { t: 'choose', faction: 'wind', color: '#e0772a' });
-    s.send(bruno, { t: 'choose', faction: 'forge', color: '#e0b020' });
+    s.send(ana, { t: 'choose', faction: 'mongols', color: '#e0772a' });
+    s.send(bruno, { t: 'choose', faction: 'vikings', color: '#e0b020' });
     s.send(s.teacher, { t: 'start', code: s.code });
     return { ...s, ana, bruno };
   }
@@ -206,8 +206,8 @@ describe('game', () => {
     expect(wa.you).toBe(1);
     expect(wb.you).toBe(2);
     expect(wa.players.map((p) => [p.name, p.faction, p.color])).toEqual([
-      ['Ana', 'wind', '#e0772a'],
-      ['Bruno', 'forge', '#e0b020'],
+      ['Ana', 'mongols', '#e0772a'],
+      ['Bruno', 'vikings', '#e0b020'],
     ]);
     expect(ana.last('d')?.u?.length).toBeGreaterThan(0); // first message: the whole state
   });

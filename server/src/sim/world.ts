@@ -216,7 +216,7 @@ export class World {
   }
 
   factionOf(playerId: number): FactionId {
-    return this.players.get(playerId)?.faction ?? 'legion';
+    return this.players.get(playerId)?.faction ?? 'romans';
   }
 
   notify(playerId: number, text: string): void {

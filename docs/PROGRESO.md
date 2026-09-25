@@ -186,6 +186,44 @@ encoding of research and eras).
 - 181 tests pass. Benchmark (16 players, 800 units): average step 1.7 ms, worst 8 ms (budget 100 ms);
   2.3 Mbit/s total network for the class.
 
+## Historical peoples, long walls and a harder Modern Age (2026-09-24)
+
+**Seven peoples** inspired by Total War replace the fictional factions. Each one has strengths
+and weaknesses by unit type, and in the **Medieval Age** it unlocks a unique building and two
+unique units:
+
+| People | Strong in | Weak in | Unique building | Unique units |
+|---|---|---|---|---|
+| Romans | Infantry, siege, buildings | Cavalry | Castrum (shoots arrows) | Legionary, Scorpion |
+| Mongols | Cavalry speed/attack, food | Infantry, buildings | Ordu (+10 population) | Horse Archer, Keshig |
+| Gauls | Infantry attack, wood | Ranged, buildings | Nemeton (wood only) | Naked Fanatic, Chosen Swordsman |
+| Germans | Infantry health, food and wood | Siege | War Hall (food/wood drop-off) | Chosen Spearman, Axe Thrower |
+| Visigoths | Cavalry health, ranged +1 range | Infantry | Royal Hall (drop-off) | Gothic Knight, Armored Archer |
+| Ostrogoths | Cavalry attack, stone | Ranged | Royal Palace (+5 pop, stone/metal) | Gothic Lancer, Heavy Spearman |
+| Vikings | Infantry attack/speed, wood and metal | Cavalry | Mead Hall (+5 pop, food/wood) | Berserker, Huscarl |
+
+The server checks everything: nobody can build another people's building or train their units.
+
+**AoE-style walls**: choose Wall, click and drag; one order lays up to 60 sections (skipping
+occupied tiles and stopping when the stone runs out). Diagonals are drawn as "stairs" so the wall
+always looks continuous and blocks the way. Workers spread along the wall and move on to the next
+section by themselves (they also continue to any nearby unfinished foundation). A gate placed on
+your own wall replaces that section.
+
+**Map**: quarries and metal veins hold 400 (was 350). A ring of **rich deposits in the center**
+(5 metal + 3 stone between each pair of neighbors) is contested ground.
+
+**Modern Age almost impossible**: 6000 food, 3000 wood, 3000 stone, 6000 metal and 5 minutes.
+A base's own metal is not enough: you must win the center.
+
+**Publishing**: the Render app on GitHub now has access to the repository, so every push deploys
+automatically.
+
+**Tests**: 200. New: the 7 peoples and their uniques, faction checks on the server, a Chosen
+Spearmen vs Keshig battle, long walls (line, cost, stopping without stone, builders continuing),
+gate on a wall, center deposits, the Modern Age cost; the full progression test now runs once
+for each of the 7 peoples.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

@@ -5,12 +5,14 @@
 //                  construir/reparar, o punto de reunión (con un edificio elegido)
 //   rueda = zoom · botón central = desplazar · WASD/flechas = cámara
 //   H = Centro Urbano · . = trabajador inactivo · Esc = cancelar · Supr = eliminar
-//   Q E R T F G Z X C V B N = construir (con trabajadores) o entrenar/investigar (con un edificio)
+//   Q E R T F G Z X C V B N M = construir (con trabajadores) o entrenar/investigar (con un edificio)
+//   Muralla: clic y arrastrar dibuja una muralla larga con una sola orden
 
 import {
   BUILDING_DEFS,
   BUILD_MENU,
   TECH_DEFS,
+  buildingAvailable,
   unitAvailable,
   type BuildingType,
   type TechId,
@@ -18,6 +20,7 @@ import {
 } from '../../shared/data.ts';
 import type { BuildingView } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
+import { wallLine } from '../../shared/wall.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
 import { buildingHeight, UNIT_LOOK } from './sprites.ts';
@@ -30,7 +33,7 @@ const DRAG_THRESHOLD = 5; // px antes de considerar que es un arrastre
 const KEY_PAN_SPEED = 900; // px de pantalla por segundo
 const DOUBLE_CLICK_MS = 350;
 /** Teclas de la cuadrícula de acciones (sin W/A/S/D, que mueven la cámara). */
-export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N'] as const;
+export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'] as const;
 
 /** Lo que se puede hacer con un edificio: entrenar una unidad o investigar una tecnología. */
 export type BuildingAction = { kind: 'train'; unit: UnitType } | { kind: 'research'; tech: TechId };
@@ -88,6 +91,10 @@ export class Input {
   private lastClick = { time: 0, id: 0 };
   private idleCursor = 0;
   private mouse = { x: 0, y: 0 };
+  /** Casilla donde empezó a arrastrarse una muralla. */
+  private wallStart: { tx: number; ty: number } | null = null;
+  /** true mientras se arrastra con el botón apretado (si se suelta en la misma casilla, se espera el segundo clic). */
+  private wallDragging = false;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -185,10 +192,10 @@ export class Input {
     this.onSelectionChange();
   }
 
-  /** Edificios que se pueden construir en la era actual. */
+  /** Edificios que se pueden construir en la era actual (incluye el edificio único del propio pueblo). */
   buildMenu(): BuildingType[] {
-    const era = this.state.eraOf(this.state.you);
-    return BUILD_MENU.filter((t) => BUILDING_DEFS[t].era <= era);
+    const s = this.state;
+    return BUILD_MENU.filter((t) => buildingAvailable(t, s.eraOf(s.you), s.faction(s.you)));
   }
 
   /** Unidades y tecnologías disponibles ahora en un edificio propio. */
@@ -196,7 +203,7 @@ export class Input {
     const s = this.state;
     const era = s.eraOf(s.you), mask = s.techsOf(s.you);
     const def = BUILDING_DEFS[b.type];
-    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era)).map((unit) => ({ kind: 'train', unit }));
+    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era, s.faction(s.you))).map((unit) => ({ kind: 'train', unit }));
     const queued = new Set<TechId>();
     for (const o of s.buildings.values()) if (o.owner === s.you) for (const q of o.queue ?? []) if (q.tech) queued.add(q.tech);
     for (const tech of def.researches) {
@@ -314,14 +321,28 @@ export class Input {
     this.ghost.tx = Math.round(w.x - s / 2);
     this.ghost.ty = Math.round(w.y - s / 2);
     this.ghost.ok = this.state.canPlace(this.ghost.type, this.ghost.tx, this.ghost.ty);
+    if (this.wallStart) this.updateWallLine();
   }
 
   private onMouseDown(e: MouseEvent): void {
     const p = this.local(e);
     this.mouse = p;
     if (this.ghost) {
+      if (e.button === 0 && this.ghost.type === 'wall') {
+        // Muralla como en AoE: primer clic = inicio, segundo clic = final (o arrastrar y soltar).
+        this.moveGhost();
+        if (this.wallStart) return this.finishWall(e.shiftKey);
+        this.wallStart = { tx: this.ghost.tx, ty: this.ghost.ty };
+        this.wallDragging = true;
+        this.updateWallLine();
+        this.onSelectionChange();
+        return;
+      }
       if (e.button === 0) this.placeGhost(e.shiftKey);
-      else if (e.button === 2) this.ghost = null; // clic derecho cancela
+      else if (e.button === 2) {
+        this.ghost = null; // clic derecho cancela
+        this.wallStart = null;
+      }
       this.onSelectionChange();
       return;
     }
@@ -375,7 +396,47 @@ export class Input {
     if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
   }
 
+  /** ¿Ya se marcó el inicio de una muralla y falta el final? */
+  get wallPending(): boolean {
+    return this.wallStart !== null;
+  }
+
+  /** Recalcula la línea de muralla desde donde empezó hasta el ratón. */
+  private updateWallLine(): void {
+    const g = this.ghost;
+    if (!g || !this.wallStart) return;
+    g.line = wallLine(this.wallStart.tx, this.wallStart.ty, g.tx, g.ty).map((t) => ({
+      ...t,
+      ok: this.state.canPlace('wall', t.x, t.y),
+    }));
+  }
+
+  /** Suelta el botón: una sola orden para toda la muralla. */
+  private finishWall(keepPlacing: boolean): void {
+    const g = this.ghost!, start = this.wallStart!;
+    this.wallStart = null;
+    this.wallDragging = false;
+    this.moveGhost();
+    const workers = this.ownWorkersSelected();
+    if (workers.length > 0 && g.line?.some((t) => t.ok)) {
+      this.net.command({ kind: 'wall', unitIds: workers, x0: start.tx, y0: start.ty, x1: g.tx, y1: g.ty });
+      const now = performance.now();
+      for (const t of g.line) if (t.ok) this.markers.push({ x: t.x + 0.5, y: t.y + 0.5, color: '#5ab0ff', t0: now });
+    }
+    g.line = undefined;
+    if (!keepPlacing) this.ghost = null;
+    this.onSelectionChange();
+  }
+
   private onMouseUp(e: MouseEvent): void {
+    if (e.button === 0 && this.wallDragging && this.wallStart && this.ghost) {
+      this.wallDragging = false;
+      this.moveGhost();
+      // Soltó en otra casilla: fue un arrastre y la muralla se construye ya.
+      // Soltó en la misma: fue el primer clic, se espera el segundo.
+      if (this.ghost.tx !== this.wallStart.tx || this.ghost.ty !== this.wallStart.ty) this.finishWall(e.shiftKey);
+      return;
+    }
     if (e.button === 1) this.panFrom = null;
     if (e.button !== 0 || !this.leftDown) return;
     const p = this.local(e);
@@ -445,6 +506,7 @@ export class Input {
       case 'Escape':
         if (this.ghost) {
           this.ghost = null;
+          this.wallStart = null;
           this.onSelectionChange();
         } else this.selectOnly(null);
         return;

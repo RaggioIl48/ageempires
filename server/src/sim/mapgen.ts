@@ -68,6 +68,9 @@ const EXPANSION_TEMPLATE: typeof START_TEMPLATE = [
   { type: 'berries', side: 0, fwd: -17, count: 5 },
 ];
 
+/** Cada depósito rico del centro (uno por jugador, entre vecinos). */
+const CENTER_DEPOSIT = { metal: 5, stone: 3 };
+
 const MAX_ATTEMPTS = 30;
 
 export function generateWorld(opts: MapOptions): World {
@@ -146,7 +149,20 @@ function tryGenerate(opts: MapOptions, seed: number): World | null {
     });
   }
 
-  // 5) Bosques neutrales. No tocan las zonas de inicio, el centro ni los
+  // 5) Tierras ricas en el centro, disputadas: vetas de metal y canteras entre
+  //    cada par de jugadores vecinos, a la misma distancia de ambos. Sin ellas
+  //    no alcanza para llegar a la Era Moderna: hay que pelear por el centro.
+  const richRadius = Math.max(5, size * 0.09);
+  for (let i = 0; i < starts.length; i++) {
+    const a = angle0 + ((i + 0.5) / starts.length) * Math.PI * 2;
+    const cx = Math.round(center + Math.cos(a) * richRadius);
+    const cy = Math.round(center + Math.sin(a) * richRadius);
+    const spots = freeTilesAround(world, cx, cy, CENTER_DEPOSIT.metal + CENTER_DEPOSIT.stone, inReach);
+    if (spots.length < CENTER_DEPOSIT.metal + CENTER_DEPOSIT.stone) return null;
+    spots.forEach((p, k) => world.addNode(k < CENTER_DEPOSIT.metal ? 'metal' : 'stone', p.x, p.y));
+  }
+
+  // 6) Bosques neutrales. No tocan las zonas de inicio, el centro ni los
   //    alrededores de bayas, piedra y metal (para no encerrarlos).
   const keepOut = new Uint8Array(size * size);
   for (const n of world.nodes.values()) {
@@ -166,7 +182,7 @@ function tryGenerate(opts: MapOptions, seed: number): World | null {
     placed++;
   }
 
-  // 6) Comprobación final con todo colocado.
+  // 7) Comprobación final con todo colocado.
   if (!isValid(world)) return null;
 
   // Los nodos creados al generar no cuentan como "cambios" para la red.

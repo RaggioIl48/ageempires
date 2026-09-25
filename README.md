@@ -9,7 +9,7 @@ diplomacy), with **100% original** code, art and names.
 - No external services needed: it works on the school's local network (or online, on Render).
 - All game texts are in English.
 
-> Current status: **Phase 5 done** (four ages, technologies, advanced units, walls and towers; teams and diplomacy from Phase 4). See [docs/PROGRESO.md](docs/PROGRESO.md) and the [roadmap](docs/HOJA_DE_RUTA.md).
+> Current status: **Phase 5 done + historical peoples** (Romans, Mongols, Gauls, Germans, Visigoths, Ostrogoths and Vikings, each with unique Medieval units and building; four ages; AoE-style long walls; teams and diplomacy). See [docs/PROGRESO.md](docs/PROGRESO.md) and the [roadmap](docs/HOJA_DE_RUTA.md).
 
 ## Requirements
 
@@ -86,7 +86,8 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | All of the same type on screen | Double click |
 | Contextual order | Right click: ground = move · resource = gather · enemy = attack (only ranged units can hit airplanes) · foundation or damaged building = build/repair · own farm = farm it |
 | Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
-| Build | With workers: **Q E R T F G Z X C V B N** in the order of the buttons (more buildings appear with each era; Shift: place several, e.g. walls) |
+| Build | With workers: **Q E R T F G Z X C V B N M** in the order of the buttons (more buildings appear with each age; your people's unique building appears in the Medieval Age; Shift: place several) |
+| Wall | Choose **Wall**, **click where it starts and click where it ends** (or drag): one order builds the whole line; workers move on from one section to the next. A **Gate** placed on your own wall replaces that section |
 | Train / research | With a building: the same keys, in the order of the buttons (units, technologies, advancing era) · click an item in the queue to cancel it (refunds the cost) |
 | Advance age | Select the Town Center (**H**, the "⌂ Town Center" button, or click your faction/age in the top bar) and press **"Advance to the … Age"** (★). It needs a finished Barracks, then a Tech Center, then a Factory |
 | Delete | **Delete** key (an unfinished foundation refunds what is left to build) |

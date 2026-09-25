@@ -2,17 +2,19 @@
 // build every building, advance through the four ages, research every technology
 // and train every unit.
 import { describe, expect, it } from 'vitest';
-import { BUILDING_DEFS, BUILD_MENU, TECH_DEFS, UNIT_DEFS, unitAvailable, type BuildingType, type TechId, type UnitType } from '../../shared/data.ts';
+import { BUILDING_DEFS, BUILD_MENU, FACTION_ORDER, TECH_DEFS, UNIT_DEFS, unitAvailable, type BuildingType, type TechId, type UnitType } from '../../shared/data.ts';
 import type { Building } from '../src/sim/world.ts';
 import { newGame, runUntil, workersOf } from './helpers.ts';
 
 const LOTS = { food: 99999, wood: 99999, stone: 99999, metal: 99999 };
 
 describe('full progression on a generated map', () => {
-  it('builds everything, reaches the Modern Age and trains every unit', () => {
+  for (const faction of FACTION_ORDER)
+  it(`${faction}: builds everything, reaches the Modern Age and trains every unit`, () => {
     const g = newGame(2, 777);
     const w = g.world;
     const me = w.players.get(1)!;
+    me.faction = faction;
     me.resources = { ...LOTS };
     const workers = workersOf(g, 1).map((u) => u.id);
 
@@ -59,7 +61,7 @@ describe('full progression on a generated map', () => {
     const trainAll = () => {
       for (const [type, b] of built) {
         for (const unit of BUILDING_DEFS[type].trains) {
-          if (!unitAvailable(unit, me.era) || trained.has(unit)) continue;
+          if (!unitAvailable(unit, me.era, me.faction) || trained.has(unit)) continue;
           const before = [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length;
           g.enqueue(1, { kind: 'train', buildingId: b.id, unit });
           const secs = runUntil(g, () => [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length > before, UNIT_DEFS[unit].trainTime + 5);
@@ -71,7 +73,8 @@ describe('full progression on a generated map', () => {
 
     for (let era = 1; era <= 4; era++) {
       for (const type of BUILD_MENU) {
-        if (BUILDING_DEFS[type].era !== era || built.has(type) || type === 'house') continue;
+        const d = BUILDING_DEFS[type];
+        if (d.era !== era || built.has(type) || type === 'house' || (d.faction && d.faction !== me.faction)) continue;
         built.set(type, build(type));
       }
       built.set('town_center', tc);
@@ -90,8 +93,13 @@ describe('full progression on a generated map', () => {
     }
     trainAll();
 
-    expect([...trained].sort()).toEqual((Object.keys(UNIT_DEFS) as UnitType[]).sort());
+    const mine = (Object.keys(UNIT_DEFS) as UnitType[]).filter((u) => !UNIT_DEFS[u].faction || UNIT_DEFS[u].faction === me.faction);
+    expect([...trained].sort()).toEqual(mine.sort());
     expect(me.techs).toBe((1 << Object.keys(TECH_DEFS).length) - 1);
-    for (const type of BUILD_MENU) expect(built.has(type) || type === 'house', type).toBe(true);
+    for (const type of BUILD_MENU) {
+      const d = BUILDING_DEFS[type];
+      if (d.faction && d.faction !== me.faction) expect(built.has(type), type).toBe(false);
+      else expect(built.has(type) || type === 'house', type).toBe(true);
+    }
   });
 });
