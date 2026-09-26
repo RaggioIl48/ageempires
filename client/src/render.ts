@@ -19,6 +19,7 @@ import {
   outlineFootprint,
   RESOURCE_COLORS,
   setEraLookup,
+  setWallLookup,
   unitTop,
 } from './sprites.ts';
 import { drawDyingUnit } from './art.ts';
@@ -157,6 +158,10 @@ export class Renderer {
 
     // Los edificios cambian de estilo con la era de su dueño.
     setEraLookup((id) => state.eraOf(id));
+    // Murallas y puertas por casilla (para unir cada tramo con sus vecinos).
+    const walls = new Map<number, number>();
+    for (const b of state.buildings.values()) if (b.type === 'wall' || b.type === 'gate') walls.set(b.ty * 100_000 + b.tx, b.owner);
+    setWallLookup((tx, ty, owner) => walls.get(ty * 100_000 + tx) === owner);
 
     // Transformación de cámara: a partir de aquí se dibuja en px del mundo.
     const z = cam.zoom * dpr;

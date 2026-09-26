@@ -386,7 +386,7 @@ export const INTERACT_RANGE = 1.25;
 export type BuildingType =
   | 'town_center' | 'house' | 'storehouse' | 'farm' | 'quarry' | 'mine' | 'woodlot' | 'barracks'
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
-  | 'workshop' | 'factory' | 'market'
+  | 'workshop' | 'factory' | 'market' | 'fortress'
   // Edificio único de cada pueblo (Edad Media)
   | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall';
 
@@ -521,6 +521,11 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     size: 3, hp: 1300, cost: { wood: 175 }, buildTime: 45, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 2, market: true,
   },
+  fortress: {
+    label: 'Fortress', description: 'Stone stronghold in the style of your people: very tough, shoots arrows at everything nearby (airplanes too) and gives +10 population. Build it to defend your city.',
+    size: 4, hp: 4800, cost: { wood: 200, stone: 600 }, buildTime: 120, popProvided: 10, dropoff: [], trains: [], researches: [],
+    armor: { melee: 6, ranged: 10 }, sight: 10, attack: ranged(12, 8, 1.5), solid: true, buildable: true, era: 2,
+  },
 
   // ---- Unique buildings (Medieval Age) ----
   castrum: {
@@ -569,7 +574,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
   'house', 'storehouse', 'farm', 'quarry', 'mine', 'woodlot', 'barracks', 'tower', 'wall', 'gate',
-  'archery_range', 'stable', 'tech_center', 'market',
+  'archery_range', 'stable', 'tech_center', 'market', 'fortress',
   'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',
 ];

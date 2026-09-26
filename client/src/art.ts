@@ -47,12 +47,40 @@ interface BuildingArt {
   v: number;
   /** Estilo de construcción de cada pueblo en cada era (índice 0 = Edad Tribal). */
   styles: Record<FactionId, string[]>;
-  sprites: Record<string, { file: string; w: number; h: number; tiles: number }>;
+  sprites: Record<string, SpriteDef>;
   /** Árboles: por especie, sus etapas de crecimiento (0 = brote … 4 = adulto). */
   trees: string[][];
-  /** 'estilo/tipo' (o con '*' en lugar del estilo) → imágenes (varias = variantes). */
+  /**
+   * Imágenes de cada edificio (varias = variantes). Se busca en este orden:
+   * 'pueblo@era/tipo', 'pueblo/tipo', 'estilo/tipo' y '*' + '/tipo'.
+   */
   map: Record<string, string[]>;
+  /** Piezas de muralla y puertas de cada pueblo (0 A.D.). */
+  walls: Record<FactionId, WallPieces>;
   credits: string[];
+}
+
+interface SpriteDef {
+  file: string;
+  w: number;
+  h: number;
+  /** Casillas de lado de la base dibujada. */
+  tiles: number;
+  /** Punto de la imagen sobre el centro de la base (si falta: abajo al centro). */
+  ax?: number;
+  ay?: number;
+  /** Zonas con el color del jugador (en gris), para teñir. */
+  mask?: string;
+}
+
+export interface WallPieces {
+  post: string;
+  e: string;
+  w: string;
+  s: string;
+  n: string;
+  gateU: string;
+  gateV: string;
 }
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -75,7 +103,7 @@ const getJson = <T>(file: string): Promise<T | null> =>
 export function loadArt(): Promise<void> {
   loading ??= Promise.all([getJson<Manifest>('units.json'), getJson<BuildingArt>('buildings.json')]).then(([m, b]) => {
     if (m?.v === 1) manifest = m;
-    if (b?.v === 2) buildingArt = b;
+    if (b?.v === 3) buildingArt = b;
   });
   return loading;
 }
@@ -99,6 +127,8 @@ function artImage(file: string): HTMLImageElement | null {
 
 export interface BuildingSprite {
   img: HTMLImageElement;
+  /** Zonas con el color del jugador, ya teñidas (si la imagen las tiene y cargaron). */
+  tint?: HTMLCanvasElement | null;
   /** Rectángulo de dibujo en px del mundo. */
   x: number;
   y: number;
@@ -112,11 +142,12 @@ export interface BuildingSprite {
  * Imagen para un edificio terminado (según el pueblo de su dueño), ya ubicada: su base
  * queda centrada sobre la base del edificio. null = no tiene (o no cargó): se usan formas.
  */
-export function buildingSprite(b: BuildingView, faction: FactionId, cx: number, cy: number, era = 1): BuildingSprite | null {
+export function buildingSprite(b: BuildingView, faction: FactionId, cx: number, cy: number, era = 1, color?: string): BuildingSprite | null {
   if (!buildingArt) return null;
   const eras = buildingArt.styles[faction];
   const style = eras?.[Math.max(0, Math.min(eras.length - 1, era - 1))];
-  const list = buildingArt.map[`${style}/${b.type}`] ?? buildingArt.map[`*/${b.type}`];
+  const m = buildingArt.map;
+  const list = m[`${faction}@${era}/${b.type}`] ?? m[`${faction}/${b.type}`] ?? m[`${style}/${b.type}`] ?? m[`*/${b.type}`];
   if (!list) return null;
   let id = list[b.id % list.length];
   if (b.type === 'farm') {
@@ -124,12 +155,49 @@ export function buildingSprite(b: BuildingView, faction: FactionId, cx: number, 
     if ((b.stock ?? full) >= full * 0.4 && buildingArt.sprites['farm-ripe']) id = 'farm-ripe';
   }
   const sp = buildingArt.sprites[id];
-  const img = sp ? artImage(sp.file) : null;
-  if (!sp || !img) return null;
+  if (!sp) return null;
   const size = BUILDING_DEFS[b.type].size;
-  const k = Math.min(1, size / sp.tiles);
-  const w = sp.w * k, h = sp.h * k;
-  return { img, x: cx - w / 2, y: cy + sp.tiles * 16 * k - h, w, h, yard: sp.tiles < size };
+  return placeSprite(sp, cx, cy, Math.min(1, size / sp.tiles), color, sp.tiles < size);
+}
+
+/** Imagen ubicada con su base centrada en (cx, cy), escala k y color de equipo. */
+function placeSprite(sp: SpriteDef, cx: number, cy: number, k: number, color?: string, yard = false): BuildingSprite | null {
+  const img = artImage(sp.file);
+  if (!img) return null;
+  const ax = sp.ax ?? sp.w / 2, ay = sp.ay ?? sp.h - sp.tiles * 16;
+  let tint: HTMLCanvasElement | null = null;
+  if (sp.mask && color) {
+    const mask = artImage(sp.mask);
+    if (mask) tint = tintImage(sp.mask, mask, color);
+  }
+  return { img, tint, x: cx - ax * k, y: cy - ay * k, w: sp.w * k, h: sp.h * k, yard };
+}
+
+/** Imagen gris teñida con un color (se guarda por imagen y color). */
+function tintImage(key: string, img: HTMLImageElement, color: string): HTMLCanvasElement {
+  const k = `${key}|${color}`;
+  let c = tints.get(k);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(img, 0, 0);
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = color;
+    g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(img, 0, 0);
+    tints.set(k, c);
+  }
+  return c;
+}
+
+/** Pieza de muralla o puerta de un pueblo, con su base en el centro de la casilla (cx, cy). */
+export function wallPiece(faction: FactionId, piece: keyof WallPieces, cx: number, cy: number, color?: string): BuildingSprite | null {
+  const id = buildingArt?.walls?.[faction]?.[piece];
+  const sp = id ? buildingArt!.sprites[id] : undefined;
+  return sp ? placeSprite(sp, cx, cy, 1, color) : null;
 }
 
 function sheetId(faction: FactionId, type: UnitType): string | undefined {

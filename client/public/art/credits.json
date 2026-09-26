@@ -22,9 +22,31 @@
    "title": "Unknown Horizons (buildings)",
    "url": "https://github.com/unknown-horizons/unknown-horizons",
    "version": "af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615"
+  },
+  "0ad": {
+   "title": "0 A.D. (fortresses, towers and walls)",
+   "url": "https://github.com/0ad/0ad",
+   "version": "61a3b9507d974084e6badb88a0826bd89a6d5b8b"
   }
  },
  "items": {
+  "0ad:structures": {
+   "pack": "0ad",
+   "title": "0 A.D. buildings, walls and towers",
+   "authors": [
+    "Wildfire Games",
+    "0 A.D. artists and contributors"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://play0ad.com",
+    "https://www.wildfiregames.com",
+    "https://github.com/0ad/0ad/blob/61a3b9507d974084e6badb88a0826bd89a6d5b8b/binaries/data/mods/public/art/LICENSE.txt"
+   ],
+   "notes": "3D models rendered to isometric pictures (one view) with tools/art/raster.mjs."
+  },
   "lpc:arms/armour/plate/male": {
    "pack": "lpc",
    "title": "Armour",

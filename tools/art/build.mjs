@@ -3,6 +3,7 @@
 //   - [LPC] Horses + [LPC] Horse Riding: caballos y jinetes
 //   - [LPC] Siege Weapons: balista (escorpión) y cañón (artillería)
 //   - Unknown Horizons: edificios (ver buildings.mjs)
+//   - 0 A.D.: fuertes, torres y murallas de cada pueblo (ver forts.mjs y raster.mjs)
 // y escribe el manifiesto (units.json) y los créditos (credits.json).
 //
 // Uso:  npm run art        (descarga lo que falte a tools/art/.cache/, que no se sube a git)
@@ -19,6 +20,8 @@ import { characterRecipes, WORKER_TOOLS } from './recipes.mjs';
 import { OGA_PACKS, ensureOgaFiles } from './oga.mjs';
 import { normalizeLicenses, sheetLicense } from './licenses.mjs';
 import { UH_COMMIT, UH_CREDITS, UH_REPO, buildBuildings } from './buildings.mjs';
+import { buildForts } from './forts.mjs';
+import { ZEROAD_COMMIT, ZEROAD_CREDIT, ZEROAD_REPO } from './zeroad.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -115,10 +118,17 @@ async function main() {
     console.log(`  ${s.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
-  // ---------- Edificios (Unknown Horizons) ----------
+  // ---------- Edificios (Unknown Horizons) y fuertes, torres y murallas (0 A.D.) ----------
   let buildingCredits = [];
   if (!only || only === 'buildings') {
     const { manifest: bm, bytes: bb } = await buildBuildings(CACHE, OUT);
+    const forts = await buildForts(CACHE, OUT);
+    Object.assign(bm.sprites, forts.sprites);
+    Object.assign(bm.map, forts.map);
+    bm.walls = forts.walls;
+    bm.credits.push('0ad:structures');
+    bm.v = 3;
+    bytes += forts.bytes;
     fs.writeFileSync(path.join(OUT, 'buildings.json'), JSON.stringify(bm));
     bytes += bb;
     buildingCredits = bm.credits;
@@ -127,6 +137,7 @@ async function main() {
     buildingCredits = JSON.parse(fs.readFileSync(path.join(OUT, 'buildings.json'), 'utf8')).credits;
   }
   for (const [id, c] of Object.entries(UH_CREDITS)) addCredit(id, { ...c, licenses: normalizeLicenses(c.licenses) });
+  addCredit('0ad:structures', { ...ZEROAD_CREDIT, licenses: normalizeLicenses(ZEROAD_CREDIT.licenses) });
 
   for (const [key, pack] of Object.entries(OGA_PACKS))
     addCredit(`oga:${key}`, { pack: key, title: pack.title, authors: pack.authors, licenses: normalizeLicenses(pack.licenses), urls: [pack.url], notes: pack.notes ?? '' });
@@ -146,6 +157,7 @@ async function main() {
       lpc: { title: 'Universal LPC Spritesheet Character Generator', url: LPC_REPO, version: LPC_COMMIT },
       ...Object.fromEntries(Object.entries(OGA_PACKS).map(([k, v]) => [k, { title: v.title, url: v.url }])),
       uh: { title: 'Unknown Horizons (buildings)', url: UH_REPO, version: UH_COMMIT },
+      '0ad': { title: '0 A.D. (fortresses, towers and walls)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
     },
     items,
   };

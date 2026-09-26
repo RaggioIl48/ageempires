@@ -55,7 +55,7 @@ describe('arte de unidades', () => {
 
   it('edificios: cada imagen existe, está en el manifiesto y tiene créditos con licencia compatible', () => {
     const b = JSON.parse(fs.readFileSync(path.join(ART, 'buildings.json'), 'utf8'));
-    const files = new Set(Object.values<{ file: string }>(b.sprites).map((s) => s.file));
+    const files = new Set(Object.values<{ file: string; mask?: string }>(b.sprites).flatMap((s) => (s.mask ? [s.file, s.mask] : [s.file])));
     for (const f of files) expect(fs.existsSync(path.join(ART, f)), f).toBe(true);
     for (const f of fs.readdirSync(path.join(ART, 'buildings'))) expect(files, f).toContain(`buildings/${f}`);
     for (const [key, ids] of Object.entries<string[]>(b.map)) for (const id of ids) expect(b.sprites[id], key).toBeDefined();
@@ -66,6 +66,11 @@ describe('arte de unidades', () => {
     for (const f of FACTION_ORDER) {
       expect(b.styles[f], f).toHaveLength(4);
       for (const st of b.styles[f]) expect(b.map[`${st}/house`], `${f} ${st}`).toBeDefined();
+    }
+    // Fuertes, torres (de madera en la Edad Tribal) y murallas de 0 A.D. para cada pueblo.
+    for (const f of FACTION_ORDER) {
+      for (const k of [`${f}/fortress`, `${f}@1/tower`, `${f}/tower`]) expect(b.map[k], k).toBeDefined();
+      for (const piece of ['post', 'e', 'w', 's', 'n', 'gateU', 'gateV']) expect(b.sprites[b.walls[f][piece]], `${f} ${piece}`).toBeDefined();
     }
     // Árboles: cada especie trae sus 5 etapas.
     for (const t of b.trees) for (const id of t) expect(b.sprites[id], id).toBeDefined();

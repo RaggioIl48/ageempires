@@ -5,7 +5,7 @@
 
 import { BUILDING_DEFS, type FactionId, type ResourceType, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
-import { buildingSprite, drawSpriteUnit, spriteTop, treeSpecies, treeSprite } from './art.ts';
+import { buildingSprite, drawSpriteUnit, spriteTop, treeSpecies, treeSprite, wallPiece, type BuildingSprite, type WallPieces } from './art.ts';
 import { worldToPx } from './view.ts';
 
 export const RESOURCE_COLORS: Record<ResourceType, string> = {
@@ -261,7 +261,7 @@ function flag(ctx: CanvasRenderingContext2D, x: number, y: number, color: string
 /** Altura total aproximada del dibujo de cada edificio (para "levantarlo" al construir). */
 export function buildingHeight(type: BuildingView['type']): number {
   return {
-    town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, woodlot: 40, barracks: 64,
+    town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, woodlot: 40, barracks: 64, fortress: 110,
     archery_range: 40, stable: 50, tech_center: 66, market: 40, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
     castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
   }[type];
@@ -274,11 +274,40 @@ export function setEraLookup(f: (playerId: number) => number): void {
   eraOf = f;
 }
 
-function artOf(b: BuildingView, faction?: FactionId) {
+/** ¿Hay muralla o puerta de este jugador en la casilla? (la fija el dibujo de la escena). */
+let wallAt: (tx: number, ty: number, owner: number) => boolean = () => false;
+export function setWallLookup(f: (tx: number, ty: number, owner: number) => boolean): void {
+  wallAt = f;
+}
+
+function drawArt(ctx: CanvasRenderingContext2D, a: BuildingSprite): void {
+  ctx.drawImage(a.img, a.x, a.y, a.w, a.h);
+  if (a.tint) ctx.drawImage(a.tint, a.x, a.y, a.w, a.h);
+}
+
+/**
+ * Casilla de muralla o puerta con las piezas de 0 A.D. del pueblo: pilar central y medios
+ * tramos hacia las casillas vecinas con muralla (atrás primero, adelante al final).
+ * false = faltan imágenes: se dibuja con formas.
+ */
+function drawWallTile(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction: FactionId): boolean {
+  const c = worldToPx(b.tx + 0.5, b.ty + 0.5);
+  const at = (dx: number, dy: number) => wallAt(b.tx + dx, b.ty + dy, b.owner);
+  const pieces: (keyof WallPieces)[] =
+    b.type === 'gate'
+      ? [at(-1, 0) || at(1, 0) ? 'gateU' : 'gateV']
+      : [...(at(0, -1) ? ['n' as const] : []), ...(at(-1, 0) ? ['w' as const] : []), 'post', ...(at(1, 0) ? ['e' as const] : []), ...(at(0, 1) ? ['s' as const] : [])];
+  const arts = pieces.map((p) => wallPiece(faction, p, c.px, c.py, color));
+  if (arts.some((a) => !a)) return false;
+  for (const a of arts) drawArt(ctx, a!);
+  return true;
+}
+
+function artOf(b: BuildingView, faction?: FactionId, color?: string) {
   if (!faction) return null;
   const s = BUILDING_DEFS[b.type].size;
   const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
-  return buildingSprite(b, faction, c.px, c.py, eraOf(b.owner));
+  return buildingSprite(b, faction, c.px, c.py, eraOf(b.owner), color);
 }
 
 /**
@@ -334,14 +363,15 @@ export function buildingTop(b: BuildingView, faction?: FactionId): number {
 export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction?: FactionId): void {
   const s = BUILDING_DEFS[b.type].size;
   // Imagen de Unknown Horizons (según el estilo del pueblo); si no hay, las formas de abajo.
-  const art = artOf(b, faction);
+  if ((b.type === 'wall' || b.type === 'gate') && faction && drawWallTile(ctx, b, color, faction)) return;
+  const art = artOf(b, faction, color);
   if (art && b.type === 'woodlot' && drawWoodlot(ctx, b, color, art)) return;
   if (art) {
     if (art.yard) {
       fillFootprint(ctx, b.tx + 0.08, b.ty + 0.08, s - 0.16, '#a38d66');
       outlineFootprint(ctx, b.tx + 0.08, b.ty + 0.08, s - 0.16, '#7f6b4b', 1);
     }
-    ctx.drawImage(art.img, art.x, art.y, art.w, art.h);
+    drawArt(ctx, art);
     if (b.type === 'archery_range') archeryTargets(ctx, b);
     const R = worldToPx(b.tx + s, b.ty);
     flag(ctx, R.px - 10, R.py + 5, color, b.type === 'farm' ? 16 : 28);
@@ -439,9 +469,10 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       flag(ctx, c.px + 20, c.py + 8, color, 18);
       break;
     }
+    case 'fortress':
     case 'barracks': {
       const k = corners(b, s, 0.25);
-      const H = 26;
+      const H = b.type === 'fortress' ? 44 : 26;
       poly(ctx, [k.T.px, k.T.py + 4, k.R.px + 8, k.R.py + 4, k.B.px, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
       box(ctx, k, H, '#9d9990', '#7f7b73');
       // Almenas
