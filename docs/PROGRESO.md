@@ -368,6 +368,44 @@ buildings and the Mongol Town Center (yurt camp).
 
 **Tests**: 233.
 
+## 0 A.D. fortresses and walls, and battles for the cities (2026-09-26)
+
+**Fortresses, towers and walls of each people** — 3D models of 0 A.D. (Wildfire Games, CC-BY-SA 3.0)
+drawn in the game's isometric view by our own renderer (`tools/art`: COLLADA and DDS readers and a
+software rasterizer with sunlight, ambient occlusion and team-color masks; no Blender needed):
+
+| People | 0 A.D. culture | Look |
+|---|---|---|
+| Romans | Romans | stone castle with red roofs, crenellated stone walls |
+| Gauls | Gauls | timber fort on a *murus gallicus* rampart |
+| Germans | Britons | round stone broch, dry-stone walls |
+| Vikings | Gauls (old fort) | big rampart with timber halls |
+| Visigoths | Iberians | star-shaped fort, whitewashed walls |
+| Ostrogoths | Hellenes | Greek stone fortress and walls |
+| Mongols | Han | fortress with pagoda roofs, rammed-earth walls |
+
+- New **Fortress** (Medieval Age, 4×4, 600 stone + 200 wood): very tough, shoots arrows, +10 population.
+- **Towers** change with the age: wooden in the Tribal Age, stone afterwards.
+- **Walls** are cut into one-tile pieces (post + half sections, cut faces closed) and joined with the
+  neighbouring walls, so any shape looks continuous; gates show the culture's gate.
+
+**Battles for the cities** (Total War style, real time, online) — decision in
+[ADR-002](adr/ADR-002-batallas-estilo-total-war.md):
+
+- **⚔ March on a city**: soldiers leave the map on a forced march (12–45 s) and appear in rows in
+  front of the enemy city; the defender sees the countdown.
+- A **battle** starts when they arrive (or when enemy soldiers walk into a city): panel with each
+  side's strength, fallen soldiers and a 4-minute clock, red ring on the map and minimap, *Go to
+  battle* and *Retreat*. Everyone sees it (news for the teacher).
+- The city **falls** if its Town Center is destroyed (30% of its resources are sacked, up to 1000
+  each); the attack is **repelled** if the attacker has no soldiers left; if **time runs out** or the
+  attacker **retreats**, the army marches home. Both players see the result (decisive / clear / close /
+  pyrrhic victory, losses, buildings destroyed, loot).
+- Without walls the enemy walks straight in; with walls they must breach them or break a gate.
+
+Tested in the browser with two players (march, warning with countdown, battle panel, retreat, result
+for both). **Tests**: 239.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

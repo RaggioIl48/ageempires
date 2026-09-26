@@ -23,9 +23,43 @@ import {
   type UnitType,
   MARKET_START,
 } from '../../../shared/data.ts';
-import type { GameEvent, UnitState } from '../../../shared/protocol.ts';
+import type { BattleResultView, GameEvent, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
 import { NO_TECHS, buildingMaxHp, canAfford, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
+
+/** Ejército en marcha forzada: sus soldados salen del mapa y aparecen al llegar. */
+export interface March {
+  id: number;
+  owner: number;
+  /** Jugador a cuya ciudad va (en la vuelta, el propio dueño). */
+  target: number;
+  units: { type: UnitType; hp: number }[];
+  /** De dónde salió (para desplegarse del lado de donde viene). */
+  from: Point;
+  arriveTick: number;
+  home: boolean;
+}
+
+/** Batalla por la ciudad de `defender` (ver war.ts). */
+export interface Battle {
+  id: number;
+  attacker: number;
+  defender: number;
+  x: number;
+  y: number;
+  r: number;
+  startTick: number;
+  endTick: number;
+  /** Fuerza actual y la mayor que tuvo cada bando (vida total de sus soldados). */
+  as: number;
+  ds: number;
+  a0: number;
+  d0: number;
+  /** Soldados y edificios que participaron (para contar las pérdidas). */
+  aIds: Set<number>;
+  dIds: Set<number>;
+  buildings: Set<number>;
+}
 
 /** Valor de `solid` para las puertas: bloquean solo a quien no es aliado. */
 export const GATE = 2;
@@ -166,6 +200,12 @@ export class World {
   pendingWars: PendingWar[] = [];
   /** Sube cuando algún jugador cambia de era o investiga algo. */
   techVersion = 0;
+  /** Guerra (ver war.ts): marchas, batallas en curso y resultados por mandar. */
+  marches: March[] = [];
+  battles: Battle[] = [];
+  battleResults: BattleResultView[] = [];
+  warVersion = 0;
+  nextWarId = 1;
   /** Precios del Mercado (metal por lote), iguales para todos; y su versión (para la red). */
   market: Record<TradeResource, number> = { ...MARKET_START };
   marketVersion = 0;

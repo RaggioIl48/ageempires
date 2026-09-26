@@ -21,6 +21,7 @@ import {
 import { TICK_RATE, TRADE_RESOURCES } from '../../../shared/data.ts';
 import { encodeTiles, type DeltaMessage, type EconomyView, type RoomSettings, type ServerMessage } from '../../../shared/protocol.ts';
 import { diploView } from '../sim/diplomacy.ts';
+import { battleViews, marchViews } from '../sim/war.ts';
 import { buildingView, type Game } from '../sim/game.ts';
 
 /** Primer mensaje al entrar a la partida: mapa comprimido, jugadores y recursos. */
@@ -81,6 +82,10 @@ export class ClientSync {
   private lastClock = '';
   private lastEcoAllTick = -Infinity;
   private lastDiplo = -1;
+  private lastWar = -1;
+  private lastWarKey = '';
+  /** Resultados de batallas ya mandados (los que ocurran después se mandan). */
+  private sentResults = -1;
   private lastNews = -1;
   private lastTech = -1;
   private lastMarket = -1;
@@ -187,6 +192,23 @@ export class ClientSync {
       const pt: (number | string)[] = [];
       for (const pl of w.players.values()) pt.push(pl.id, pl.era, pl.techs);
       msg.pt = pt;
+    }
+    // Guerra: marchas propias o contra uno y batallas en curso (cuando cambian, y cada segundo si hay).
+    const active = w.marches.length > 0 || w.battles.length > 0;
+    if (w.warVersion !== this.lastWar || (active && frame.tick % TICK_RATE === 0)) {
+      this.lastWar = w.warVersion;
+      const m = marchViews(w, this.playerId), b = battleViews(w);
+      const key = JSON.stringify([m, b]);
+      if (key !== this.lastWarKey) {
+        this.lastWarKey = key;
+        msg.war = { m, b };
+      }
+    }
+    if (this.sentResults < 0) this.sentResults = w.battleResults.length; // al conectarse, solo lo nuevo
+    if (w.battleResults.length > this.sentResults) {
+      msg.res = w.battleResults.slice(this.sentResults).filter((r) => this.playerId === 0 || r.a === this.playerId || r.d === this.playerId);
+      this.sentResults = w.battleResults.length;
+      if (!msg.res.length) delete msg.res;
     }
     // Precios del Mercado (iguales para todos).
     if (w.marketVersion !== this.lastMarket) {

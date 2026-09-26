@@ -156,6 +156,8 @@ export class Hud {
   /** Solo cuando mira el profesor. */
   spectator: SpectatorInfo | null = null;
   onTeacherAction: (a: TeacherAction) => void = () => {};
+  /** Abre el menú para marchar sobre una ciudad (lo conecta GameView). */
+  onMarch: () => void = () => {};
 
   constructor(
     private state: ClientState,
@@ -188,6 +190,8 @@ export class Hud {
         case 'formation':
           this.input.formation = arg as Input['formation'];
           return;
+        case 'march':
+          return this.onMarch();
       }
     });
     el('army-bar').addEventListener('click', (e) => {
@@ -528,7 +532,8 @@ export class Hud {
         soldiers >= 2
           ? `<div class="formations"><span class="muted">Formation:</span>${F.map(([f, label, tip]) => `<button class="act small ${this.input.formation === f ? 'on' : ''}" data-action="formation" data-arg="${f}" title="${tip}">${label}</button>`).join('')}</div>`
           : '';
-      return `${formation}<button class="act small" data-action="stop">■ Stop</button>
+      const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
+      return `${formation}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         Idle troops attack the enemies they see on their own.</p>`;

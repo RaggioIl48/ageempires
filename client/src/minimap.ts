@@ -127,6 +127,16 @@ export class Minimap {
       ctx.fillRect(p.mx - 1.25, p.my - 1.25, 2.5, 2.5);
     }
 
+    // Batallas: círculo rojo que late.
+    for (const b of this.state.battles) {
+      const p = this.toMini(b.x, b.y);
+      ctx.strokeStyle = `rgba(255,70,60,${0.5 + 0.5 * Math.abs(Math.sin(now / 300))})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.mx, p.my, 7, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     // Lo que muestra la cámara.
     const corners = [
       this.cam.screenToWorld(0, 0),

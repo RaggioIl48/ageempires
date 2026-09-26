@@ -184,6 +184,57 @@ export interface PlayerSummary {
 
 // ---------- Cliente -> Servidor ----------
 
+/** Ejército en marcha forzada hacia una ciudad enemiga (o de vuelta a casa). */
+export interface MarchView {
+  id: number;
+  owner: number;
+  /** Ciudad (jugador) a la que marcha; en la vuelta, la propia. */
+  target: number;
+  /** Cantidad de soldados. */
+  n: number;
+  /** Segundos que faltan para llegar. */
+  left: number;
+  home: boolean;
+}
+
+/** Batalla en curso por una ciudad. a = atacante, d = defensor. */
+export interface BattleView {
+  id: number;
+  a: number;
+  d: number;
+  /** Centro y radio del campo de batalla (casillas). */
+  x: number;
+  y: number;
+  r: number;
+  /** Segundos que le quedan al atacante para tomar la ciudad. */
+  left: number;
+  /** Fuerza (vida total de los soldados) ahora y la mayor que tuvo cada bando. */
+  as: number;
+  ds: number;
+  a0: number;
+  d0: number;
+  /** Soldados caídos de cada bando. */
+  al: number;
+  dl: number;
+}
+
+/** Cómo terminó una batalla. */
+export type BattleEnd = 'repelled' | 'fallen' | 'time' | 'retreat';
+
+export interface BattleResultView {
+  id: number;
+  a: number;
+  d: number;
+  winner: number;
+  end: BattleEnd;
+  al: number;
+  dl: number;
+  /** Edificios del defensor destruidos. */
+  buildings: number;
+  /** Botín que se llevó el atacante (si la ciudad cayó). */
+  loot: Partial<Record<ResourceType, number>>;
+}
+
 /** Formaciones para mover grupos. */
 export const FORMATIONS = ['line', 'column', 'loose'] as const;
 export type Formation = (typeof FORMATIONS)[number];
@@ -191,6 +242,10 @@ export type Formation = (typeof FORMATIONS)[number];
 export type Command =
   /** formation: 'line' = filas (infantería adelante, a distancia detrás, caballería a los lados), 'column' = columna angosta, 'loose' = grupo suelto. */
   | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation }
+  /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
+  | { kind: 'march'; unitIds: number[]; target: number }
+  /** El atacante se retira de una batalla: sus soldados vuelven a casa. */
+  | { kind: 'retreat'; battleId: number }
   | { kind: 'stop'; unitIds: number[] }
   /** Recolectar de un recurso del mapa o de una granja propia. */
   | { kind: 'gather'; unitIds: number[]; targetId: number }
@@ -267,6 +322,10 @@ export interface DeltaMessage {
   pt?: (number | string)[];
   /** Precios del Mercado [comida, madera, piedra] (cuando cambian). */
   mk?: number[];
+  /** Guerra: marchas propias o contra uno, y batallas en curso (cuando cambian y cada segundo). */
+  war?: { m: MarchView[]; b: BattleView[] };
+  /** Batallas que terminaron (para mostrar el resultado). */
+  res?: BattleResultView[];
 }
 
 export type ServerMessage =
@@ -466,6 +525,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
       return isId(c.buildingId) && isCoord(c.x) && isCoord(c.y) ? { kind: 'rally', buildingId: c.buildingId, x: c.x, y: c.y } : null;
     case 'delete':
       return isIdList(c.ids) ? { kind: 'delete', ids: [...new Set(c.ids)] } : null;
+    case 'retreat':
+      return isId(c.battleId) ? { kind: 'retreat', battleId: c.battleId } : null;
     case 'diplo':
       return typeof c.action === 'string' && (DIPLO_ACTIONS as readonly string[]).includes(c.action) && isId(c.target)
         ? { kind: 'diplo', action: c.action as DiploAction, target: c.target }
@@ -482,6 +543,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
         : { kind: 'move', unitIds, x: c.x, y: c.y };
     case 'stop':
       return { kind: 'stop', unitIds };
+    case 'march':
+      return isId(c.target) ? { kind: 'march', unitIds, target: c.target } : null;
     case 'gather':
     case 'construct':
     case 'attack':

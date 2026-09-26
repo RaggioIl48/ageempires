@@ -7,7 +7,10 @@ import { BUILDING_DEFS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type 
 import {
   decodeTiles,
   type BuildingView,
+  type BattleResultView,
+  type BattleView,
   type DeltaMessage,
+  type MarchView,
   type EconomyView,
   type GameEvent,
   type NodeView,
@@ -97,6 +100,10 @@ export class ClientState {
   techVersion = 0;
   /** Precios del Mercado [comida, madera, piedra], en metal por lote. */
   market: number[] = [];
+  /** Guerra: ejércitos en marcha, batallas en curso y resultados por mostrar. */
+  marches: MarchView[] = [];
+  battles: BattleView[] = [];
+  battleResults: BattleResultView[] = [];
 
   /** Relación entre dos jugadores (uno mismo cuenta como aliado). */
   relation(a: number, b: number): Relation {
@@ -141,6 +148,9 @@ export class ClientState {
         this.pendingWars = [];
         this.chat = [];
         this.eras.clear();
+        this.marches = [];
+        this.battles = [];
+        this.battleResults = [];
         this.techs.clear();
         this.nodesVersion++;
         break;
@@ -230,6 +240,11 @@ export class ClientState {
       this.diploVersion++;
     }
     if (d.mk) this.market = d.mk;
+    if (d.war) {
+      this.marches = d.war.m;
+      this.battles = d.war.b;
+    }
+    if (d.res) this.battleResults.push(...d.res);
     if (d.pt) {
       for (let i = 0; i + 2 < d.pt.length; i += 3) {
         this.eras.set(Number(d.pt[i]), Number(d.pt[i + 1]));

@@ -379,6 +379,19 @@ export const CREW_SIZE = 5;
 /** +450 %: cada viaje de un trabajador de la cuadrilla entrega 5,5 veces lo que carga. */
 export const CREW_BONUS = 5.5;
 export const CREW_RADIUS = 5;
+
+// ---------- Guerra: marchas y batallas por las ciudades (idea de Total War) ----------
+/** Radio (casillas) de la ciudad alrededor del Centro Urbano: ahí se pelea la batalla. */
+export const CITY_RADIUS = 12;
+/** Duración máxima de una batalla: si el atacante no toma la ciudad, se retira. */
+export const BATTLE_SECONDS = 240;
+/** Marcha forzada: casillas por segundo, y duración mínima y máxima (segundos). */
+export const MARCH_SPEED = 3.5;
+export const MARCH_MIN_SECONDS = 12;
+export const MARCH_MAX_SECONDS = 45;
+/** Saqueo: parte de los recursos del que pierde su ciudad (con un máximo por recurso). */
+export const LOOT_SHARE = 0.3;
+export const LOOT_MAX = 1000;
 /** Distancia (en casillas, desde el centro del trabajador) para recolectar o descargar. */
 export const INTERACT_RANGE = 1.25;
 

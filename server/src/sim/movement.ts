@@ -172,6 +172,11 @@ function rankedSpots(world: World, units: Unit[], x: number, y: number, formatio
 }
 
 /** Punto caminable más cercano (de a media casilla), sin repetir uno ya tomado. */
+export function freeSpot(world: World, p: Point, taken: Set<number>, owner = 0): Point | null {
+  if (owner) world.walker = owner;
+  return freeNear(world, p, taken);
+}
+
 function freeNear(world: World, p: Point, taken: Set<number>): Point | null {
   for (let r = 0; r <= 6; r++)
     for (let j = -r; j <= r; j++)

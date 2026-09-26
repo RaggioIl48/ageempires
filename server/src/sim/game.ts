@@ -22,6 +22,7 @@ import { moveGroup, moveUnits, separateUnits } from './movement.ts';
 import { updateHealing } from './healing.ts';
 import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from './production.ts';
 import { trade } from './market.ts';
+import { retreat, startMarch, updateWar } from './war.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
@@ -57,6 +58,7 @@ export class Game {
     updateGatherers(w, dt);
     updateBuilders(w, dt);
     removeDead(w);
+    updateWar(w);
     separateUnits(w);
   }
 
@@ -99,6 +101,9 @@ export class Game {
       case 'delete':
         this.deleteOwn(playerId, cmd.ids);
         return;
+      case 'retreat':
+        retreat(w, playerId, cmd.battleId);
+        return;
       case 'diplo':
         diplo(w, playerId, cmd.action, cmd.target);
         return;
@@ -114,6 +119,11 @@ export class Game {
       case 'stop':
         for (const u of units) stopWork(u);
         break;
+      case 'march': {
+        const error = startMarch(w, playerId, units, cmd.target);
+        if (error) w.notify(playerId, error);
+        break;
+      }
       case 'move':
         moveGroup(w, units, clamp(cmd.x, 0, w.size - 0.01), clamp(cmd.y, 0, w.size - 0.01), cmd.formation ?? 'loose');
         break;

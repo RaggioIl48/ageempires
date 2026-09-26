@@ -220,6 +220,16 @@ export class Renderer {
       if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
     }
 
+    // Campos de batalla: un anillo rojo con el radio de la batalla.
+    for (const b of state.battles) {
+      const p = worldToPx(b.x, b.y);
+      ctx.save();
+      ctx.setLineDash([10, 8]);
+      ctx.lineDashOffset = -now / 60;
+      ellipse(ctx, p.px, p.py, b.r * 32 * Math.SQRT2, b.r * 16 * Math.SQRT2, null, 'rgba(230,60,50,0.75)', 3);
+      ctx.restore();
+    }
+
     // Caídos en combate: su animación de morir, y se desvanecen.
     state.corpses = state.corpses.filter((c) => now - c.t0 < CORPSE_MS);
     for (const c of state.corpses) {

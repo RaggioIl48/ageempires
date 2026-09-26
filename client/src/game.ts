@@ -3,6 +3,7 @@
 import { BUILDING_DEFS } from '../../shared/data.ts';
 import type { ServerMessage } from '../../shared/protocol.ts';
 import { ChatBox, DiploPanel } from './diplomacy.ts';
+import { WarPanel } from './war.ts';
 import { GuidePanel } from './guide.ts';
 import { Hud, iconOf } from './hud.ts';
 import { Input } from './input.ts';
@@ -22,6 +23,7 @@ export class GameView {
   readonly diplo: DiploPanel;
   private readonly guide: GuidePanel;
   private readonly chat: ChatBox;
+  private readonly war: WarPanel;
   private readonly canvas = document.getElementById('game') as HTMLCanvasElement;
   private readonly ctx = this.canvas.getContext('2d', { alpha: false })!;
   private needCenter = false;
@@ -36,6 +38,8 @@ export class GameView {
     this.diplo = new DiploPanel(this.state, net);
     this.guide = new GuidePanel(this.state, iconOf);
     this.chat = new ChatBox(this.state, net);
+    this.war = new WarPanel(this.state, this.input, this.cam, net);
+    this.hud.onMarch = () => this.war.toggleMenu();
     this.input.onSelectionChange = () => this.hud.update();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -59,6 +63,7 @@ export class GameView {
     this.diplo.update();
     this.guide.update();
     this.chat.update();
+    this.war.update();
   }
 
   /** Al empezar: la cámara sobre el Centro Urbano propio (o el centro del mapa si es el profesor). */
