@@ -1272,3 +1272,17 @@ img.portrait {
   padding: 3px 10px;
   text-align: left;
 }
+
+/* Habilidades del General */
+.abilities {
+  flex-basis: 100%;
+  display: flex;
+  gap: 4px;
+}
+.act.ability {
+  border-color: #b8913a;
+  background: linear-gradient(#4a3620, #33251a);
+}
+.act.ability:disabled {
+  opacity: 0.55;
+}

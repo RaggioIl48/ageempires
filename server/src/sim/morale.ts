@@ -8,6 +8,10 @@
 
 import {
   FACTIONS,
+  GENERAL_AURA_REGEN,
+  GENERAL_AURA_RESOLVE,
+  GENERAL_DEATH_MORALE,
+  GENERAL_DEATH_RADIUS,
   MORALE_ALLY_DEATH,
   MORALE_FLANK,
   MORALE_MAX,
@@ -23,6 +27,7 @@ import {
 } from '../../../shared/data.ts';
 import { UnitGrid } from './combat.ts';
 import { isEnemy } from './diplomacy.ts';
+import { buffMoraleLoss, isHero, nearGeneral } from './general.ts';
 import { pathToPoint } from './pathfinding.ts';
 import type { Unit, World } from './world.ts';
 
@@ -33,6 +38,7 @@ const WITNESS_RADIUS = 5;
 
 /** ¿Tiene moral? Solo los soldados de a pie, a caballo y a distancia. */
 export function hasMorale(u: Unit): boolean {
+  if (UNIT_DEFS[u.type].hero) return false; // el General no huye
   const c = UNIT_DEFS[u.type].category;
   return c === 'infantry' || c === 'cavalry' || c === 'ranged';
 }
@@ -59,12 +65,25 @@ export function hitMorale(world: World, victim: Unit, dmg: number, side: 0 | 1 |
   let loss = (dmg / maxHp) * MORALE_PER_HP + (side === 1 ? MORALE_FLANK : side === 2 ? MORALE_REAR : 0);
   if (melee) loss *= fearOf(world, attackerOwner);
   loss /= resolveOf(world, victim.owner);
+  loss *= buffMoraleLoss(victim);
+  if (nearGeneral(world, victim)) loss /= GENERAL_AURA_RESOLVE;
   victim.morale -= loss;
   if (victim.morale <= 0) startRout(world, victim);
 }
 
 /** Al caer un soldado, sus compañeros cercanos pierden moral. */
 export function deathMorale(world: World, dead: Unit): void {
+  if (isHero(dead)) {
+    // ¡Cayó el General! Los suyos que lo ven se desmoralizan.
+    world.notify(dead.owner, 'Your General has fallen! Train a new one at the Town Center');
+    for (const u of world.units.values()) {
+      if (u.owner !== dead.owner || !hasMorale(u) || u.routing > 0 || u.hp <= 0) continue;
+      if ((u.x - dead.x) ** 2 + (u.y - dead.y) ** 2 > GENERAL_DEATH_RADIUS ** 2) continue;
+      u.morale -= GENERAL_DEATH_MORALE / resolveOf(world, u.owner);
+      if (u.morale <= 0) startRout(world, u);
+    }
+    return;
+  }
   if (!hasMorale(dead)) return;
   for (const u of world.units.values()) {
     if (u === dead || u.owner !== dead.owner || !hasMorale(u) || u.routing > 0 || u.hp <= 0) continue;
@@ -139,7 +158,8 @@ export function updateMorale(world: World, dt: number): void {
       if (u.path.length === 0 && danger) flee(world, u);
       continue;
     }
-    u.morale = Math.min(MORALE_MAX, u.morale + (danger ? MORALE_REGEN_COMBAT : MORALE_REGEN_SAFE) * dt);
+    const aura = nearGeneral(world, u) ? GENERAL_AURA_REGEN : 0;
+    u.morale = Math.min(MORALE_MAX, u.morale + ((danger ? MORALE_REGEN_COMBAT : MORALE_REGEN_SAFE) + aura) * dt);
   }
 }
 

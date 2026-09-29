@@ -3,7 +3,7 @@
 // (Código sin navegador: también lo usan las pruebas del servidor.)
 
 import { decodeBuilding, decodeEvent, decodeUnit, NODE_TYPES } from '../../shared/codec.ts';
-import { BUILDING_DEFS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation, type UnitType } from '../../shared/data.ts';
+import { BUILDING_DEFS, FACTIONS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation, type UnitType } from '../../shared/data.ts';
 import {
   decodeTiles,
   type BuildingView,
@@ -324,6 +324,7 @@ export class ClientState {
 
   /** Nombre de una unidad de ese jugador (con sus evoluciones: Piquero, élites…). */
   labelOf(owner: number, type: UnitType): string {
+    if (type === 'general') return `${FACTIONS[this.faction(owner)].hero} (General)`;
     return unitLabel(type, this.techsOf(owner));
   }
 

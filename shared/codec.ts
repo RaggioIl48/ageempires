@@ -23,7 +23,7 @@ export const q = (v: number): number => Math.round(v * 100);
 const dq = (v: number): number => v / 100;
 
 // ---------- Unidades ----------
-// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla, moral, huye]
+// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla, moral, huye, efecto, espera1, espera2]
 export type UnitTuple = number[];
 export const U_X = 3;
 export const U_Y = 4;
@@ -45,6 +45,9 @@ export function encodeUnit(u: UnitView): UnitTuple {
     u.crew ?? 0,
     u.morale ?? 100,
     u.rout ? 1 : 0,
+    u.buff ?? 0,
+    u.cd ? u.cd[0] : -1,
+    u.cd ? u.cd[1] : -1,
   ];
 }
 
@@ -68,6 +71,8 @@ export function decodeUnit(t: UnitTuple): UnitView {
   if (t[12] > 1) v.crew = t[12];
   if (t[13] < 100) v.morale = t[13];
   if (t[14]) v.rout = 1;
+  if (t[15] === 1 || t[15] === 2) v.buff = t[15];
+  if (t[16] >= 0) v.cd = [t[16], t[17]];
   return v;
 }
 
@@ -134,7 +139,7 @@ export function sameTuple(a: readonly number[] | undefined, b: readonly number[]
 
 // ---------- Efectos ----------
 // shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga, flanco] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
-// gain: [4, x, y, dueño, recurso, cantidad]
+// gain: [4, x, y, dueño, recurso, cantidad] · ability: [5, x, y, habilidad, radio]
 export type EventTuple = number[];
 
 export function encodeEvent(e: GameEvent): EventTuple {
@@ -149,6 +154,8 @@ export function encodeEvent(e: GameEvent): EventTuple {
       return [3, q(e.x), q(e.y), e.size];
     case 'gain':
       return [4, q(e.x), q(e.y), e.o, e.r, e.n];
+    case 'ability':
+      return [5, q(e.x), q(e.y), e.a, e.r];
   }
 }
 
@@ -165,6 +172,8 @@ export function decodeEvent(t: EventTuple): GameEvent {
     }
     case 2:
       return { k: 'death', x: dq(t[1]), y: dq(t[2]) };
+    case 5:
+      return { k: 'ability', x: dq(t[1]), y: dq(t[2]), a: t[3] === 2 ? 2 : 1, r: t[4] };
     case 4:
       return { k: 'gain', x: dq(t[1]), y: dq(t[2]), o: t[3], r: t[4], n: t[5] };
     default:

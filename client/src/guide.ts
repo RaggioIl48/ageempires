@@ -129,6 +129,9 @@ export class GuidePanel {
         ignore orders and take extra damage, then rally once safe. A battle is often won by breaking the enemy, not killing everyone.</p>
         <p><b>Flanks:</b> melee hits from the side deal ×${FLANK_DAMAGE} and from behind ×${REAR_DAMAGE}, and break morale faster.
         Pin the enemy with infantry and send cavalry around the back!</p>
+        <p><b>General</b> (${esc(f.hero)}): every army has one leader. Soldiers near him lose less morale and recover it faster; if he
+        falls, they lose heart. Select him and press <b>Q · 📯 Inspire</b> (morale back at once, routing soldiers rally, +25% damage)
+        or <b>E · 🛡 Hold the Line</b> (+3 armor, much steadier). Only one General per player: if he dies, train another at the Town Center.</p>
         <p><b>Battering ram:</b> only attacks buildings, walls and gates; arrows barely hurt it, but soldiers destroy it.</p>
         <p><b>Upgrades ★:</b> research them in the building that trains the unit. Units already on the map improve too.</p>
         <p><b>Airplanes</b> can only be hit by ranged attacks and towers.</p>

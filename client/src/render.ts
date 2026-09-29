@@ -15,6 +15,8 @@ import {
   ellipse,
   fillFootprint,
   hash,
+  buffRing,
+  generalBanner,
   healthBar,
   moraleBar,
   whiteFlag,
@@ -122,7 +124,7 @@ type Drawable =
 const CORPSE_MS = 4000;
 
 /** Duración de cada efecto (ms). */
-const EFFECT_MS = { shot: 300, hit: 180, flank: 900, death: 900, destroyed: 1200, gain: 1600 } as const;
+const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, death: 900, destroyed: 1200, gain: 1600 } as const;
 /** Los disparos de cañón vuelan más lento y terminan en una explosión. */
 const SHELL_MS = 600;
 const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
@@ -264,6 +266,7 @@ export class Renderer {
         }
         case 'unit': {
           const p = worldToPx(d.x, d.y);
+          if (d.u.buff) buffRing(ctx, p.px, p.py, d.u.buff, UNIT_LOOK[d.u.type].ring + 2, now);
           drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)), d.face);
           break;
         }
@@ -283,6 +286,7 @@ export class Renderer {
         // Moral (azul) bajo la vida cuando no está completa; bandera blanca si huye.
         if (d.u.morale !== undefined && !d.u.rout) moraleBar(ctx, p.px, p.py - top - 0.5, d.u.morale / 100);
         if (d.u.rout) whiteFlag(ctx, p.px, p.py - top - 6, now + d.u.id * 97);
+        if (d.u.type === 'general') generalBanner(ctx, p.px + 9, p.py - top + 6, state.color(d.u.owner), now + d.u.id * 31);
       } else if (d.k === 'building') {
         const max = state.maxHpOf(d.b);
         if (d.b.progress >= 1 && (d.b.hp < max || sel.building === d.b.id)) {
@@ -438,6 +442,28 @@ export class Renderer {
             ctx.textAlign = 'start';
             ctx.globalAlpha = 1;
           }
+          break;
+        }
+        case 'ability': {
+          // Onda que sale del General: dorada (Inspire) o azul (Hold the Line).
+          const p = worldToPx(e.x, e.y);
+          const r = e.r * 32 * Math.SQRT2 * (0.25 + age * 0.75);
+          ctx.globalAlpha = 1 - age;
+          ctx.strokeStyle = e.a === 1 ? '#ffc83c' : '#6eb4ff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(p.px, p.py, r, r / 2, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.font = 'bold 13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+          const text = e.a === 1 ? 'Inspire!' : 'Hold the line!';
+          ctx.strokeText(text, p.px, p.py - 44 - age * 12);
+          ctx.fillStyle = e.a === 1 ? '#ffd76a' : '#9fd0ff';
+          ctx.fillText(text, p.px, p.py - 44 - age * 12);
+          ctx.textAlign = 'start';
+          ctx.globalAlpha = 1;
           break;
         }
         case 'death': {

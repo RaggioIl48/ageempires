@@ -267,6 +267,20 @@ function uniqueUnits() {
   };
 }
 
+/** El General de cada pueblo: a caballo gris, armadura dorada y capa del color del jugador. */
+function generals() {
+  const H = (f, attack, extra) => ({ kind: 'horse', attack, horse: 'gray', parts: person(f, [T('cape'), ...extra], { hair: false }) });
+  return {
+    romans: H('romans', 'slash', [p('legion', { color: 'gold' }), p('legionShoulders', { color: 'gold' }), p('helmLegion', { color: 'gold' }), p('plumeCenturion', { colors: { color_1: 'red' } }), p('sword', { variant: 'steel' })]),
+    mongols: H('mongols', 'slash', [p('plate', { color: 'gold' }), p('helmPointed', { color: 'gold' }), p('saber')]),
+    gauls: H('gauls', 'slash', [p('chainmail', { color: 'gold' }), p('helmBarbarian', { colors: { color_1: 'gold', color_2: 'red' } }), p('longsword')]),
+    germans: H('germans', 'slash', [p('chainmail', { color: 'steel' }), p('plateArms', { color: 'gold' }), p('helmBarbarianNasal', { colors: { color_1: 'gold', color_2: 'brown' } }), p('longsword')]),
+    visigoths: H('visigoths', 'slash', [p('plate', { color: 'steel' }), p('plateArms', { color: 'gold' }), p('helmNorman', { color: 'gold' }), p('longsword')]),
+    ostrogoths: H('ostrogoths', 'thrust', [p('chainmail', { color: 'steel' }), p('plateArms', { color: 'gold' }), p('helmSpangen', { color: 'gold' }), p('longspear', { variant: 'steel' })]),
+    vikings: H('vikings', 'slash', [p('chainmail', { color: 'steel' }), p('helmBarbarianViking', { colors: { color_1: 'gold', color_2: 'brown' } }), p('waraxe')]),
+  };
+}
+
 /** Todas las unidades de personaje: [{ faction, type, kind, attack, parts, bodyType?, horse }]. */
 export function characterRecipes() {
   const out = [];
@@ -274,6 +288,7 @@ export function characterRecipes() {
   for (const f of Object.keys(PEOPLE)) {
     for (const [type, r] of Object.entries(baseUnits(f))) out.push({ faction: f, type, kind: 'foot', horse: PEOPLE[f].horse, ...r });
     for (const [type, r] of Object.entries(uniques[f] ?? {})) out.push({ faction: f, type, kind: 'foot', horse: PEOPLE[f].horse, ...r });
+    out.push({ faction: f, type: 'general', ...generals()[f] });
   }
   return out;
 }

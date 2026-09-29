@@ -64,6 +64,8 @@ describe('full progression on a generated map', () => {
       for (const [type, b] of built) {
         for (const unit of BUILDING_DEFS[type].trains) {
           if (!unitAvailable(unit, me.era, me.faction) || trained.has(unit)) continue;
+          // El General es único: para probar que se entrena, el de inicio "cae" antes.
+          if (UNIT_DEFS[unit].hero) for (const u of w.units.values()) if (u.owner === 1 && u.type === unit) w.units.delete(u.id);
           const before = [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length;
           g.enqueue(1, { kind: 'train', buildingId: b.id, unit });
           const secs = runUntil(g, () => [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length > before, UNIT_DEFS[unit].trainTime + 5);

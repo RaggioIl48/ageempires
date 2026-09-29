@@ -138,6 +138,30 @@ export function healthBar(ctx: CanvasRenderingContext2D, x: number, y: number, f
   ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), 3);
 }
 
+/** Efecto de una habilidad del General bajo la unidad: dorado (Inspire) o azul (Hold the Line). */
+export function buffRing(ctx: CanvasRenderingContext2D, x: number, y: number, kind: 1 | 2, r: number, now: number): void {
+  const pulse = 0.55 + 0.25 * Math.sin(now / 180);
+  ctx.strokeStyle = kind === 1 ? `rgba(255,200,60,${pulse})` : `rgba(110,180,255,${pulse})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r / 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/** Estandarte del General: asta alta con un pendón del color del jugador y una estrella. */
+export function generalBanner(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, now: number): void {
+  const w = Math.sin(now / 200) * 1.5;
+  line(ctx, x, y, x, y - 22, '#4a3a2a', 1.4);
+  poly(ctx, [x, y - 22, x + 11, y - 20 + w, x + 10, y - 13 + w, x, y - 15], color);
+  ctx.strokeStyle = '#f0c14b';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#f0c14b';
+  ctx.beginPath();
+  ctx.arc(x, y - 23, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 /** Moral: barra azul fina bajo la de vida (se vuelve naranja cuando flaquea). */
 export function moraleBar(ctx: CanvasRenderingContext2D, x: number, y: number, frac: number, w = 18): void {
   ctx.fillStyle = '#0d1b2a';
@@ -1088,6 +1112,7 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   gothic_warband: { half: 9, top: 28, ring: 10 },
   ulfhednar: { half: 10, top: 30, ring: 10 },
   ram: { half: 17, top: 28, ring: 16 },
+  general: { half: 13, top: 34, ring: 13 },
 };
 /** Altura de vuelo de los aviones (px). */
 export const FLY_HEIGHT = 40;

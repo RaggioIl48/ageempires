@@ -11,6 +11,7 @@ import {
   TILE_GRASS,
   TICK_RATE,
   UNIT_DEFS,
+  type AbilityId,
   type BuildingType,
   type Cost,
   type FactionId,
@@ -108,6 +109,11 @@ export interface Unit {
   /** Hacia dónde mira (vector unitario en casillas): para los ataques por el flanco. */
   fx: number;
   fy: number;
+  /** Habilidad del General que lo afecta (0 ninguna, 1 Inspire, 2 Hold the Line) y hasta qué paso. */
+  buff: 0 | 1 | 2;
+  buffUntil: number;
+  /** Solo el General: paso desde el que puede volver a usar cada habilidad. */
+  ready: Record<AbilityId, number>;
 }
 
 export interface ResourceNode {
@@ -460,6 +466,9 @@ export class World {
       routing: 0,
       fx: Math.SQRT1_2,
       fy: Math.SQRT1_2,
+      buff: 0,
+      buffUntil: 0,
+      ready: { inspire: 0, hold: 0 },
     };
     this.units.set(u.id, u);
     return u;

@@ -25,8 +25,7 @@ import {
   type FactionId,
   type ResourceType,
   type TechId,
-  type UnitType,
-} from '../../shared/data.ts';
+  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, type AbilityId } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
@@ -78,6 +77,7 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
   javelin_rider: '<svg viewBox="0 0 16 16"><ellipse cx="7" cy="11" rx="5.5" ry="2.8" fill="#3e3530"/><path d="M11 10 L14.5 6.5 L15.5 8 L12.5 11 Z" fill="#332b27"/><rect x="5" y="4.5" width="4" height="5" fill="currentColor"/><circle cx="7" cy="3.6" r="1.7" fill="#e2b68c"/><path d="M5.3 3.4 L7 0.8 L8.7 3.4 Z" fill="#8a9099"/><path d="M8 5 L15 0.5" stroke="#8b6a3e" stroke-width="1"/><circle cx="3.5" cy="7" r="1.8" fill="currentColor" stroke="#d9d2c0" stroke-width="0.5"/></svg>',
   gothic_warband: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.5" r="2.1" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="#8a6a20"/><ellipse cx="3.5" cy="11" rx="2.6" ry="4" fill="currentColor"/><path d="M11 11 L15 7" stroke="#d6d9de" stroke-width="1.4"/></svg>',
   ulfhednar: '<svg viewBox="0 0 16 16"><path d="M4.5 4 L5.5 0.5 L7 3.5 Z M11.5 4 L10.5 0.5 L9 3.5 Z" fill="#7e7b74"/><circle cx="8" cy="5" r="3.3" fill="#8f8b84"/><circle cx="8.5" cy="5.5" r="2" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="#d9a47a"/><rect x="5" y="12" width="6" height="3" fill="currentColor"/><path d="M11 11 L14.5 5" stroke="#6b4a2b" stroke-width="1.3"/><ellipse cx="14.5" cy="5" rx="1.8" ry="1.4" fill="#cfd3d8"/></svg>',
+  general: '<svg viewBox="0 0 16 16"><path d="M3 2 L3 15" stroke="#6b5234" stroke-width="1.4"/><path d="M3 2 L13 3.5 L11 6 L13 8.5 L3 8 Z" fill="currentColor" stroke="#f0c14b" stroke-width="0.8"/><path d="M8 11 L9 13 L11.2 13.2 L9.6 14.6 L10.1 16 L8 15 L5.9 16 L6.4 14.6 L4.8 13.2 L7 13 Z" fill="#f0c14b"/></svg>',
   ram: '<svg viewBox="0 0 16 16"><path d="M2 9 L8 4 L14 9 Z" fill="#7d5431"/><rect x="2" y="9" width="12" height="3" fill="#5a3d26"/><rect x="0" y="7.5" width="5" height="2" fill="#9a9a9a"/><circle cx="4" cy="13" r="2" fill="#3b2818"/><circle cx="12" cy="13" r="2" fill="#3b2818"/><path d="M8 4 L8 2 L11 2.8 L8 3.6" fill="currentColor"/></svg>',
   tech: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#c9ccd1" stroke="#6d7077" stroke-width="1.6" stroke-dasharray="2.2 1.3"/><circle cx="8" cy="8" r="2" fill="#6d7077"/></svg>',
   era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
@@ -193,6 +193,8 @@ export class Hud {
           return;
         case 'march':
           return this.onMarch();
+        case 'ability':
+          return this.input.ability(arg as AbilityId);
       }
     });
     el('army-bar').addEventListener('click', (e) => {
@@ -406,6 +408,8 @@ export class Hud {
     const extras = [
       st.regen > 0 ? `Heals ${Math.round(st.regen * 10) / 10} health/s` : '',
       st.category === 'cavalry' && st.attack.type === 'melee' ? `Charge ×${chargeOf(this.state.faction(u.owner))}` : '',
+      def.hero ? `Aura: soldiers within ${GENERAL_AURA} tiles lose less morale and recover it faster · never routs` : '',
+      u.buff ? (u.buff === 1 ? '📯 Inspired: +25% damage' : '🛡 Holding the line: +3 armor, steadier') : '',
     ].filter(Boolean);
     const n = u.crew ?? 1;
     const crew =
@@ -533,8 +537,16 @@ export class Hud {
         soldiers >= 2
           ? `<div class="formations"><span class="muted">Formation:</span>${F.map(([f, label, tip]) => `<button class="act small ${this.input.formation === f ? 'on' : ''}" data-action="formation" data-arg="${f}" title="${tip}">${label}</button>`).join('')}</div>`
           : '';
+      const gen = own.map((id) => this.state.units.get(id)?.v).find((u) => u?.type === 'general');
+      const abilities = gen
+        ? `<div class="abilities">${ABILITY_IDS.map((a, i) => {
+            const d = ABILITIES[a], wait = gen.cd?.[i] ?? 0;
+            return `<button class="act ability" data-action="ability" data-arg="${a}" ${wait > 0 ? 'disabled' : ''} title="${esc(d.description)} (radius ${d.radius}, cooldown ${d.cooldown} s)">
+              <span class="key">${ACTION_KEYS[i]}</span><b>${d.icon} ${d.label}</b><span class="costs">${wait > 0 ? `ready in ${wait} s` : 'ready'}</span></button>`;
+          }).join('')}</div>`
+        : '';
       const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${formation}${march}<button class="act small" data-action="stop">■ Stop</button>
+      return `${abilities}${formation}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         Idle troops attack the enemies they see on their own.</p>`;

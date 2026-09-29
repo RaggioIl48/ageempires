@@ -112,7 +112,9 @@ export type UnitType =
   | 'berserker' | 'huscarl'
   | 'triarius' | 'trebuchet' | 'war_chariot' | 'chosen_axeman' | 'javelin_rider' | 'gothic_warband' | 'ulfhednar'
   // Asedio de la Edad Media
-  | 'ram';
+  | 'ram'
+  // General (héroe): uno por jugador
+  | 'general';
 
 export interface UnitDef {
   label: string;
@@ -140,6 +142,8 @@ export interface UnitDef {
   regen?: number;
   /** Solo ataca edificios (ariete). */
   buildingsOnly?: boolean;
+  /** Héroe: uno por jugador, no huye y tiene habilidades (el General). */
+  hero?: boolean;
   /** Para la interfaz: en qué es buena y en qué no. */
   strong: string;
   weak: string;
@@ -236,6 +240,11 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     label: 'Legionary', hp: 85, speed: 1.3, sight: 4, pop: 1, cost: { food: 70, metal: 40 }, trainTime: 22,
     attack: melee(9), armor: { melee: 3, ranged: 4 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans',
     strong: 'Heavy shield wall: holds any line', weak: 'Slow and costly',
+  },
+  general: {
+    label: 'General', hp: 260, speed: 2.2, sight: 7, pop: 1, cost: { food: 120, metal: 80 }, trainTime: 30,
+    attack: melee(11, 1.6), armor: { melee: 3, ranged: 3 }, category: 'cavalry', era: 1, untilEra: 4, hero: true,
+    strong: 'Leads the army: nearby soldiers lose less morale. Abilities: Inspire and Hold the Line', weak: 'Only one per player: if he falls, his troops lose heart',
   },
   ram: {
     label: 'Battering Ram', hp: 320, speed: 1.0, sight: 4, pop: 2, cost: { wood: 180, metal: 40 }, trainTime: 30,
@@ -454,7 +463,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     label: 'Town Center',
     description: 'Your main base. Trains workers, researches the next age and shoots arrows.',
     size: 3, hp: 2000, cost: { wood: 275, stone: 100 }, buildTime: 120, popProvided: 5, dropoff: RESOURCE_TYPES,
-    trains: ['worker'], researches: ['era2', 'era3', 'era4', 'tools', 'wheelbarrow', 'plow', 'hand_cart'],
+    trains: ['worker', 'general'], researches: ['era2', 'era3', 'era4', 'tools', 'wheelbarrow', 'plow', 'hand_cart'],
     armor: { melee: 3, ranged: 6 }, sight: 8, attack: ranged(5, 6, 2), solid: true, buildable: false, era: 1,
   },
   house: {
@@ -892,6 +901,8 @@ export function isUpgradeTech(t: TechId): boolean {
 export type FactionId = 'romans' | 'mongols' | 'gauls' | 'germans' | 'visigoths' | 'ostrogoths' | 'vikings';
 export interface FactionDef {
   name: string;
+  /** Título de su General (Legado, Khan, Jarl…). */
+  hero: string;
   motto: string;
   units: Partial<Record<Category, StatMods>>;
   gather?: Partial<Record<ResourceType, number>>;
@@ -920,6 +931,7 @@ export interface FactionDef {
 export const FACTIONS: Record<FactionId, FactionDef> = {
   romans: {
     name: 'Romans',
+    hero: 'Legate',
     motto: 'Discipline conquers the world',
     units: { infantry: { hp: 1.15, armor: 1 }, siege: { attack: 1.15 }, cavalry: { attack: 0.85 } },
     buildingHp: 1.1,
@@ -930,6 +942,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   },
   mongols: {
     name: 'Mongols',
+    hero: 'Khan',
     motto: 'The steppe is our home, the horse our wall',
     units: { cavalry: { speed: 1.15, attack: 1.1 }, infantry: { hp: 0.8 } },
     gather: { food: 1.1 },
@@ -941,6 +954,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   },
   gauls: {
     name: 'Gauls',
+    hero: 'Chieftain',
     motto: 'The forest fights with us',
     units: { infantry: { attack: 1.15, speed: 1.05 }, ranged: { attack: 0.9 } },
     gather: { wood: 1.15 },
@@ -952,6 +966,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   },
   germans: {
     name: 'Germans',
+    hero: 'Warlord',
     motto: 'From the dark woods we strike',
     units: { infantry: { hp: 1.1 }, siege: { attack: 0.8 } },
     gather: { food: 1.1, wood: 1.1 },
@@ -962,6 +977,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   },
   visigoths: {
     name: 'Visigoths',
+    hero: 'Dux',
     motto: 'Heirs of Rome, masters of Hispania',
     units: { cavalry: { hp: 1.15 }, ranged: { range: 1 }, infantry: { attack: 0.9 } },
     strengths: ['Cavalry: +15% health', 'Ranged: +1 range'],
@@ -971,6 +987,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   },
   ostrogoths: {
     name: 'Ostrogoths',
+    hero: 'Comes',
     motto: 'The lance of Theodoric',
     units: { cavalry: { attack: 1.2 }, ranged: { attack: 0.85 } },
     gather: { stone: 1.15 },
@@ -981,6 +998,7 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
   },
   vikings: {
     name: 'Vikings',
+    hero: 'Jarl',
     motto: 'Valhalla awaits the brave',
     units: { infantry: { attack: 1.1, speed: 1.1 }, cavalry: { hp: 0.75 } },
     gather: { wood: 1.1, metal: 1.1 },
@@ -1025,6 +1043,45 @@ export const FLANK_DAMAGE = 1.25;
 export const REAR_DAMAGE = 1.5;
 export const ROUTING_DAMAGE = 1.25;
 
+// ---------- General (héroe) y sus habilidades ----------
+/** Aura: los soldados a esta distancia de su General pierden menos moral y la recuperan antes. */
+export const GENERAL_AURA = 7;
+export const GENERAL_AURA_RESOLVE = 1.35;
+export const GENERAL_AURA_REGEN = 2;
+/** Si cae el General, sus soldados a esta distancia pierden moral. */
+export const GENERAL_DEATH_RADIUS = 10;
+export const GENERAL_DEATH_MORALE = 30;
+
+export type AbilityId = 'inspire' | 'hold';
+export interface AbilityDef {
+  label: string;
+  icon: string;
+  description: string;
+  /** Radio (casillas), duración y espera entre usos (segundos). */
+  radius: number;
+  seconds: number;
+  cooldown: number;
+  /** Moral que devuelve al instante (y reagrupa a los que huyen). */
+  morale?: number;
+  /** Multiplicador del daño, armadura extra y multiplicador de la moral que se pierde, mientras dura. */
+  damage?: number;
+  armor?: number;
+  moraleLoss?: number;
+}
+export const ABILITIES: Record<AbilityId, AbilityDef> = {
+  inspire: {
+    label: 'Inspire', icon: '📯',
+    description: 'Soldiers nearby recover 40 morale at once (routing ones rally) and deal +25% damage for 20 s',
+    radius: 8, seconds: 20, cooldown: 60, morale: 40, damage: 1.25,
+  },
+  hold: {
+    label: 'Hold the Line', icon: '🛡',
+    description: 'Soldiers nearby get +3 armor and lose 60% less morale for 20 s: perfect to hold a hill or a gate',
+    radius: 8, seconds: 20, cooldown: 75, armor: 3, moraleLoss: 0.4,
+  },
+};
+export const ABILITY_IDS = Object.keys(ABILITIES) as AbilityId[];
+
 /** Carga de caballería: tras unos segundos sin pelear, el primer golpe cuerpo a cuerpo hace más daño. */
 export const CHARGE_BONUS = 1.5;
 export const CHARGE_READY_SEC = 4;
@@ -1055,7 +1112,7 @@ export const DIPLO_ACTIONS: readonly DiploAction[] = [
 export const CHAT_MAX = 140;
 
 // ---------- Partida ----------
-export const STARTING_UNITS: readonly UnitType[] = ['worker', 'worker', 'worker', 'scout'];
+export const STARTING_UNITS: readonly UnitType[] = ['worker', 'worker', 'worker', 'scout', 'general'];
 /** Colores de jugador (16, bien distinguibles entre sí). */
 export const PLAYER_COLORS: readonly string[] = [
   '#2f6fd6', '#d63a2f', '#2fa84f', '#e0b020',

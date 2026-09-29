@@ -18,6 +18,7 @@ import {
 import { addTech, buildingMaxHp, hasTech, trainSpeed, unitCost, unitStats } from '../../../shared/stats.ts';
 import { assignGather } from './gather.ts';
 import { moveGroup } from './movement.ts';
+import { hasGeneral } from './general.ts';
 import { freeTilesAround, type Building, type QueueItem, type World } from './world.ts';
 
 function itemCost(item: QueueItem): Cost {
@@ -33,6 +34,7 @@ export function queueUnit(world: World, playerId: number, b: Building, unit: Uni
   if (def.faction && def.faction !== world.factionOf(playerId)) return null; // unidad única de otro pueblo
   if (!unitAvailable(unit, world.eraOf(playerId), world.factionOf(playerId)))
     return world.eraOf(playerId) < def.era ? `${def.label}: you need the ${eraLabel(def.era)}` : `${def.label} is no longer trained in this age`;
+  if (def.hero && hasGeneral(world, playerId)) return 'You already have a General (only one per player)';
   if (b.queue.length >= MAX_QUEUE) return `The queue is full (maximum ${MAX_QUEUE})`;
   const cost = unitCost(unit, world.techsOf(playerId));
   if (!world.spend(playerId, cost)) return 'Not enough resources';

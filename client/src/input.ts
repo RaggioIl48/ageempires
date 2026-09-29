@@ -9,8 +9,10 @@
 //   Muralla: clic y arrastrar dibuja una muralla larga con una sola orden
 
 import {
+  ABILITY_IDS,
   BUILDING_DEFS,
   BUILD_MENU,
+  type AbilityId,
   TECH_DEFS,
   UNIT_DEFS,
   type Category,
@@ -243,6 +245,17 @@ export class Input {
   hasFinished(type: BuildingType): boolean {
     for (const b of this.state.buildings.values()) if (b.owner === this.state.you && b.type === type && b.progress >= 1) return true;
     return false;
+  }
+
+  /** Generales propios seleccionados. */
+  ownGenerals(): number[] {
+    return this.ownSelected().filter((id) => this.state.units.get(id)?.v.type === 'general');
+  }
+
+  /** Habilidad del General (Inspire / Hold the Line). */
+  ability(a: AbilityId): void {
+    const ids = this.ownGenerals();
+    if (ids.length) this.net.command({ kind: 'ability', unitIds: ids, ability: a });
   }
 
   /** Botón número `index` del edificio elegido: entrenar o investigar. */
@@ -611,6 +624,8 @@ export class Input {
       if (type) this.startPlacing(type);
     } else if (this.ownBuilding()) {
       this.act(slot);
+    } else if (this.ownGenerals().length > 0 && slot < ABILITY_IDS.length) {
+      this.ability(ABILITY_IDS[slot]);
     }
   }
 }

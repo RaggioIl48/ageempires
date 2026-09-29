@@ -11,6 +11,7 @@ import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { isEnemy } from './diplomacy.ts';
 import { stopWork } from './gather.ts';
 import { deathMorale, flankSide, hitMorale, isRouting } from './morale.ts';
+import { buffArmor, buffDamage } from './general.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Point, type Unit, type World } from './world.ts';
 
@@ -129,9 +130,11 @@ function centerOf(t: Target): Point {
 
 /** Aplica un golpe. `from` es la posición del atacante (para dibujar flechas). */
 export function strike(world: World, owner: number, attack: AttackDef, cat: Category, from: Point, t: Target, attacker?: Unit): void {
-  const armor = t.kind === 'unit' ? world.statsOf(t.unit).armor : BUILDING_DEFS[t.building.type].armor;
+  let armor = t.kind === 'unit' ? world.statsOf(t.unit).armor : BUILDING_DEFS[t.building.type].armor;
+  if (t.kind === 'unit' && buffArmor(t.unit)) armor = { melee: armor.melee + buffArmor(t.unit), ranged: armor.ranged + buffArmor(t.unit) };
   const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
   let dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
+  if (attacker && attacker.buff === 1) dmg = Math.round(dmg * buffDamage(attacker));
   // Flancos (Attila): cuerpo a cuerpo de costado o por la espalda hace más daño; el que huye recibe más.
   let side: 0 | 1 | 2 = 0;
   if (t.kind === 'unit') {

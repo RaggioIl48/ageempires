@@ -3,6 +3,7 @@
 // dibuja lo que el servidor le cuenta. Nunca decide recursos, vida ni resultados.
 
 import {
+  ABILITY_IDS,
   BUILDING_DEFS,
   CHAT_MAX,
   DIPLO_ACTIONS,
@@ -11,6 +12,7 @@ import {
   TECH_DEFS,
   TRADE_RESOURCES,
   UNIT_DEFS,
+  type AbilityId,
   type BuildingType,
   type DiploAction,
   type FactionId,
@@ -57,6 +59,10 @@ export interface UnitView {
   morale?: number;
   /** 1 si huye (desbandada). */
   rout?: 1;
+  /** Efecto de una habilidad del General: 1 = Inspire, 2 = Hold the Line. */
+  buff?: 1 | 2;
+  /** Solo el General: segundos que faltan para poder usar Inspire y Hold the Line. */
+  cd?: [number, number];
 }
 
 export interface NodeView {
@@ -119,7 +125,9 @@ export type GameEvent =
   | { k: 'death'; x: number; y: number }
   /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
   | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }
-  | { k: 'destroyed'; x: number; y: number; size: number };
+  | { k: 'destroyed'; x: number; y: number; size: number }
+  /** Un General usó una habilidad (a: 1 Inspire, 2 Hold the Line; r: radio). */
+  | { k: 'ability'; x: number; y: number; a: 1 | 2; r: number };
 
 export interface MapView {
   size: number;
@@ -248,6 +256,7 @@ export type Command =
   | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation }
   /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
   | { kind: 'march'; unitIds: number[]; target: number }
+  | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
   /** El atacante se retira de una batalla: sus soldados vuelven a casa. */
   | { kind: 'retreat'; battleId: number }
   | { kind: 'stop'; unitIds: number[] }
@@ -549,6 +558,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
       return { kind: 'stop', unitIds };
     case 'march':
       return isId(c.target) ? { kind: 'march', unitIds, target: c.target } : null;
+    case 'ability':
+      return (ABILITY_IDS as readonly unknown[]).includes(c.ability) ? { kind: 'ability', unitIds, ability: c.ability as AbilityId } : null;
     case 'gather':
     case 'construct':
     case 'attack':

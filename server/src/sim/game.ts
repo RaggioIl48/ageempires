@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, FACTIONS, TICK_MS, UNIT_DEFS, eraLabel } from '../../../shared/data.ts';
+import { BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -24,6 +24,7 @@ import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from '
 import { trade } from './market.ts';
 import { retreat, startMarch, updateWar } from './war.ts';
 import { updateMorale } from './morale.ts';
+import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
@@ -55,6 +56,7 @@ export class Game {
     updateProduction(w, dt);
     updateCombat(w, dt);
     updateMorale(w, dt);
+    updateBuffs(w);
     updateHealing(w, dt);
     moveUnits(w, dt);
     updateGatherers(w, dt);
@@ -121,6 +123,11 @@ export class Game {
       case 'stop':
         for (const u of units) stopWork(u);
         break;
+      case 'ability': {
+        const error = useAbility(w, units, cmd.ability);
+        if (error) w.notify(playerId, error);
+        break;
+      }
       case 'march': {
         const error = startMarch(w, playerId, units, cmd.target);
         if (error) w.notify(playerId, error);
@@ -302,7 +309,7 @@ export class Game {
   }
 
   unitViews(): UnitView[] {
-    return [...this.world.units.values()].map(unitView);
+    return [...this.world.units.values()].map((u) => unitView(u, this.world.tick));
   }
 
   /** Edificios; la cola, el punto de reunión y la falta de casas solo los ve el dueño. */
@@ -343,7 +350,7 @@ export class Game {
   }
 }
 
-function unitView(u: Unit): UnitView {
+function unitView(u: Unit, tick: number): UnitView {
   const v: UnitView = {
     id: u.id,
     owner: u.owner,
@@ -363,6 +370,8 @@ function unitView(u: Unit): UnitView {
   if (u.crew > 1) v.crew = u.crew;
   if (u.morale < 100) v.morale = Math.max(0, Math.floor(u.morale / 10) * 10);
   if (u.routing > 0) v.rout = 1;
+  if (u.buff) v.buff = u.buff;
+  if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }
 
