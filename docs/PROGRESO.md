@@ -436,20 +436,32 @@ panel (Steady / Wavering / Breaking / Routing!), and a "Morale / Flanks / Ram" s
 Tested in the browser with two players (Gauls against Mongols): chariots charging, a Mongol warrior
 routing with the white flag and being chased, the trebuchet and the ram. **Tests**: 244.
 
-## Audit after Phase 5 (2026-09-24)
+## Generals, hills and drawn formations (Total War style) (2026-09-28)
 
-- **All game texts are in English** (menus, buttons, notices, server messages, teacher panel,
-  console). The teacher panel is now at `/teacher` (`/profesor` still works).
-- Smaller top bar (52 → 38 px) and bottom bar (150 → 112 px, minimap 268×134 → 192×96).
-  With nothing selected, the action buttons use the whole bar, so "Advance to the … Age" is
-  visible even in narrow windows. Clicking the faction/age label in the top bar selects the
-  Town Center.
-- The published site (Render) was still running the Phase 4 build: that is why the age button
-  was not visible online.
-- New end-to-end test on a generated map: builds every building with real orders, advances
-  through the four ages, researches every technology and trains all 15 units.
-- 181 tests pass. Benchmark (16 players, 800 units): average step 1.7 ms, worst 8 ms (budget 100 ms);
-  2.3 Mbit/s total network for the class.
+**General** (`server/src/sim/general.ts`): every player starts with one (Legate, Khan, Chieftain,
+Warlord, Dux, Comes or Jarl, with his own art: grey horse, golden armour, cape in the player's colour
+and a banner). Only one per player; if he falls, another can be trained at the Town Center.
+- Aura: soldiers within 7 tiles lose 35% less morale and recover +2 morale/s. He never routs.
+- If he falls, his soldiers within 10 tiles lose 30 morale.
+- **Q · 📯 Inspire** (every 60 s, radius 8): +40 morale at once, routing soldiers rally, +25% damage
+  for 20 s (gold ring). **E · 🛡 Hold the Line** (every 75 s, radius 8): +3 armour and 60% less morale
+  lost for 20 s (blue ring).
+
+**Hills** (`shared/terrain.ts`): tiles have a height level (0–3) and the ground is a smooth surface.
+- Every city stands on a plateau (same for everyone), there is a big hill in the centre (level 3) and
+  more hills around the map.
+- From higher ground: up to +45% damage (−30% attacking uphill), archers/towers +0.75 range per level;
+  climbing is slower (down to 60% speed).
+- The terrain is drawn with relief (light and shadow on slopes, contour lines); units and buildings sit
+  on the hills; the unit panel says "⛰ High ground".
+
+**Formations**: **right-drag** on the ground draws the front line (Total War): a green preview shows each
+soldier's spot and an arrow shows where they will face. They line up along it (infantry in front,
+archers behind, cavalry on the flanks) and **face forward when they arrive** (important for flanks).
+Siege engines no longer slow the whole formation.
+
+Tested in the browser (general abilities with cooldowns, relief around the cities, drawn front line).
+**Tests**: 259.
 
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
