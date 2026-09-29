@@ -30,6 +30,7 @@ export function settingsText(s: RoomSettings): string {
     s.diplomacy === 'locked' ? 'fixed teams' : 'free diplomacy',
     s.chat ? 'chat on' : 'no chat',
     s.fog === false ? 'no fog of war' : 'fog of war',
+    s.battlePause ? `${s.battlePause} s tactical pause per battle` : 'no battle pause',
   ].join(' · ');
 }
 
@@ -233,6 +234,7 @@ export class TeacherScreen {
           diplomacy: el<HTMLSelectElement>('in-diplo').value as RoomSettings['diplomacy'],
           chat: el<HTMLSelectElement>('in-chat').value === '1',
           fog: el<HTMLSelectElement>('in-fog').value === '1',
+          battlePause: Number(el<HTMLSelectElement>('in-bpause').value),
         },
       });
     });

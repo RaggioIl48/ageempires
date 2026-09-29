@@ -131,6 +131,12 @@ export interface Unit {
   skirmishUntil: number;
   /** Aguante (0–100): baja al correr y pelear, sube descansando. Ver fatigue.ts. */
   stamina: number;
+  /** Camina (más lento, casi no se cansa) en vez de correr. */
+  walking: boolean;
+  /** Pasos que le quedan trepando una muralla enemiga con escalas (0 = ya está arriba o no trepa). */
+  climb: number;
+  /** Torre de asedio acoplada a una muralla. */
+  docked: boolean;
   /** Solo el General: paso desde el que puede volver a usar cada habilidad. */
   ready: Record<AbilityId, number>;
 }
@@ -291,7 +297,7 @@ export class World {
       if (!wall) return false;
       // Propia o aliada: se sube por las escaleras. Enemiga: solo con escalas, en una batalla por esa ciudad.
       if (this.relation(this.walker, wall.owner) === 'ally') return true;
-      return this.battles.some((b) => b.attacker === this.walker && b.defender === wall.owner);
+      return this.rampFor(this.walker, i) || this.battles.some((b) => b.attacker === this.walker && b.defender === wall.owner);
     }
     if (s !== GATE || this.walker === 0) return false;
     const gate = this.buildings.get(this.occupant[i]);
@@ -352,6 +358,10 @@ export class World {
   /** Últimas noticias (para el profesor que mira) y cuántas hubo en total. */
   news: string[] = [];
   newsCount = 0;
+  /** Tramos de muralla enemiga con una torre de asedio acoplada: casilla → dueño de la torre. */
+  readonly ramps = new Map<number, number>();
+  /** Batallas que empezaron en toda la partida (para la pausa táctica). */
+  battlesOpened = 0;
   /** Colina Sagrada (centro del mapa), resultado de la partida y versión para la red. */
   hill: { x: number; y: number; holder: number; contested: boolean } | null = null;
   outcome: { winners: number[]; reason: string } | null = null;
@@ -528,6 +538,9 @@ export class World {
       post: null,
       skirmishUntil: 0,
       stamina: 100,
+      walking: false,
+      climb: 0,
+      docked: false,
       ready: { inspire: 0, hold: 0 },
     };
     this.units.set(u.id, u);
@@ -541,20 +554,28 @@ export class World {
     this.walkerFoot = c === 'infantry' || c === 'ranged';
   }
 
-  /** ¿Está sobre una muralla? 1 = propia o aliada (defiende), 2 = enemiga (trepa), 0 = no. */
-  onWall(u: { owner: number; x: number; y: number }): 0 | 1 | 2 {
+  /** ¿Está sobre una muralla? 1 = propia o aliada, 2 = enemiga trepando, 3 = enemiga ya arriba, 0 = no. */
+  onWall(u: { owner: number; x: number; y: number; climb?: number }): 0 | 1 | 2 | 3 {
     const tx = Math.floor(u.x), ty = Math.floor(u.y);
     if (!this.inBounds(tx, ty)) return 0;
     const i = ty * this.size + tx;
     if (this.solid[i] !== WALL) return 0;
     const wall = this.buildings.get(this.occupant[i]);
     if (!wall) return 0;
-    return this.relation(u.owner, wall.owner) === 'ally' ? 1 : 2;
+    if (this.relation(u.owner, wall.owner) === 'ally') return 1;
+    return (u.climb ?? 0) > 0 ? 2 : 3;
+  }
+
+  /** ¿Hay una torre de asedio propia o aliada acoplada a este tramo? */
+  rampFor(owner: number, i: number): boolean {
+    const o = this.ramps.get(i);
+    return o !== undefined && this.relation(owner, o) === 'ally';
   }
 
   /** Altura de una unidad: el suelo más la muralla, si defiende sobre ella. */
-  unitHeight(u: { owner: number; x: number; y: number }): number {
-    return this.heightAt(u.x, u.y) + (this.onWall(u) === 1 ? WALL_LEVELS : 0);
+  unitHeight(u: { owner: number; x: number; y: number; climb?: number }): number {
+    const w = this.onWall(u);
+    return this.heightAt(u.x, u.y) + (w === 1 || w === 3 ? WALL_LEVELS : 0);
   }
 
   /** Recalcular la superficie después de cambiar `levels` (al generar el mapa). */

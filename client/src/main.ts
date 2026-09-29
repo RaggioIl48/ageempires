@@ -234,7 +234,7 @@ function onMessage(msg: ServerMessage): void {
       return;
     case 'paused':
       paused = msg.paused;
-      el('paused').classList.toggle('hidden', !paused);
+      showPause(msg.paused, msg.secs, msg.battle === 1);
       if (game.hud.spectator) game.hud.spectator.paused = paused;
       game.hud.update();
       return;
@@ -242,6 +242,28 @@ function onMessage(msg: ServerMessage): void {
       showEnd(msg.reason, msg.summary, msg.winners ?? []);
       return;
   }
+}
+
+let pauseTimer = 0;
+/** Pausa táctica: se pueden dar órdenes; arrancan todas juntas al reanudar. */
+function showPause(on: boolean, secs?: number, battle = false): void {
+  const box = el('paused');
+  window.clearInterval(pauseTimer);
+  box.classList.toggle('hidden', !on);
+  if (!on) return;
+  const title = battle ? '⚔ Battle! Tactical pause' : '⏸ Tactical pause';
+  const tip = 'Give your orders now: they start when the game resumes';
+  if (!secs) {
+    box.innerHTML = `${title}<small>${tip} (the teacher resumes it)</small>`;
+    return;
+  }
+  const end = Date.now() + secs * 1000;
+  const draw = () => {
+    const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+    box.innerHTML = `${title} · ${left} s<small>${tip}</small>`;
+  };
+  draw();
+  pauseTimer = window.setInterval(draw, 250);
 }
 
 /** Resultados al terminar la partida. */

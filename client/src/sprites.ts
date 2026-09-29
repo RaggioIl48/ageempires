@@ -1138,6 +1138,7 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   gothic_warband: { half: 9, top: 28, ring: 10 },
   ulfhednar: { half: 10, top: 30, ring: 10 },
   ram: { half: 17, top: 28, ring: 16 },
+  siege_tower: { half: 18, top: 64, ring: 18 },
   general: { half: 13, top: 34, ring: 13 },
 };
 /** Altura de vuelo de los aviones (px). */

@@ -31,7 +31,7 @@ class FakeConn implements Conn {
   }
 }
 
-const SETTINGS: RoomSettings = { maxPlayers: 4, mapSize: 'normal', durationMin: 0, diplomacy: 'free', chat: true, fog: false };
+const SETTINGS: RoomSettings = { maxPlayers: 4, mapSize: 'normal', durationMin: 0, diplomacy: 'free', chat: true, fog: false, battlePause: 0 };
 
 function setup() {
   const lobby = new Lobby({ pin: '4321', urls: () => ['http://192.168.1.20:8080'], seed: () => 77 });
@@ -259,16 +259,34 @@ describe('game', () => {
     expect(room.view().members.map((m) => m.name)).toEqual(['Bruno']);
   });
 
-  it('pause freezes the game and ignores orders; resume continues it', () => {
+  it('tactical pause: the game freezes, orders given during it start when it resumes', () => {
     const { lobby, teacher, code, room, ana } = started();
     lobby.handle(teacher, { t: 'pause', code, paused: true });
     expect(ana.last('paused')?.paused).toBe(true);
     const tick = room.game!.world.tick;
+    const w = room.game!.world;
+    const unit = [...w.units.values()].find((u) => u.owner === 1)!;
+    const x0 = unit.x;
+    lobby.handle(ana, { t: 'cmd', cmd: { kind: 'move', unitIds: [unit.id], x: unit.x + 5, y: unit.y } });
     for (let i = 0; i < 10; i++) lobby.tickAll();
     expect(room.game!.world.tick).toBe(tick);
+    expect(unit.x).toBe(x0); // quieto mientras dura la pausa
     lobby.handle(teacher, { t: 'pause', code, paused: false });
+    for (let i = 0; i < 5; i++) lobby.tickAll();
+    expect(room.game!.world.tick).toBe(tick + 5);
+    expect(unit.x).toBeGreaterThan(x0); // la orden dada en pausa se cumplió
+  });
+
+  it('with the battle pause on, a battle that starts pauses the game for a few seconds', () => {
+    const { lobby, room, ana } = started();
+    room.settings.battlePause = 10;
+    const w = room.game!.world;
+    w.battlesOpened++; // como si acabara de empezar una batalla
     lobby.tickAll();
-    expect(room.game!.world.tick).toBe(tick + 1);
+    expect(room.paused).toBe(true);
+    const msg = ana.last('paused')!;
+    expect(msg.secs).toBe(10);
+    expect(msg.battle).toBe(1);
   });
 
   it('the teacher ends the game: everyone receives the summary', () => {

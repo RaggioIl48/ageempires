@@ -200,6 +200,7 @@ function openBattle(world: World, attacker: number, defender: number, city: Poin
   };
   for (const bd of world.buildings.values()) if (bd.owner === defender && inField(b, bd.tx + bd.size / 2, bd.ty + bd.size / 2)) b.buildings.add(bd.id);
   world.battles.push(b);
+  world.battlesOpened++;
   world.warVersion++;
   world.announce(`⚔ Battle! ${nameOf(world, attacker)} attacks ${nameOf(world, defender)}'s city`);
   const mins = Math.round((b.endTick - b.startTick) / TICK_RATE / 60);

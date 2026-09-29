@@ -93,6 +93,9 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Draw a formation (Total War style) | With soldiers selected, **drag with the right button** on the ground: the line is the front, the arrow shows where they will face. They line up along it and face forward when they arrive |
 | General | Every player starts with one (Legate, Khan, Jarl…). Select him: **Q 📯 Inspire** (morale back, routing soldiers rally, +25% damage for 20 s) · **E 🛡 Hold the Line** (+3 armor, steadier for 20 s). If he falls, train another at the Town Center |
 | Hills | Cities stand on hills. From higher ground units hit harder and archers shoot farther; climbing is slow |
+| Walk or run | Soldiers walk by default (they barely tire). **R** or 🏃 switches to run; **double right click** runs just that order |
+| Tactical pause | When the teacher pauses (or for a few seconds when a battle starts), you can keep giving orders: they start when the game resumes |
+| Siege Tower | Barracks, Medieval Age. Right click an enemy wall: once docked, your infantry crosses onto the wall fast and safe |
 | Battles in lines | Troops that arrive in formation hold their spot. Right click an enemy to charge: each soldier takes the nearest enemy of that formation |
 | Fatigue | Running, climbing and fighting tire troops (yellow bar): they get slower and weaker. Marching in formation tires less; rest them before attacking |
 | Sieges | Right click your own wall: infantry and archers spread along it (higher, covered from arrows). Attacking a walled city is a siege: infantry climbs with ladders (slow and exposed) or rams break the gate |

@@ -26,6 +26,8 @@ import { retreat, startMarch, updateWar } from './war.ts';
 import { updateMorale } from './morale.ts';
 import { updateVision } from './vision.ts';
 import { tires, updateFatigue } from './fatigue.ts';
+import { updateSiege } from './siege.ts';
+import { pathToRect } from './pathfinding.ts';
 import { gloryOf, updateVictory } from './victory.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
@@ -40,6 +42,11 @@ export class Game {
   /** Se crea desde opciones de mapa o desde un mundo ya armado (útil en pruebas). */
   constructor(source: MapOptions | World) {
     this.world = 'slots' in source ? generateWorld(source) : source;
+  }
+
+  /** Órdenes esperando el próximo paso. */
+  queued(): number {
+    return this.queue.length;
   }
 
   /** Las órdenes se aplican al inicio del siguiente paso, en orden de llegada. */
@@ -68,6 +75,7 @@ export class Game {
     removeDead(w);
     updateWar(w);
     updateVictory(w);
+    updateSiege(w);
     separateUnits(w);
     updateVision(w);
   }
@@ -126,7 +134,7 @@ export class Game {
     }
 
     // Órdenes sobre unidades.
-    const units = cmd.unitIds
+    let units = cmd.unitIds
       .map((id) => w.units.get(id))
       .filter((u): u is Unit => u !== undefined && u.owner === playerId && u.hp > 0 && u.routing === 0); // los que huyen no obedecen
     if (units.length === 0) return;
@@ -163,6 +171,7 @@ export class Game {
           cmd.formation ?? 'loose',
           cmd.front ? { x: cmd.front.fx, y: cmd.front.fy } : undefined,
           cmd.front?.width,
+          cmd.walk !== true,
         );
         break;
       case 'gather': {
@@ -232,6 +241,19 @@ export class Game {
           return w.notify(playerId, rel === 'ally' ? `${name} is your ally: you cannot attack them` : `You are at peace with ${name}: declare war first`);
         }
         if (owner === playerId) return;
+        // Torres de asedio: a la muralla enemiga elegida (se acoplan solas al llegar).
+        const towers = units.filter((u) => UNIT_DEFS[u.type].docks);
+        if (towers.length) {
+          if (t.kind === 'building' && (t.building.type === 'wall' || t.building.type === 'gate')) {
+            for (const u of towers) {
+              u.task = null;
+              u.path = pathToRect(w, u, t.building.tx, t.building.ty, t.building.size) ?? [];
+              u.state = u.path.length ? 'moving' : 'idle';
+            }
+          } else w.notify(playerId, 'Siege towers go to enemy walls: right click a wall section');
+          units = units.filter((u) => !UNIT_DEFS[u.type].docks);
+          if (!units.length) return;
+        }
         // A los aviones solo los alcanzan los ataques a distancia.
         let attackers = t.kind === 'unit' && w.statsOf(t.unit).flies ? units.filter((u) => canHitAir(w.statsOf(u).attack)) : units;
         if (t.kind === 'unit') {
@@ -411,6 +433,8 @@ function unitView(u: Unit, tick: number): UnitView {
   if (rank) v.rank = rank;
   if (u.guard) v.guard = 1;
   if (tires(u) && u.stamina < 100) v.st = Math.floor(u.stamina / 5) * 5;
+  if (u.climb > 0) v.cl = 1;
+  if (u.docked) v.dk = 1;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }

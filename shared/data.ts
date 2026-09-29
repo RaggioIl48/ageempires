@@ -113,6 +113,7 @@ export type UnitType =
   | 'triarius' | 'trebuchet' | 'war_chariot' | 'chosen_axeman' | 'javelin_rider' | 'gothic_warband' | 'ulfhednar'
   // Asedio de la Edad Media
   | 'ram'
+  | 'siege_tower'
   // General (héroe): uno por jugador
   | 'general';
 
@@ -144,6 +145,8 @@ export interface UnitDef {
   buildingsOnly?: boolean;
   /** Héroe: uno por jugador, no huye y tiene habilidades (el General). */
   hero?: boolean;
+  /** Torre de asedio: no pelea; pegada a una muralla enemiga, deja subir a la infantería. */
+  docks?: boolean;
   /** Para la interfaz: en qué es buena y en qué no. */
   strong: string;
   weak: string;
@@ -250,6 +253,11 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     label: 'Battering Ram', hp: 320, speed: 1.0, sight: 4, pop: 2, cost: { wood: 180, metal: 40 }, trainTime: 30,
     attack: melee(35, 3), armor: { melee: 1, ranged: 30 }, category: 'siege', era: 2, untilEra: 3, buildingsOnly: true,
     strong: 'Breaks walls, gates and buildings; arrows barely scratch it', weak: 'Cannot fight units: infantry and cavalry destroy it',
+  },
+  siege_tower: {
+    label: 'Siege Tower', hp: 650, speed: 0.8, sight: 6, pop: 3, cost: { wood: 260, metal: 40 }, trainTime: 40,
+    attack: melee(0, 99), armor: { melee: 2, ranged: 40 }, category: 'siege', era: 2, untilEra: 3, docks: true,
+    strong: 'Right click an enemy wall: once docked, your infantry crosses onto the wall fast and safe', weak: 'Does not fight: protect it from infantry and cavalry',
   },
   scorpion: {
     label: 'Scorpion', hp: 60, speed: 1.0, sight: 8, pop: 1, cost: { wood: 120, metal: 60 }, trainTime: 28,
@@ -500,7 +508,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
     size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['warrior', 'scout', 'spearman', 'ram', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
+    trains: ['warrior', 'scout', 'spearman', 'ram', 'siege_tower', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 1,
   },
   archery_range: {
@@ -1089,6 +1097,9 @@ export const WALL_SPEED_CLIMBER = 0.3;
 /** El que trepa pega menos y recibe más daño (está colgado de la escala). */
 export const CLIMB_DAMAGE_DEALT = 0.5;
 export const CLIMB_DAMAGE_TAKEN = 1.3;
+/** Escalas: segundos que tarda en trepar; luego pelea arriba de la muralla. Torre: alcance para acoplarse. */
+export const CLIMB_SECONDS = 4;
+export const TOWER_REACH = 1.6;
 /** Batalla de asedio (ciudad con murallas): dura más. Murallas mínimas para que cuente. */
 export const SIEGE_SECONDS = 360;
 export const SIEGE_MIN_WALLS = 6;
@@ -1104,6 +1115,9 @@ export const FATIGUE_CHARGE = 4;
 /** Recuperación por segundo: quieto, y quieto pero peleando. */
 export const FATIGUE_REST = 2.5;
 export const FATIGUE_REST_COMBAT = 0.3;
+/** Caminar (Total War): más lento, pero casi no cansa. Correr: a toda velocidad, cansa. */
+export const WALK_SPEED = 0.65;
+export const WALK_FATIGUE = 0.15;
 /** Con cuánto aguante llega un ejército de una marcha forzada. */
 export const MARCH_STAMINA = 60;
 /** Niveles de cansancio: desde qué aguante, y multiplicadores de velocidad, daño y moral perdida. */

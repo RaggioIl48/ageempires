@@ -310,7 +310,7 @@ export class Renderer {
       const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
       // Sobre una muralla: el defensor arriba del todo; el que trepa, a media altura de la escala.
       const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
-      const lift = wallOwner === undefined ? 0 : state.relation(cu.v.owner, wallOwner) === 'ally' ? WALL_LIFT : WALL_LIFT / 2;
+      const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y, face: cu.face, lift });
     }
     list.sort((a, b) => a.depth - b.depth);

@@ -57,41 +57,49 @@ export type BuildingAction =
   | { kind: 'research'; tech: TechId }
   | { kind: 'trade'; resource: TradeResource; buy: boolean };
 
-/** ¿Qué objeto hay bajo el punto de la pantalla? Las unidades tienen prioridad. */
-export function pick(state: ClientState, cam: Camera, sx: number, sy: number, now: number): Picked {
+/**
+ * Qué hay bajo el puntero. Entre todo lo que se toca, gana lo más cercano al puntero (no lo
+ * primero que aparece). Con `command` (clic derecho para dar una orden), las unidades propias y
+ * aliadas no tapan: así se puede ordenar recolectar unas bayas aunque haya trabajadores al lado.
+ */
+export function pick(state: ClientState, cam: Camera, sx: number, sy: number, now: number, command = false): Picked {
   const { px, py } = cam.screenToPx(sx, sy);
   let best: Picked = null;
-  let bestDepth = -Infinity;
+  let bestScore = Infinity;
+  const offer = (p: Picked, score: number) => {
+    if (score < bestScore) {
+      bestScore = score;
+      best = p;
+    }
+  };
   for (const cu of state.units.values()) {
+    if (command && state.relationTo(cu.v.owner) !== 'war' && state.relationTo(cu.v.owner) !== 'peace') continue;
     const p = state.unitPos(cu, now);
     const w = worldToPx(p.x, p.y);
     const { half } = UNIT_LOOK[cu.v.type];
     const top = unitTop(cu.v.type, state.faction(cu.v.owner));
-    const depth = p.x + p.y + (cu.v.type === 'airplane' ? 10_000 : 0); // los aviones van encima
-    if (px >= w.px - half && px <= w.px + half && py >= w.py - top && py <= w.py + 5 && depth > bestDepth) {
-      best = { kind: 'unit', id: cu.v.id };
-      bestDepth = depth;
-    }
+    if (px < w.px - half - 3 || px > w.px + half + 3 || py < w.py - top - 3 || py > w.py + 6) continue;
+    // Distancia al centro de la figura; las unidades tienen un poco de ventaja (son chicas).
+    offer({ kind: 'unit', id: cu.v.id }, Math.hypot(px - w.px, py - (w.py - top / 2)) - 6 - (cu.v.type === 'airplane' ? 100 : 0));
   }
-  if (best) return best;
   const world = cam.screenToWorld(sx, sy);
   for (const b of state.buildings.values()) {
     const s = BUILDING_DEFS[b.type].size;
     const L = worldToPx(b.tx, b.ty + s), R = worldToPx(b.tx + s, b.ty), T = worldToPx(b.tx, b.ty), B = worldToPx(b.tx + s, b.ty + s);
     const insideFootprint = world.x >= b.tx && world.x < b.tx + s && world.y >= b.ty && world.y < b.ty + s;
     const inBox = b.type !== 'farm' && px >= L.px && px <= R.px && py >= T.py - buildingTop(b, state.faction(b.owner)) + 10 && py <= B.py;
-    if ((insideFootprint || inBox) && b.tx + b.ty + s > bestDepth) {
-      best = { kind: 'building', id: b.id };
-      bestDepth = b.tx + b.ty + s;
-    }
+    if (!insideFootprint && !inBox) continue;
+    const c = worldToPx(b.tx + s / 2, b.ty + s / 2);
+    // Los edificios son grandes: puntaje por la distancia al centro, repartida en su tamaño.
+    offer({ kind: 'building', id: b.id }, Math.hypot(px - c.px, py - c.py) / Math.max(1, s * 0.7) + 8);
   }
   for (const n of state.nodes.values()) {
+    if (!state.seen(n.tx + 0.5, n.ty + 0.5)) continue;
     const w = worldToPx(n.tx + 0.5, n.ty + 0.5);
-    const top = n.type === 'tree' ? 42 : 16;
-    if (px >= w.px - 13 && px <= w.px + 13 && py >= w.py - top && py <= w.py + 6 && n.tx + n.ty + 1 > bestDepth) {
-      best = { kind: 'node', id: n.id };
-      bestDepth = n.tx + n.ty + 1;
-    }
+    const tree = n.type === 'tree';
+    const top = tree ? 46 : 24, side = tree ? 16 : 19;
+    if (px < w.px - side || px > w.px + side || py < w.py - top || py > w.py + 10) continue;
+    offer({ kind: 'node', id: n.id }, Math.hypot(px - w.px, py - (w.py - top / 3)));
   }
   return best;
 }
@@ -117,6 +125,9 @@ export class Input {
   private wallDragging = false;
   /** Formación con que marchan los grupos de soldados. */
   formation: Formation = 'line';
+  /** Paso de marcha por defecto de los soldados (Total War): caminar o correr. Doble clic derecho = correr esa vez. */
+  pace: 'walk' | 'run' = 'walk';
+  private lastRight = { time: 0, x: 0, y: 0 };
   /** Clic derecho apretado (para saber si es un clic o un arrastre de formación). */
   private rightDown: { x: number; y: number } | null = null;
   /** Frente que se está dibujando con el clic derecho (Total War): extremos, hacia dónde mira y puestos. */
@@ -366,11 +377,25 @@ export class Input {
     // Los soldados marchan en la formación elegida; los trabajadores, sueltos.
     const soldiers = ids.filter((id) => this.state.units.get(id)?.v.type !== 'worker').length;
     const formation = soldiers >= 2 ? this.formation : 'loose';
-    this.net.command({ kind: 'move', unitIds: ids, x, y, formation });
+    this.net.command({ kind: 'move', unitIds: ids, x, y, formation, ...(this.runNow() ? {} : { walk: true }) });
     mark(x, y, '#7dff8a');
   }
 
   // ---------- Frente de formación (arrastrar con el clic derecho) ----------
+
+/** ¿Esta orden va corriendo? Si el paso es "correr", o si fue un doble clic derecho. */
+  private runNow(): boolean {
+    const now = performance.now();
+    const double = now - this.lastRight.time < 400 && Math.hypot(this.mouse.x - this.lastRight.x, this.mouse.y - this.lastRight.y) < 24;
+    this.lastRight = { time: now, x: this.mouse.x, y: this.mouse.y };
+    return this.pace === 'run' || double;
+  }
+
+  /** Cambia el paso por defecto (R). */
+  togglePace(): void {
+    this.pace = this.pace === 'walk' ? 'run' : 'walk';
+    this.onSelectionChange();
+  }
 
   /** Soldados propios elegidos (sin trabajadores). */
   ownSoldiers(): number[] {
@@ -416,6 +441,7 @@ export class Input {
       y,
       formation: this.frontFormation(),
       front: { fx: f.face.x, fy: f.face.y, width: Math.hypot(f.b.x - f.a.x, f.b.y - f.a.y) },
+      ...(this.runNow() ? {} : { walk: true }),
     });
     const now = performance.now();
     for (const s of f.spots) this.markers.push({ x: s.x, y: s.y, color: '#7dff8a', t0: now });
@@ -515,7 +541,7 @@ export class Input {
       if (this.ownSoldiers().length > 0) this.rightDown = p;
       else {
         const w = this.cam.screenToWorld(p.x, p.y);
-        this.commandAt(w.x, w.y, pick(this.state, this.cam, p.x, p.y, performance.now()));
+        this.commandAt(w.x, w.y, pick(this.state, this.cam, p.x, p.y, performance.now(), true));
       }
     }
   }
@@ -553,7 +579,7 @@ export class Input {
     let cursor = 'default';
     if (this.ghost) cursor = 'copy';
     else if (this.ownSelected().length > 0) {
-      const t = pick(this.state, this.cam, p.x, p.y, performance.now());
+      const t = pick(this.state, this.cam, p.x, p.y, performance.now(), true);
       const owner = t?.kind === 'unit' ? this.state.units.get(t.id)?.v.owner : t?.kind === 'building' ? this.state.buildings.get(t.id)?.owner : undefined;
       if (owner !== undefined && owner !== this.state.you && this.state.relation(this.state.you, owner) === 'war') cursor = 'crosshair';
       else if (t && this.ownWorkersSelected().length > 0 && t.kind !== 'unit') cursor = 'pointer';
@@ -609,7 +635,7 @@ export class Input {
       if (this.frontDrag) this.sendFront();
       else {
         const w = this.cam.screenToWorld(down.x, down.y);
-        this.commandAt(w.x, w.y, pick(this.state, this.cam, down.x, down.y, performance.now()));
+        this.commandAt(w.x, w.y, pick(this.state, this.cam, down.x, down.y, performance.now(), true));
       }
       return;
     }
@@ -702,6 +728,11 @@ export class Input {
       e.preventDefault();
       if (e.shiftKey || e.ctrlKey || e.metaKey) this.saveGroup(Number(digit[1]));
       else this.recallGroup(Number(digit[1]));
+      return;
+    }
+    // R: caminar / correr.
+    if (e.code === 'KeyR' && this.ownWorkersSelected().length === 0 && !this.ownBuilding() && this.ownSoldiers().length > 0) {
+      this.togglePace();
       return;
     }
     // G: modo guardia de los soldados elegidos.

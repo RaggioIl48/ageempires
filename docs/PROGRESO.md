@@ -524,6 +524,34 @@ Yellow bar when tired and a line in the unit panel.
 
 Tested in the browser (siege panel, defenders on the walls, Mongols climbing). **Tests**: 286.
 
+## Clicks, personal space, walk or run, tactical pause and siege towers (2026-09-29)
+
+**Clicking resources was hard**: on a right click the game picked the *worker* standing next to the
+berries (units had absolute priority) and gave a move order instead of gather; the bushes' hit box
+was also small. Now, for orders (right click), own and allied units never cover what is behind
+them; whatever is closest to the pointer wins (not the first match); resources have bigger hit
+boxes; unexplored resources cannot be clicked.
+
+**Each unit has its own space** (`BODY_RADIUS` in movement.ts): worker 0.22, infantry 0.27,
+ranged 0.25, cavalry 0.42, siege 0.5 tiles. Units that overlap are separated also while walking,
+and the lighter one gives way (a horse weighs 2.5, a soldier 1.2). Before each step a unit checks
+whether it would walk into someone: it steps around to either side; against an **enemy** line it
+stops (it has to fight, it cannot pass through); through its own standing troops it passes slowly
+and pushes them aside. Two units on exactly the same spot now separate too (bug).
+
+**Walk or run** (R, or the 🚶/🏃 button): soldiers walk by default (65% speed, 15% of the fatigue);
+double right click runs just that order; attacking is always at a run.
+
+**Tactical pause**: during a pause students can keep giving orders — they are applied together when
+the game resumes. New teacher option "Tactical pause when a battle starts" (off / 10 / 15 / 30 s,
+15 by default): when a battle begins everyone gets a few seconds, with a countdown, to plan.
+
+**Siege Tower** (Barracks, Medieval Age; 0 A.D. model): right click an enemy wall; once docked,
+infantry crosses onto that section with no delay and no penalty. Ladders now take 4 s of climbing
+(slow, weak, exposed) and then the soldier fights on top of the wall.
+
+**Tests**: 295.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

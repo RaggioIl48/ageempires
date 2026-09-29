@@ -184,6 +184,7 @@ describe('asedios', () => {
     expect(w.isWalkable(26, 26)).toBe(false);
     // El que trepa recibe más daño.
     const climber = w.addUnit('spearman', 1, 26.5, 25.5);
+    climber.climb = 20; // recién empieza a trepar
     expect(w.onWall(climber)).toBe(2);
     const def = w.addUnit('spearman', 2, 27.3, 25.5);
     const st = w.statsOf(def);

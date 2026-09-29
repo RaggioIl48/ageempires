@@ -79,6 +79,7 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
   gothic_warband: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.5" r="2.1" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="#8a6a20"/><ellipse cx="3.5" cy="11" rx="2.6" ry="4" fill="currentColor"/><path d="M11 11 L15 7" stroke="#d6d9de" stroke-width="1.4"/></svg>',
   ulfhednar: '<svg viewBox="0 0 16 16"><path d="M4.5 4 L5.5 0.5 L7 3.5 Z M11.5 4 L10.5 0.5 L9 3.5 Z" fill="#7e7b74"/><circle cx="8" cy="5" r="3.3" fill="#8f8b84"/><circle cx="8.5" cy="5.5" r="2" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="#d9a47a"/><rect x="5" y="12" width="6" height="3" fill="currentColor"/><path d="M11 11 L14.5 5" stroke="#6b4a2b" stroke-width="1.3"/><ellipse cx="14.5" cy="5" rx="1.8" ry="1.4" fill="#cfd3d8"/></svg>',
   general: '<svg viewBox="0 0 16 16"><path d="M3 2 L3 15" stroke="#6b5234" stroke-width="1.4"/><path d="M3 2 L13 3.5 L11 6 L13 8.5 L3 8 Z" fill="currentColor" stroke="#f0c14b" stroke-width="0.8"/><path d="M8 11 L9 13 L11.2 13.2 L9.6 14.6 L10.1 16 L8 15 L5.9 16 L6.4 14.6 L4.8 13.2 L7 13 Z" fill="#f0c14b"/></svg>',
+  siege_tower: '<svg viewBox="0 0 16 16"><path d="M4 15 L5 3 L11 3 L12 15 Z" fill="#7d5431"/><path d="M5 3 L8 1 L11 3 Z" fill="#5a3d26"/><path d="M5.5 6 H10.5 M5.3 9 H10.7 M5.1 12 H10.9" stroke="#3b2818"/><path d="M11 5 L15 6" stroke="#9a9a9a" stroke-width="1.4"/><circle cx="5" cy="15" r="1.2" fill="#222"/><circle cx="11" cy="15" r="1.2" fill="#222"/></svg>',
   ram: '<svg viewBox="0 0 16 16"><path d="M2 9 L8 4 L14 9 Z" fill="#7d5431"/><rect x="2" y="9" width="12" height="3" fill="#5a3d26"/><rect x="0" y="7.5" width="5" height="2" fill="#9a9a9a"/><circle cx="4" cy="13" r="2" fill="#3b2818"/><circle cx="12" cy="13" r="2" fill="#3b2818"/><path d="M8 4 L8 2 L11 2.8 L8 3.6" fill="currentColor"/></svg>',
   tech: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#c9ccd1" stroke="#6d7077" stroke-width="1.6" stroke-dasharray="2.2 1.3"/><circle cx="8" cy="8" r="2" fill="#6d7077"/></svg>',
   era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
@@ -198,6 +199,9 @@ export class Hud {
           return this.input.ability(arg as AbilityId);
         case 'guard':
           return this.input.toggleGuard();
+        case 'pace':
+          this.input.togglePace();
+          return this.update();
       }
     });
     el('army-bar').addEventListener('click', (e) => {
@@ -421,6 +425,8 @@ export class Hud {
         return `💧 Stamina ${u.st}% · ${t.name}${t.speed < 1 ? ` (−${Math.round((1 - t.speed) * 100)}% speed, −${Math.round((1 - t.attack) * 100)}% attack): rest them` : ''}`;
       })() : '',
       onWallText(this.state, u),
+      u.cl ? '🪜 Climbing a ladder: slow, weak and exposed for a few seconds' : '',
+      def.docks ? (u.dk ? '🏰 Docked to the wall: your infantry crosses onto it fast and safe' : 'Right click an enemy wall: it docks when it arrives') : '',
       u.buff ? (u.buff === 1 ? '📯 Inspired: +25% damage' : '🛡 Holding the line: +3 armor, steadier') : '',
     ].filter(Boolean);
     const n = u.crew ?? 1;
@@ -562,8 +568,11 @@ export class Hud {
       const guard = soldiers > 0
         ? `<button class="act small ${guardOn ? 'on' : ''}" data-action="guard" title="Guard mode (G): they hold their position and formation, only fight enemies that come close and do not chase. Archers without guard mode back away from melee (skirmish).">🛡 Guard mode: ${guardOn ? 'ON' : 'off'} <span class="key">G</span></button>`
         : '';
+      const pace = soldiers > 0
+        ? `<button class="act small ${this.input.pace === 'run' ? 'on' : ''}" data-action="pace" title="Walk: slower but they barely tire. Run: full speed, but they get tired. Double right click = run just that order.">${this.input.pace === 'run' ? '🏃 Run' : '🚶 Walk'} <span class="key">R</span></button>`
+        : '';
       const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${abilities}${formation}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
+      return `${abilities}${formation}${pace}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it, face forward and hold their spot.
@@ -688,6 +697,6 @@ function onWallText(state: ClientState, u: UnitView): string {
     if (b.type === 'wall' && b.tx === tx && b.ty === ty)
       return state.relation(u.owner, b.owner) === 'ally'
         ? `🏰 On the walls: higher ground, farther shots and +${WALL_COVER} armor against arrows`
-        : '🪜 Climbing the walls: slow, weak and exposed!';
+        : u.cl ? '🪜 Climbing the walls: slow, weak and exposed!' : '⚔ Fighting on the enemy walls';
   return '';
 }

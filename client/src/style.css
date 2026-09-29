@@ -1340,3 +1340,11 @@ img.portrait {
 .act.ability:disabled {
   opacity: 0.55;
 }
+
+#paused small {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text, #eee);
+}

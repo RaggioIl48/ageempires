@@ -125,6 +125,8 @@ async function main() {
     { id: 'any-ram', unit: '*/ram', actor: 'structures/celts/siege_ram.xml', tiles: 1.5, skip: /decals|props\/units/ },
     // Carro de guerra celta (britanos de 0 A.D.): dos ponis, auriga y guerrero.
     { id: 'gauls-war_chariot', unit: 'gauls/war_chariot', actor: 'units/britons/chariot_javelinist_c_m.xml', tiles: 1.7, main: true, skip: /decals|particle/ },
+    // Torre de asedio helena (tablones y cueros), alta como una muralla.
+    { id: 'any-siege_tower', unit: '*/siege_tower', actor: 'structures/hellenes/siege_tower.xml', tiles: 1.3, main: true, fs: 320, skip: /decals|particle|props\/units/ },
     // Trebuchet de tracción Han (lo usaron los mongoles de la dinastía Yuan), con sus tiradores.
     { id: 'mongols-trebuchet', unit: 'mongols/trebuchet', actor: 'units/han/siege_mangonel.xml', tiles: 1.5, main: true, fs: 320, recoil: true, skip: /decals|particle|packed/ },
   ];

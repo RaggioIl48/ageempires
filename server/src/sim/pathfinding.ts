@@ -102,7 +102,7 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
       const ni = ny * size + nx;
       if (closed[ni] === s) continue;
       // Subir a una muralla cuesta (escaleras o escalas): se prefiere el suelo si hay otro camino.
-      const ng = gCost[cur] + cost + (world.solid[ni] === WALL ? 4 : 0);
+      const ng = gCost[cur] + cost + (world.solid[ni] === WALL ? (world.ramps.has(ni) && world.rampFor(world.walker, ni) ? 0.5 : 4) : 0);
       if (seen[ni] !== s || ng < gCost[ni]) {
         seen[ni] = s;
         gCost[ni] = ng;

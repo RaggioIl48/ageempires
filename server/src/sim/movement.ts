@@ -1,15 +1,17 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
-import { FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category } from '../../../shared/data.ts';
+import { CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category } from '../../../shared/data.ts';
 import { fatigueOf, spend } from './fatigue.ts';
 import type { Formation } from '../../../shared/protocol.ts';
 import { formationLayout, rankOf } from '../../../shared/formation.ts';
 import { clearLine, pathToPoint } from './pathfinding.ts';
+import { isEnemy } from './diplomacy.ts';
 import { WALL, type Point, type Unit, type World } from './world.ts';
 
 /** Avanza cada unidad por su camino. `dt` en segundos. */
 export function moveUnits(world: World, dt: number): void {
+  const bodies = bucketBodies(world);
   for (const u of world.units.values()) {
     if (u.path.length === 0) continue;
     const stats = world.statsOf(u);
@@ -18,15 +20,33 @@ export function moveUnits(world: World, dt: number): void {
     const speed = u.routing > 0 ? stats.speed * 1.2 : u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
     const slope = stats.flies ? 1 : uphill(world, u);
     const wallMode = world.onWall(u);
-    const wallSpeed = wallMode === 1 ? WALL_SPEED_DEFENDER : wallMode === 2 ? WALL_SPEED_CLIMBER : 1;
-    let budget = speed * dt * slope * fatigueOf(u.stamina).speed * wallSpeed;
+    const wallSpeed = wallMode === 1 || wallMode === 3 ? WALL_SPEED_DEFENDER : wallMode === 2 ? WALL_SPEED_CLIMBER : 1;
+    const wasOnWall = wallMode !== 0;
+    const pace = u.walking && u.state === 'moving' ? WALK_SPEED : 1;
+    let budget = speed * dt * slope * fatigueOf(u.stamina).speed * wallSpeed * pace;
     const walked = budget;
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
       const d = Math.hypot(wp.x - u.x, wp.y - u.y);
-      const step = Math.min(d, budget);
-      const nx = d > 0 ? u.x + ((wp.x - u.x) / d) * step : wp.x;
-      const ny = d > 0 ? u.y + ((wp.y - u.y) / d) * step : wp.y;
+      let step = Math.min(d, budget);
+      let nx = d > 0 ? u.x + ((wp.x - u.x) / d) * step : wp.x;
+      let ny = d > 0 ? u.y + ((wp.y - u.y) / d) * step : wp.y;
+      // Cada uno tiene su espacio: si el paso lo mete encima de otro, lo rodea.
+      if (!stats.flies && step > 1e-6) {
+        const block = blockerAt(world, bodies, u, nx, ny);
+        if (block) {
+          const around = sidestep(world, bodies, u, (nx - u.x) / step, (ny - u.y) / step, step);
+          if (around) [nx, ny] = around;
+          else if (isEnemy(world, u.owner, block.owner)) break; // contra la línea enemiga se frena: a pelear
+          else {
+            // Un compañero quieto: pasa despacio y lo corre a un lado.
+            step *= 0.35;
+            nx = u.x + ((wp.x - u.x) / d) * step;
+            ny = u.y + ((wp.y - u.y) / d) * step;
+            shove(world, block, u, (wp.x - u.x) / d, (wp.y - u.y) / d);
+          }
+        }
+      }
       // El camino pudo quedar viejo (p. ej. se construyó algo encima): no atravesar paredes.
       if (!stats.flies && !world.isWalkable(Math.floor(nx), Math.floor(ny))) {
         rerouteBlocked(world, u);
@@ -36,11 +56,17 @@ export function moveUnits(world: World, dt: number): void {
       u.x = nx;
       u.y = ny;
       budget -= step;
-      if (step >= d) u.path.shift();
+      if (step >= d || Math.hypot(wp.x - u.x, wp.y - u.y) < 0.05) u.path.shift();
+      else if (step < Math.min(d, budget + step) - 1e-6) break; // rodeó o se frenó: sigue el próximo paso
     }
+    // Sube a una muralla enemiga desde el suelo: con escalas tarda; por una torre acoplada, no.
+    if (!wasOnWall && world.onWall(u) >= 2) {
+      const i = Math.floor(u.y) * world.size + Math.floor(u.x);
+      u.climb = world.rampFor(u.owner, i) ? 0 : CLIMB_SECONDS * TICK_RATE;
+    } else if (world.onWall(u) === 0) u.climb = 0;
     // Cansancio: por lo recorrido; al paso en formación, menos; cuesta arriba, más.
     const done = walked - Math.max(0, budget);
-    if (done > 0) spend(u, done * FATIGUE_PER_TILE * (u.speedCap > 0 ? FATIGUE_FORMATION : 1) * (u.routing > 0 ? 1.4 : 1) / slope);
+    if (done > 0) spend(u, done * FATIGUE_PER_TILE * (u.speedCap > 0 ? FATIGUE_FORMATION : 1) * (u.routing > 0 ? 1.4 : 1) * (pace < 1 ? WALK_FATIGUE : 1) / slope);
     if (u.path.length === 0 && u.state === 'moving') {
       u.state = 'idle';
       u.speedCap = 0;
@@ -50,6 +76,58 @@ export function moveUnits(world: World, dt: number): void {
       }
     }
   }
+}
+
+/** Unidades de tierra por casilla (para ver rápido quién está cerca). */
+function bucketBodies(world: World): Map<number, Unit[]> {
+  const m = new Map<number, Unit[]>();
+  for (const u of world.units.values()) {
+    if (u.hp <= 0 || world.statsOf(u).flies) continue;
+    const k = Math.floor(u.y) * world.size + Math.floor(u.x);
+    let b = m.get(k);
+    if (!b) m.set(k, (b = []));
+    b.push(u);
+  }
+  return m;
+}
+
+/**
+ * ¿Chocaría con alguien al ir a (x, y)? Cuentan los enemigos y los compañeros quietos (los que
+ * también caminan se acomodan solos al separarse). Solo si se acerca: alejarse siempre se puede.
+ */
+function blockerAt(world: World, bodies: Map<number, Unit[]>, u: Unit, x: number, y: number): Unit | null {
+  const ru = BODY_RADIUS[UNIT_DEFS[u.type].category];
+  const cx = Math.floor(x), cy = Math.floor(y);
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const list = bodies.get((cy + dy) * world.size + (cx + dx));
+      if (!list) continue;
+      for (const o of list) {
+        if (o === u) continue;
+        if (o.path.length > 0 && !isEnemy(world, u.owner, o.owner)) continue;
+        const min = (ru + BODY_RADIUS[UNIT_DEFS[o.type].category]) * 0.9;
+        const dn = Math.hypot(x - o.x, y - o.y);
+        if (dn < min && dn < Math.hypot(u.x - o.x, u.y - o.y) - 1e-4) return o;
+      }
+    }
+  return null;
+}
+
+/** Intenta rodear: el mismo paso, girado a un lado o al otro. */
+function sidestep(world: World, bodies: Map<number, Unit[]>, u: Unit, dx: number, dy: number, step: number): [number, number] | null {
+  for (const a of [0.6, -0.6, 1.15, -1.15]) {
+    const c = Math.cos(a), s = Math.sin(a);
+    const x = u.x + (dx * c - dy * s) * step, y = u.y + (dx * s + dy * c) * step;
+    if (world.isWalkable(Math.floor(x), Math.floor(y)) && !blockerAt(world, bodies, u, x, y)) return [x, y];
+  }
+  return null;
+}
+
+/** Corre a un compañero quieto hacia un costado para dejar pasar. */
+function shove(world: World, o: Unit, by: Unit, dx: number, dy: number): void {
+  // Hacia el lado en que ya está respecto de la marcha del que pasa.
+  const side = (o.x - by.x) * -dy + (o.y - by.y) * dx >= 0 ? 1 : -1;
+  nudge(world, o, -dy * side * 0.08, dx * side * 0.08);
 }
 
 /** El camino quedó bloqueado: quien solo camina busca otra ruta; quien tiene tarea, deja que su tarea recalcule. */
@@ -75,6 +153,7 @@ export function moveGroup(
   formation: Formation = 'loose',
   face?: Point,
   width?: number,
+  run = true,
 ): void {
   if (units.length === 0) return;
   world.walker = units[0].owner;
@@ -110,6 +189,7 @@ export function moveGroup(
     // En formación, al llegar todos miran al frente (importa para los flancos).
     u.arriveFace = plan ? [plan.face.x, plan.face.y] : null;
     const soldier = UNIT_DEFS[u.type].category !== 'worker';
+    u.walking = soldier && !run;
     u.hold = plan !== null && soldier;
     if (u.guard || u.hold) u.post = { ...spot };
     if (plan && u.state === 'idle') [u.fx, u.fy] = u.arriveFace!;
@@ -280,9 +360,28 @@ function formationSpots(world: World, x: number, y: number, count: number): Poin
   return out;
 }
 
-const SEPARATION = 0.45; // distancia mínima deseada entre unidades quietas
+/**
+ * Espacio personal de cada tipo (radio en casillas): un jinete ocupa más que un soldado a pie, y
+ * una máquina más todavía. Dos unidades no pueden quedar más cerca que la suma de sus radios.
+ */
+export const BODY_RADIUS: Record<Category, number> = {
+  worker: 0.22,
+  infantry: 0.27,
+  ranged: 0.25,
+  cavalry: 0.42,
+  siege: 0.5,
+  armor: 0.5,
+  air: 0,
+  building: 0.5,
+};
+/** "Peso" al empujarse: el más pesado se mueve menos (el caballo no pasa por encima de la infantería). */
+const MASS: Record<Category, number> = { worker: 1, infantry: 1.2, ranged: 1, cavalry: 2.5, siege: 4, armor: 4, air: 1, building: 9 };
 
-/** Empuja suavemente a las unidades quietas que están una encima de otra. */
+/**
+ * Cada unidad tiene su espacio: las que se superponen se separan, también mientras caminan (así
+ * la caballería se abre paso alrededor de la infantería en vez de pasar por encima). Las que
+ * caminan ceden un poco menos para no frenarse del todo.
+ */
 export function separateUnits(world: World): void {
   const buckets = new Map<number, Unit[]>();
   for (const u of world.units.values()) {
@@ -293,7 +392,8 @@ export function separateUnits(world: World): void {
     b.push(u);
   }
   for (const u of world.units.values()) {
-    if (u.path.length > 0 || world.statsOf(u).flies) continue; // las que caminan no se empujan
+    if (world.statsOf(u).flies) continue;
+    const cu = UNIT_DEFS[u.type].category, ru = BODY_RADIUS[cu];
     const cx = Math.floor(u.x), cy = Math.floor(u.y);
     for (let dy = -1; dy <= 1; dy++)
       for (let dx = -1; dx <= 1; dx++) {
@@ -301,19 +401,25 @@ export function separateUnits(world: World): void {
         if (!others) continue;
         for (const o of others) {
           if (o === u || o.id < u.id) continue; // cada par una sola vez
+          const co = UNIT_DEFS[o.type].category;
+          const min = ru + BODY_RADIUS[co];
           let ox = u.x - o.x, oy = u.y - o.y;
           let d = Math.hypot(ox, oy);
-          if (d >= SEPARATION) continue;
+          if (d >= min) continue;
+          const overlap = (min - Math.min(d, min)) * 0.45;
           if (d < 1e-4) {
             // Exactamente encima: separar en una dirección fija según los ids.
-            const a = (u.id * 2.39996) % (Math.PI * 2);
-            ox = Math.cos(a);
-            oy = Math.sin(a);
+            const ang = (u.id * 2.39996) % (Math.PI * 2);
+            ox = Math.cos(ang);
+            oy = Math.sin(ang);
             d = 1;
           }
-          const push = (SEPARATION - Math.min(d, SEPARATION)) * 0.25;
-          nudge(world, u, (ox / d) * push, (oy / d) * push);
-          if (o.path.length === 0) nudge(world, o, (-ox / d) * push, (-oy / d) * push);
+          const mu = MASS[cu], mo = MASS[co];
+          // El liviano cede más; el que camina, un poco menos.
+          const su = (mo / (mu + mo)) * (u.path.length ? 0.6 : 1);
+          const so = (mu / (mu + mo)) * (o.path.length ? 0.6 : 1);
+          nudge(world, u, (ox / d) * overlap * su, (oy / d) * overlap * su);
+          nudge(world, o, (-ox / d) * overlap * so, (-oy / d) * overlap * so);
         }
       }
   }

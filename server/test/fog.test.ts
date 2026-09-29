@@ -8,7 +8,7 @@ import { buildFrame, ClientSync, welcomeMessage } from '../src/net/sync.ts';
 import type { Game } from '../src/sim/game.ts';
 import { flatGame } from './helpers.ts';
 
-const SETTINGS = { maxPlayers: 2, mapSize: 'normal' as const, durationMin: 0, diplomacy: 'free' as const, chat: true, fog: true };
+const SETTINGS = { maxPlayers: 2, mapSize: 'normal' as const, durationMin: 0, diplomacy: 'free' as const, chat: true, fog: true, battlePause: 0 };
 
 /** Un paso y lo que le llega al jugador. */
 function tick(g: Game, sync: ClientSync): DeltaMessage {

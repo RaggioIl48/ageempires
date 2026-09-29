@@ -38,9 +38,15 @@ export interface Member {
 /** Segundos mínimos entre dos mensajes de chat de un mismo estudiante. */
 const CHAT_COOLDOWN_MS = 1500;
 
+/** Órdenes que se guardan como mucho durante una pausa (protege al servidor). */
+const MAX_PAUSED_ORDERS = 3000;
+
 export class Room {
   phase: RoomPhase = 'lobby';
   paused = false;
+  /** Fin de una pausa táctica automática (ms; 0 = la reanuda el profesor). */
+  private pauseUntil = 0;
+  private lastBattles = 0;
   members: Member[] = [];
   game: Game | null = null;
   /** Profesores mirando la partida. */
@@ -157,7 +163,9 @@ export class Room {
 
   command(conn: Conn, cmd: Command): void {
     const member = this.memberOf(conn);
-    if (!member || member.kicked || !this.game || this.phase !== 'playing' || this.paused) return;
+    if (!member || member.kicked || !this.game || this.phase !== 'playing') return;
+    // En pausa (táctica) se pueden dar órdenes: se aplican todas juntas al reanudar.
+    if (this.paused && this.game.queued() >= MAX_PAUSED_ORDERS) return;
     this.game.enqueue(member.id, cmd);
   }
 
@@ -243,10 +251,11 @@ export class Room {
     return null;
   }
 
-  setPaused(paused: boolean): void {
+  setPaused(paused: boolean, secs = 0, battle = false): void {
     if (this.phase !== 'playing' || this.paused === paused) return;
     this.paused = paused;
-    this.broadcast({ t: 'paused', paused });
+    this.pauseUntil = paused && secs > 0 ? Date.now() + secs * 1000 : 0;
+    this.broadcast(paused && secs > 0 ? { t: 'paused', paused, secs, ...(battle ? { battle: 1 as const } : {}) } : { t: 'paused', paused });
     this.changed();
   }
 
@@ -298,9 +307,16 @@ export class Room {
   // ---------- Paso de simulación ----------
 
   tick(): void {
+    // La pausa táctica de una batalla se levanta sola.
+    if (this.paused && this.pauseUntil && Date.now() >= this.pauseUntil) this.setPaused(false);
     if (this.phase !== 'playing' || this.paused || !this.game) return;
     const game = this.game;
     game.step();
+    // Empezó una batalla: pausa táctica para que todos den sus órdenes.
+    if (game.world.battlesOpened > this.lastBattles) {
+      this.lastBattles = game.world.battlesOpened;
+      if (this.settings.battlePause > 0) this.setPaused(true, this.settings.battlePause, true);
+    }
     const limit = this.settings.durationMin * 60;
     const frame = buildFrame(game, limit);
     for (const [conn, sync] of this.syncs) {

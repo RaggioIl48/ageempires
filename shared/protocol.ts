@@ -68,6 +68,9 @@ export interface UnitView {
   guard?: 1;
   /** Aguante (0–100, de a 5) si no está completo. */
   st?: number;
+  /** Trepando una muralla con escalas; torre de asedio acoplada. */
+  cl?: 1;
+  dk?: 1;
 }
 
 export interface NodeView {
@@ -162,6 +165,8 @@ export interface RoomSettings {
   chat: boolean;
   /** Niebla de guerra: cada uno ve solo lo que ven sus tropas y las de sus aliados. */
   fog: boolean;
+  /** Pausa táctica automática al empezar cada batalla (segundos; 0 = no). */
+  battlePause: number;
 }
 
 export type RoomPhase = 'lobby' | 'playing' | 'ended';
@@ -279,7 +284,7 @@ export type Formation = (typeof FORMATIONS)[number];
 
 export type Command =
   /** formation: 'line' = filas (infantería adelante, a distancia detrás, caballería a los lados), 'column' = columna angosta, 'loose' = grupo suelto. */
-  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation; front?: FrontLine }
+  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation; front?: FrontLine; /** true = los soldados caminan (si falta, corren). */ walk?: boolean }
   /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
   | { kind: 'march'; unitIds: number[]; target: number }
   | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
@@ -410,7 +415,7 @@ export type ServerMessage =
     }
   | { t: 'players'; players: PlayerView[] }
   | DeltaMessage
-  | { t: 'paused'; paused: boolean }
+  | { t: 'paused'; paused: boolean; /** Pausa táctica automática: segundos que dura. */ secs?: number; /** 1 si la causó una batalla que empieza. */ battle?: 1 }
   | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[] }
   | { t: 'chat'; from: number; name: string; color: string; text: string; to: 'all' | 'allies' };
 
@@ -480,6 +485,7 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (s.diplomacy !== undefined && s.diplomacy !== 'free' && s.diplomacy !== 'locked') return null;
   if (s.chat !== undefined && typeof s.chat !== 'boolean') return null;
   if (s.fog !== undefined && typeof s.fog !== 'boolean') return null;
+  if (s.battlePause !== undefined && (!Number.isInteger(s.battlePause) || (s.battlePause as number) < 0 || (s.battlePause as number) > 60)) return null;
   return {
     maxPlayers: s.maxPlayers as number,
     mapSize: s.mapSize,
@@ -487,6 +493,7 @@ function parseSettings(v: unknown): RoomSettings | null {
     diplomacy: (s.diplomacy as RoomSettings['diplomacy'] | undefined) ?? 'free',
     chat: (s.chat as boolean | undefined) ?? true,
     fog: (s.fog as boolean | undefined) ?? true,
+    battlePause: (s.battlePause as number | undefined) ?? 15,
   };
 }
 
@@ -603,6 +610,7 @@ function parseCommand(c: Record<string, unknown>): Command | null {
         const m: Extract<Command, { kind: 'move' }> = (FORMATIONS as readonly unknown[]).includes(c.formation)
           ? { kind: 'move', unitIds, x: c.x, y: c.y, formation: c.formation as Formation }
           : { kind: 'move', unitIds, x: c.x, y: c.y };
+        if (c.walk === true) m.walk = true;
         const f = c.front as Record<string, unknown> | undefined;
         if (f && typeof f === 'object' && isCoord(f.fx) && isCoord(f.fy) && isCoord(f.width)) {
           const len = Math.hypot(f.fx, f.fy);

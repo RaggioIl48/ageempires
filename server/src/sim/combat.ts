@@ -60,6 +60,7 @@ export class UnitGrid {
 
 /** Orden de atacar (del jugador o elegida por la propia unidad). */
 export function assignAttack(u: Unit, targetId: number, auto = false): void {
+  u.walking = false; // a la carga se va corriendo
   u.task = { kind: 'attack', targetId, auto };
   u.state = 'attacking';
   u.path = [];
@@ -216,7 +217,7 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
     world.notify(victim.id, 'You are under attack!');
   }
   // Una unidad militar quieta que recibe un golpe responde.
-  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly)
+  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly && !UNIT_DEFS[t.unit.type].docks)
     assignAttack(t.unit, attacker.id, true);
 }
 
@@ -232,6 +233,7 @@ export function updateCombat(world: World, dt: number): void {
   for (const u of world.units.values()) {
     if (u.cooldown > 0) u.cooldown = Math.max(0, u.cooldown - dt);
     if (isRouting(u)) continue; // huyendo no pelea
+    if (UNIT_DEFS[u.type].docks) continue; // la torre de asedio no pelea
     const stats = world.statsOf(u);
     const onlyBuildings = UNIT_DEFS[u.type].buildingsOnly === true;
     const holding = u.guard || u.hold;
