@@ -33,6 +33,7 @@ import { unitPortrait } from './art.ts';
 import { ACTION_KEYS, ARMY_GROUPS, type ArmyGroup, type Input } from './input.ts';
 import type { NetStatus } from './net.ts';
 import type { ClientState } from './state.ts';
+import { heightAt } from './view.ts';
 
 // Íconos originales (SVG sencillos).
 const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = {
@@ -409,6 +410,7 @@ export class Hud {
       st.regen > 0 ? `Heals ${Math.round(st.regen * 10) / 10} health/s` : '',
       st.category === 'cavalry' && st.attack.type === 'melee' ? `Charge ×${chargeOf(this.state.faction(u.owner))}` : '',
       def.hero ? `Aura: soldiers within ${GENERAL_AURA} tiles lose less morale and recover it faster · never routs` : '',
+      heightAt(u.x, u.y) >= 0.75 ? `⛰ High ground (level ${Math.round(heightAt(u.x, u.y))}): hits harder downhill${st.attack.type === 'ranged' ? ' and shoots farther' : ''}` : '',
       u.buff ? (u.buff === 1 ? '📯 Inspired: +25% damage' : '🛡 Holding the line: +3 armor, steadier') : '',
     ].filter(Boolean);
     const n = u.crew ?? 1;

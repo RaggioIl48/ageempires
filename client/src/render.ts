@@ -28,7 +28,8 @@ import {
 } from './sprites.ts';
 import { drawDyingUnit } from './art.ts';
 import type { ClientState } from './state.ts';
-import { Camera, TILE_H, TILE_W, worldToPx } from './view.ts';
+import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
+import { MAX_LEVEL } from '../../shared/data.ts';
 
 export { RESOURCE_COLORS, shade } from './sprites.ts';
 
@@ -70,7 +71,11 @@ export function buildTerrainTexture(state: ClientState): HTMLCanvasElement {
           } else {
             const beach = (waterN && v < 2) || (waterS && v >= TEX - 2) || (waterW && u < 2) || (waterE && u >= TEX - 2);
             if (beach) c = [196 + r * 12, 182 + r * 10, 124 + r * 10];
-            else c = [78 + tileNoise * 26 + r * 10, 132 + tileNoise * 26 + r * 12, 56 + tileNoise * 14 + r * 6];
+            else {
+              // Más alto, pasto más seco y claro (se nota en el minimapa).
+              const lv = state.height.level(tx, ty);
+              c = [78 + tileNoise * 26 + r * 10 + lv * 16, 132 + tileNoise * 26 + r * 12 + lv * 7, 56 + tileNoise * 14 + r * 6 + lv * 2];
+            }
           }
           const i = (gy * n * TEX + gx) * 4;
           d[i] = c[0];
@@ -79,6 +84,60 @@ export function buildTerrainTexture(state: ClientState): HTMLCanvasElement {
           d[i + 3] = 255;
         }
     }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+/** Escala del terreno horneado (px del lienzo por px del mundo). */
+const BAKE = 0.5;
+/** Margen de arriba (px del mundo) para lo que las colinas levantan. */
+const BAKE_TOP = MAX_LEVEL * ELEV_PX + 8;
+
+/**
+ * Terreno con relieve, "horneado" una vez: cada texel de la textura plana se proyecta a su
+ * altura, de atrás hacia adelante (lo cercano tapa lo lejano), con luz desde arriba a la
+ * izquierda: las laderas que miran a la luz se aclaran y las otras se oscurecen.
+ */
+export function bakeTerrain(state: ClientState, flat: HTMLCanvasElement): HTMLCanvasElement {
+  const n = state.size, T = n * TEX, h = state.height;
+  const src = flat.getContext('2d')!.getImageData(0, 0, T, T).data;
+  const W = Math.ceil(n * TILE_W * BAKE), H = Math.ceil((n * TILE_H + BAKE_TOP + 8) * BAKE);
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+  const hw = (TILE_W / 2 / TEX) * BAKE, hh = (TILE_H / 2 / TEX) * BAKE;
+  for (let s = 0; s <= 2 * (T - 1); s++) {
+    for (let gx = Math.max(0, s - T + 1); gx <= Math.min(s, T - 1); gx++) {
+      const gy = s - gx;
+      const x = (gx + 0.5) / TEX, y = (gy + 0.5) / TEX;
+      const z = h.at(x, y);
+      const cx = (x - y) * (TILE_W / 2) * BAKE + W / 2;
+      const cy = ((x + y) * (TILE_H / 2) - z * ELEV_PX + BAKE_TOP) * BAKE;
+      // Luz: pendiente en x (hacia la izquierda de la pantalla) e y.
+      const gxh = h.at(x + 0.5, y) - h.at(x - 0.5, y), gyh = h.at(x, y + 0.5) - h.at(x, y - 0.5);
+      let shade = Math.min(1.35, Math.max(0.55, 1 + 0.7 * gxh - 0.45 * gyh)) * (1 + 0.04 * z);
+      // Curvas de nivel: una línea más oscura donde se pasa de un nivel a otro (como en un mapa).
+      const lvl = Math.round(z), gx2 = h.at(x + 1 / TEX, y), gy2 = h.at(x, y + 1 / TEX);
+      if (Math.round(gx2) !== lvl || Math.round(gy2) !== lvl) shade *= 0.8;
+      // Lo que baja hacia adelante se rellena hacia abajo (sin huecos en las laderas).
+      const drop = Math.max(0, (z - h.at(x + 1 / TEX, y + 1 / TEX)) * ELEV_PX * BAKE);
+      const si = (gy * T + gx) * 4;
+      const r = Math.min(255, src[si] * shade), g = Math.min(255, src[si + 1] * shade), b = Math.min(255, src[si + 2] * shade);
+      const x0 = Math.max(0, Math.floor(cx - hw)), x1 = Math.min(W - 1, Math.ceil(cx + hw));
+      const y0 = Math.max(0, Math.floor(cy - hh)), y1 = Math.min(H - 1, Math.ceil(cy + hh + drop));
+      for (let py = y0; py <= y1; py++)
+        for (let px = x0; px <= x1; px++) {
+          const i = (py * W + px) * 4;
+          d[i] = r;
+          d[i + 1] = g;
+          d[i + 2] = b;
+          d[i + 3] = 255;
+        }
+    }
+  }
   ctx.putImageData(img, 0, 0);
   return canvas;
 }
@@ -132,11 +191,13 @@ const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
 
 export class Renderer {
   private terrain: HTMLCanvasElement | null = null;
+  private baked: HTMLCanvasElement | null = null;
   private mountains: { tx: number; ty: number }[] = [];
 
   /** Llamar al recibir un mapa nuevo. */
   setMap(state: ClientState): void {
     this.terrain = buildTerrainTexture(state);
+    this.baked = bakeTerrain(state, this.terrain);
     this.mountains = [];
     for (let ty = 0; ty < state.size; ty++)
       for (let tx = 0; tx < state.size; tx++) if (state.tile(tx, ty) === TILE_MOUNTAIN) this.mountains.push({ tx, ty });
@@ -172,11 +233,10 @@ export class Renderer {
     const z = cam.zoom * dpr;
     ctx.setTransform(z, 0, 0, z, dpr * (cam.width / 2) - cam.cx * z, dpr * (cam.height / 2) - cam.cy * z);
 
-    // Terreno: la textura (1 texel = 1/TEX casilla) se proyecta con una transformación afín.
+    // Terreno con colinas (horneado al recibir el mapa).
     ctx.save();
-    ctx.transform(TILE_W / 2 / TEX, TILE_H / 2 / TEX, -TILE_W / 2 / TEX, TILE_H / 2 / TEX, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.terrain, 0, 0);
+    if (this.baked) ctx.drawImage(this.baked, -(state.size * TILE_W) / 2, -BAKE_TOP, this.baked.width / BAKE, this.baked.height / BAKE);
     ctx.restore();
 
     // Objetos visibles.

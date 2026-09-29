@@ -6,8 +6,9 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
+import { elevationDamage } from '../../../shared/terrain.ts';
 import { isEnemy } from './diplomacy.ts';
 import { stopWork } from './gather.ts';
 import { deathMorale, flankSide, hitMorale, isRouting } from './morale.ts';
@@ -135,6 +136,8 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
   let dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
   if (attacker && attacker.buff === 1) dmg = Math.round(dmg * buffDamage(attacker));
+  // Colinas: de arriba hacia abajo se pega más fuerte (y al revés, menos).
+  { const c = centerOf(t); dmg = Math.max(1, Math.round(dmg * elevationDamage(world.heightAt(from.x, from.y), world.heightAt(c.x, c.y)))); }
   // Flancos (Attila): cuerpo a cuerpo de costado o por la espalda hace más daño; el que huye recibe más.
   let side: 0 | 1 | 2 = 0;
   if (t.kind === 'unit') {
@@ -218,7 +221,7 @@ export function updateCombat(world: World, dt: number): void {
       continue;
     }
 
-    if (inAttackRange(u.x, u.y, stats.attack, t)) {
+    if (inAttackRange(u.x, u.y, withHeight(world, stats.attack, u, t), t)) {
       u.path = [];
       u.chaseGoal = null;
       if (u.cooldown <= 0) {
@@ -238,11 +241,19 @@ export function updateCombat(world: World, dt: number): void {
     if (b.cooldown > 0) continue;
     const cx = b.tx + b.size / 2, cy = b.ty + b.size / 2;
     // Alcance medido desde el borde del edificio.
-    const t = findTarget(world, grid, b.owner, cx, cy, def.attack.range + b.size / 2, true, true);
+    const t = findTarget(world, grid, b.owner, cx, cy, def.attack.range + b.size / 2 + Math.max(0, world.heightAt(cx, cy)) * ELEV_RANGE_PER_LEVEL, true, true);
     if (!t) continue;
     strike(world, b.owner, def.attack, 'building', { x: cx, y: cy - 1 }, t);
     b.cooldown = def.attack.cooldown;
   }
+}
+
+/** Desde lo alto se dispara más lejos: alcance extra por cada nivel por encima del objetivo. */
+export function withHeight(world: World, attack: AttackDef, u: Point, t: Target): AttackDef {
+  if (attack.type !== 'ranged') return attack;
+  const c = centerOf(t);
+  const up = world.heightAt(u.x, u.y) - world.heightAt(c.x, c.y);
+  return up > 0 ? { ...attack, range: attack.range + up * ELEV_RANGE_PER_LEVEL } : attack;
 }
 
 /** Persigue al objetivo: en línea recta si se puede, si no con A*. */

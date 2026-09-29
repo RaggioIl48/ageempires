@@ -1,10 +1,28 @@
 // Proyección isométrica (2:1) y cámara.
 // Coordenadas del mundo = casillas (x, y). "px" = píxeles del mundo antes del zoom.
 
+import type { HeightField } from '../../shared/terrain.ts';
+
 export const TILE_W = 64;
 export const TILE_H = 32;
 
+/** Píxeles de altura por cada nivel del terreno (colinas). */
+export const ELEV_PX = 22;
+
+let field: HeightField | null = null;
+/** Relieve del mapa actual: todo lo que se dibuja con worldToPx queda sobre las colinas. */
+export function setHeightField(f: HeightField | null): void {
+  field = f;
+}
+export const heightAt = (x: number, y: number) => (field ? field.at(x, y) : 0);
+
+/** Posición en pantalla (px del mundo) de un punto del suelo, contando la altura. */
 export function worldToPx(x: number, y: number): { px: number; py: number } {
+  return { px: (x - y) * (TILE_W / 2), py: (x + y) * (TILE_H / 2) - heightAt(x, y) * ELEV_PX };
+}
+
+/** Igual, pero como si todo fuera llano. */
+export function flatToPx(x: number, y: number): { px: number; py: number } {
   return { px: (x - y) * (TILE_W / 2), py: (x + y) * (TILE_H / 2) };
 }
 
@@ -32,9 +50,12 @@ export class Camera {
     return { sx: (px - this.cx) * this.zoom + this.width / 2, sy: (py - this.cy) * this.zoom + this.height / 2 };
   }
 
+  /** Punto del suelo bajo la pantalla: se busca contando las colinas (unas pocas vueltas). */
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     const { px, py } = this.screenToPx(sx, sy);
-    return pxToWorld(px, py);
+    let w = pxToWorld(px, py);
+    for (let i = 0; i < 4; i++) w = pxToWorld(px, py + heightAt(w.x, w.y) * ELEV_PX);
+    return w;
   }
 
   worldToScreen(x: number, y: number): { sx: number; sy: number } {
@@ -68,9 +89,10 @@ export class Camera {
   /** El centro de la cámara no puede salir del rombo del mapa. */
   clamp(): void {
     const w = pxToWorld(this.cx, this.cy);
+    if (w.x >= 0 && w.y >= 0 && w.x <= this.mapSize && w.y <= this.mapSize) return; // dentro: no se toca (las colinas suben la vista)
     const x = Math.min(this.mapSize, Math.max(0, w.x));
     const y = Math.min(this.mapSize, Math.max(0, w.y));
-    const p = worldToPx(x, y);
+    const p = flatToPx(x, y);
     this.cx = p.px;
     this.cy = p.py;
   }

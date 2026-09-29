@@ -129,6 +129,9 @@ export class GuidePanel {
         ignore orders and take extra damage, then rally once safe. A battle is often won by breaking the enemy, not killing everyone.</p>
         <p><b>Flanks:</b> melee hits from the side deal ×${FLANK_DAMAGE} and from behind ×${REAR_DAMAGE}, and break morale faster.
         Pin the enemy with infantry and send cavalry around the back!</p>
+        <p><b>Hills ⛰:</b> every city stands on a hill, and there are more around the map (the highest one is in the centre).
+        From higher ground units hit up to +45% harder, archers and towers shoot farther, and climbing is slow. A few soldiers on a hill
+        (better with <b>Hold the Line</b>) can hold back a bigger army.</p>
         <p><b>General</b> (${esc(f.hero)}): every army has one leader. Soldiers near him lose less morale and recover it faster; if he
         falls, they lose heart. Select him and press <b>Q · 📯 Inspire</b> (morale back at once, routing soldiers rally, +25% damage)
         or <b>E · 🛡 Hold the Line</b> (+3 armor, much steadier). Only one General per player: if he dies, train another at the Town Center.</p>

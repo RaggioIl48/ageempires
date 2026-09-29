@@ -32,7 +32,7 @@ export function welcomeMessage(game: Game, you: number, settings: RoomSettings):
   return {
     t: 'welcome',
     you,
-    map: { size: w.size, tilesRle: encodeTiles(w.tiles) },
+    map: { size: w.size, tilesRle: encodeTiles(w.tiles), levelsRle: encodeTiles(w.levels) },
     players: game.playerViews(),
     nodes,
     settings,

@@ -118,6 +118,10 @@ function tryGenerate(opts: MapOptions, seed: number): World | null {
     }
   }
 
+  // 2b) Relieve (Total War): cada ciudad sobre una meseta (igual para todos), una colina en el
+  //     centro por la que pelear y lomas sueltas para las batallas en campo abierto.
+  raiseHills(world, starts, center, rng, nearStart, nearCenter);
+
   // 3) Región que se puede recorrer a pie desde el primer inicio. Los recursos
   //    solo se colocan dentro de ella (nada en islas ni en bolsillos de montaña).
   const reach = walkableRegion(world, starts[0].pos);
@@ -189,6 +193,55 @@ function tryGenerate(opts: MapOptions, seed: number): World | null {
   world.changedNodes.clear();
   world.removedNodes.length = 0;
   return world;
+}
+
+/** Radios de la meseta de cada ciudad: nivel 2 hasta CITY_HILL[0], nivel 1 hasta CITY_HILL[1]. */
+export const CITY_HILL = [8, 11] as const;
+
+function raiseHills(
+  world: World,
+  starts: { pos: Point; angle: number }[],
+  center: number,
+  rng: () => number,
+  nearStart: (x: number, y: number, extra: number) => boolean,
+  nearCenter: (x: number, y: number) => boolean,
+): void {
+  const size = world.size, L = world.levels;
+  const raise = (x: number, y: number, level: number) => {
+    if (!world.inBounds(x, y)) return;
+    const i = y * size + x;
+    if (L[i] < level) L[i] = level;
+  };
+  // Borde irregular pero igual para todos: depende del ángulo relativo a cada inicio.
+  const wobble = rng() * Math.PI * 2;
+  for (const s of starts)
+    for (let y = Math.floor(s.pos.y - 14); y <= s.pos.y + 14; y++)
+      for (let x = Math.floor(s.pos.x - 14); x <= s.pos.x + 14; x++) {
+        const dx = x + 0.5 - s.pos.x, dy = y + 0.5 - s.pos.y;
+        const th = Math.atan2(dy, dx) - s.angle;
+        const d = Math.hypot(dx, dy) / (1 + 0.12 * Math.sin(3 * th + wobble));
+        raise(x, y, d <= CITY_HILL[0] ? 2 : d <= CITY_HILL[1] ? 1 : 0);
+      }
+  // Colina central, con cima de nivel 3.
+  for (let y = Math.floor(center - 8); y <= center + 8; y++)
+    for (let x = Math.floor(center - 8); x <= center + 8; x++) {
+      const d = Math.hypot(x + 0.5 - center, y + 0.5 - center);
+      raise(x, y, d <= 2.5 ? 3 : d <= 4.5 ? 2 : d <= 7 ? 1 : 0);
+    }
+  // Lomas sueltas (nivel 1 con núcleo de nivel 2), lejos de las ciudades y del centro.
+  const hills = starts.length + 3;
+  for (let i = 0, placed = 0; i < hills * 6 && placed < hills; i++) {
+    const cx = Math.floor(rng() * size), cy = Math.floor(rng() * size);
+    if (nearStart(cx, cy, 4) || nearCenter(cx, cy)) continue;
+    const blob = growBlob(world, cx, cy, 30 + Math.floor(rng() * 40), rng);
+    blob.forEach(([x, y], k) => {
+      if (!nearStart(x, y, 1)) raise(x, y, k < blob.length / 3 ? 2 : 1);
+    });
+    placed++;
+  }
+  // El agua siempre en el llano.
+  for (let i = 0; i < L.length; i++) if (world.tiles[i] === TILE_WATER) L[i] = 0;
+  world.updateHeights();
 }
 
 /** Crece una mancha irregular de casillas desde (cx, cy). */

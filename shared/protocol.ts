@@ -133,6 +133,8 @@ export interface MapView {
   size: number;
   /** Casillas comprimidas por tramos: [valor, cantidad, valor, cantidad, …] fila por fila. */
   tilesRle: number[];
+  /** Niveles de altura (colinas), comprimidos igual que las casillas. */
+  levelsRle?: number[];
 }
 
 // ---------- Salas (lobby) ----------

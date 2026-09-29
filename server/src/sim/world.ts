@@ -26,6 +26,7 @@ import {
 } from '../../../shared/data.ts';
 import type { BattleResultView, GameEvent, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
+import { HeightField } from '../../../shared/terrain.ts';
 import { NO_TECHS, buildingMaxHp, canAfford, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
 
 /** Ejército en marcha forzada: sus soldados salen del mapa y aparecen al llegar. */
@@ -181,6 +182,9 @@ export interface Player {
 export class World {
   readonly size: number;
   readonly tiles: Uint8Array;
+  /** Nivel de altura de cada casilla (colinas) y la superficie suave que forman. */
+  readonly levels: Uint8Array;
+  height: HeightField;
   /** id del nodo o edificio que ocupa cada casilla (0 = libre). */
   readonly occupant: Int32Array;
   /** 1 = no se puede caminar (nodo o edificio sólido). */
@@ -230,6 +234,8 @@ export class World {
   constructor(size: number) {
     this.size = size;
     this.tiles = new Uint8Array(size * size).fill(TILE_GRASS);
+    this.levels = new Uint8Array(size * size);
+    this.height = new HeightField(size, this.levels);
     this.occupant = new Int32Array(size * size);
     this.solid = new Uint8Array(size * size);
   }
@@ -472,6 +478,16 @@ export class World {
     };
     this.units.set(u.id, u);
     return u;
+  }
+
+  /** Recalcular la superficie después de cambiar `levels` (al generar el mapa). */
+  updateHeights(): void {
+    this.height = new HeightField(this.size, this.levels);
+  }
+
+  /** Altura (niveles) de un punto. */
+  heightAt(x: number, y: number): number {
+    return this.height.at(x, y);
   }
 
   statsOf(u: Unit): UnitStats {

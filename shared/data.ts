@@ -1043,6 +1043,18 @@ export const FLANK_DAMAGE = 1.25;
 export const REAR_DAMAGE = 1.5;
 export const ROUTING_DAMAGE = 1.25;
 
+// ---------- Relieve (colinas, idea de Total War) ----------
+/** Niveles de altura del terreno (0 = llano). Ver shared/terrain.ts. */
+export const MAX_LEVEL = 3;
+/** Daño: +/-15 % por cada nivel de diferencia (entre 70 % y 145 %). */
+export const ELEV_DAMAGE_PER_LEVEL = 0.15;
+export const ELEV_DAMAGE_MIN = 0.7;
+export const ELEV_DAMAGE_MAX = 1.45;
+/** Alcance extra de arqueros, armas y torres por cada nivel por encima del objetivo. */
+export const ELEV_RANGE_PER_LEVEL = 0.75;
+/** Subir cuesta: velocidad mínima (fracción) en la pendiente más empinada. */
+export const UPHILL_MIN_SPEED = 0.6;
+
 // ---------- General (héroe) y sus habilidades ----------
 /** Aura: los soldados a esta distancia de su General pierden menos moral y la recuperan antes. */
 export const GENERAL_AURA = 7;

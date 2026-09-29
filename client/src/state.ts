@@ -2,6 +2,8 @@
 // por su cuenta: solo la actualiza con mensajes del servidor.
 // (Código sin navegador: también lo usan las pruebas del servidor.)
 
+import { HeightField } from '../../shared/terrain.ts';
+import { setHeightField } from './view.ts';
 import { decodeBuilding, decodeEvent, decodeUnit, NODE_TYPES } from '../../shared/codec.ts';
 import { BUILDING_DEFS, FACTIONS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation, type UnitType } from '../../shared/data.ts';
 import {
@@ -65,6 +67,8 @@ export class ClientState {
   you = 0;
   size = 0;
   tiles: Uint8Array = new Uint8Array(0);
+  /** Relieve (colinas). */
+  height = new HeightField(1, new Uint8Array(1));
   settings: RoomSettings | null = null;
   players = new Map<number, PlayerView>();
   nodes = new Map<number, NodeView>();
@@ -127,6 +131,8 @@ export class ClientState {
         this.you = msg.you;
         this.size = msg.map.size;
         this.tiles = decodeTiles(msg.map.tilesRle, msg.map.size);
+        this.height = new HeightField(msg.map.size, msg.map.levelsRle ? decodeTiles(msg.map.levelsRle, msg.map.size) : new Uint8Array(msg.map.size ** 2));
+        setHeightField(this.height);
         this.settings = msg.settings;
         this.players = new Map(msg.players.map((p) => [p.id, p]));
         this.nodes.clear();

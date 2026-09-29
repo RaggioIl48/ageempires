@@ -1,7 +1,7 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
-import { UNIT_DEFS, type Category } from '../../../shared/data.ts';
+import { UNIT_DEFS, UPHILL_MIN_SPEED, type Category } from '../../../shared/data.ts';
 import type { Formation } from '../../../shared/protocol.ts';
 import { clearLine, pathToPoint } from './pathfinding.ts';
 import type { Point, Unit, World } from './world.ts';
@@ -14,7 +14,7 @@ export function moveUnits(world: World, dt: number): void {
     world.walker = u.owner;
     // En formación, todos marchan al paso del más lento.
     const speed = u.routing > 0 ? stats.speed * 1.2 : u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
-    let budget = speed * dt;
+    let budget = speed * dt * (stats.flies ? 1 : uphill(world, u));
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
       const d = Math.hypot(wp.x - u.x, wp.y - u.y);
@@ -173,6 +173,17 @@ function rankedSpots(world: World, units: Unit[], x: number, y: number, formatio
 }
 
 /** Punto caminable más cercano (de a media casilla), sin repetir uno ya tomado. */
+/** Subir una loma cuesta: fracción de la velocidad según la pendiente hacia el próximo punto. */
+export function uphill(world: World, u: Unit): number {
+  const wp = u.path[0];
+  if (!wp) return 1;
+  const d = Math.hypot(wp.x - u.x, wp.y - u.y);
+  if (d < 1e-6) return 1;
+  const look = Math.min(d, 0.5);
+  const grade = (world.heightAt(u.x + ((wp.x - u.x) / d) * look, u.y + ((wp.y - u.y) / d) * look) - world.heightAt(u.x, u.y)) / look;
+  return Math.max(UPHILL_MIN_SPEED, 1 - 0.45 * Math.max(0, grade));
+}
+
 export function freeSpot(world: World, p: Point, taken: Set<number>, owner = 0): Point | null {
   if (owner) world.walker = owner;
   return freeNear(world, p, taken);
