@@ -367,10 +367,10 @@ const portraits = new Map<string, string | null>();
  * la infantería, de perfil para jinetes y máquinas, con el color del jugador.
  * Devuelve la URL, o null si aún no está (se prepara solo y aparece en el próximo dibujo).
  */
-export function unitPortrait(faction: FactionId, type: UnitType, color: string): string | null {
+export function unitPortrait(faction: FactionId, type: UnitType, color: string, size = 48): string | null {
   const id = sheetId(faction, type);
   if (!id) return null;
-  const key = `${id}|${color}`;
+  const key = `${id}|${color}|${size}`;
   if (portraits.has(key)) return portraits.get(key)!;
   const sheet = manifest!.sheets[id];
   const img = imageOf(id, sheet);
@@ -395,10 +395,10 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string):
   const sx = wide ? (a.w - side) / 2 : a.ax - side / 2;
   const sy = wide ? (a.h - side) / 2 : 0;
   const out = document.createElement('canvas');
-  out.width = out.height = 48;
+  out.width = out.height = size;
   const o = out.getContext('2d')!;
   o.imageSmoothingEnabled = !wide;
-  o.drawImage(frame, sx, sy, side, side, 0, 0, 48, 48);
+  o.drawImage(frame, sx, sy, side, side, 0, 0, size, size);
   out.toBlob((blob) => {
     portraits.set(key, blob ? URL.createObjectURL(blob) : null);
     artVersion++;

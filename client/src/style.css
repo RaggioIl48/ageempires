@@ -572,17 +572,73 @@ tr.off {
 .faction {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  text-align: left;
-  padding: 10px;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+  padding: 10px 8px 8px;
   font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--line, #8a6a3f);
+  border-radius: 8px;
+  background: linear-gradient(#4a3726, #33261a);
+  color: inherit;
+}
+.faction:hover {
+  background: linear-gradient(#5a4330, #3d2d1f);
+}
+.faction:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.fx-art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100px;
+}
+.fx-art .flag {
+  width: 56px;
+  height: 80px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+.fx-general {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
 }
 .faction b {
-  font-size: 15px;
+  font-size: 16px;
   color: var(--accent);
+}
+.fx-hero {
+  color: #e8d9b8;
+  font-size: 11px;
 }
 .faction i {
   color: var(--muted);
+}
+.fx-more {
+  align-self: stretch;
+  margin-top: 4px;
+  text-align: left;
+}
+.fx-more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  list-style: none;
+}
+.fx-more summary::-webkit-details-marker {
+  display: none;
+}
+.fx-more[open] summary {
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.fx-more > span {
+  display: block;
+  margin-top: 3px;
 }
 .faction .up {
   color: #9dffa8;
@@ -592,14 +648,12 @@ tr.off {
 }
 .faction .abil {
   color: #9fd4ff;
-  font-size: 12px;
 }
 .faction .uniq {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid rgba(138, 106, 63, 0.5);
   color: #f0c14b;
-  font-size: 12px;
 }
 .faction .uniq b {
   font-size: 12px;

@@ -2,6 +2,8 @@
 // (facción y color) y panel del profesor.
 
 import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
+import { artVersion, unitPortrait } from './art.ts';
+import { flagSvg } from './flags.ts';
 import { CODE_LENGTH, type ClientMessage, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
 
 export function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -100,8 +102,17 @@ export class LobbyScreen {
       this.send(pin ? { t: 'start', code: this.room.code, pin } : { t: 'start', code: this.room.code });
     });
     el('lobby-factions').addEventListener('click', (e) => {
+      // Abrir o cerrar los detalles no elige el pueblo.
+      if ((e.target as HTMLElement).closest('details')) return;
       const card = (e.target as HTMLElement).closest<HTMLElement>('[data-faction]');
       if (card) this.send({ t: 'choose', faction: card.dataset.faction as FactionId });
+    });
+    el('lobby-factions').addEventListener('keydown', (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>('[data-faction]');
+      if (card && (e.key === 'Enter' || e.key === ' ') && !(e.target as HTMLElement).closest('details')) {
+        e.preventDefault();
+        this.send({ t: 'choose', faction: card.dataset.faction as FactionId });
+      }
     });
     el('lobby-colors').addEventListener('click', (e) => {
       const sw = (e.target as HTMLElement).closest<HTMLElement>('[data-color]');
@@ -122,6 +133,48 @@ export class LobbyScreen {
       : 'You logged in as the <b>teacher</b> in this browser: when everyone is here, you can start the game from here.';
   }
 
+  private factionsKey = '';
+  private portraitWait = 0;
+
+  /**
+   * Tarjetas de los pueblos: estandarte, el General y el lema. Las ventajas y desventajas
+   * quedan guardadas en "Details" para quien quiera leerlas.
+   */
+  private renderFactions(chosen: FactionId | undefined, color: string): void {
+    const box = el('lobby-factions');
+    // Los detalles abiertos siguen abiertos al redibujar.
+    const open = new Set([...box.querySelectorAll<HTMLElement>('details[open]')].map((d) => d.closest<HTMLElement>('[data-faction]')?.dataset.faction));
+    let missing = false;
+    const html = FACTION_ORDER.map((id) => {
+      const f = FACTIONS[id];
+      const u = uniquesOf(id);
+      const portrait = unitPortrait(id, 'general', color, 96);
+      if (!portrait) missing = true;
+      return `<div class="faction ${chosen === id ? 'chosen' : ''}" data-faction="${id}" role="button" tabindex="0" title="Choose the ${esc(f.name)}">
+        <div class="fx-art">${flagSvg(id)}${portrait ? `<img class="fx-general" src="${portrait}" alt="">` : '<span class="fx-general"></span>'}</div>
+        <b>${esc(f.name)}</b><span class="fx-hero">General: ${esc(f.hero)}</span><i>«${esc(f.motto)}»</i>
+        <details class="fx-more"${open.has(id) ? ' open' : ''}><summary>ℹ Details</summary>
+          <span class="up">▲ ${f.strengths.map(esc).join('<br>▲ ')}</span>
+          <span class="down">▼ ${f.weaknesses.map(esc).join('<br>▼ ')}</span>
+          <span class="abil">✦ ${f.abilities.map(esc).join('<br>✦ ')}</span>
+          <span class="uniq">⚜ Medieval Age: <b>${esc(BUILDING_DEFS[u.building!].label)}</b> · ${u.units.map((x) => esc(UNIT_DEFS[x].label)).join(', ')}</span>
+        </details></div>`;
+    }).join('');
+    const key = html;
+    if (key !== this.factionsKey) {
+      this.factionsKey = key;
+      box.innerHTML = html;
+    }
+    // Los retratos se preparan de a poco: se vuelve a dibujar cuando están.
+    window.clearTimeout(this.portraitWait);
+    if (missing) {
+      const v = artVersion;
+      this.portraitWait = window.setTimeout(() => {
+        if (artVersion !== v || missing) this.renderFactions(chosen, color);
+      }, 300);
+    }
+  }
+
   error(text: string): void {
     el('lobby-error').textContent = text;
   }
@@ -140,16 +193,7 @@ export class LobbyScreen {
           }</div>`,
       )
       .join('');
-    el('lobby-factions').innerHTML = FACTION_ORDER.map((id) => {
-      const f = FACTIONS[id];
-      const u = uniquesOf(id);
-      return `<button type="button" class="faction ${mine?.faction === id ? 'chosen' : ''}" data-faction="${id}">
-        <b>${esc(f.name)}</b><i>«${esc(f.motto)}»</i>
-        <span class="up">▲ ${f.strengths.map(esc).join('<br>▲ ')}</span>
-        <span class="down">▼ ${f.weaknesses.map(esc).join('<br>▼ ')}</span>
-        <span class="abil">✦ ${f.abilities.map(esc).join('<br>✦ ')}</span>
-        <span class="uniq">⚜ Medieval Age: <b>${esc(BUILDING_DEFS[u.building!].label)}</b> · ${u.units.map((x) => esc(UNIT_DEFS[x].label)).join(', ')}</span></button>`;
-    }).join('');
+    this.renderFactions(mine?.faction, mine?.color ?? PLAYER_COLORS[0]);
     el('lobby-colors').innerHTML = PLAYER_COLORS.map((c) => {
       const owner = room.members.find((m) => m.color === c);
       const cls = owner?.id === this.me ? 'chosen' : owner ? 'taken' : '';
