@@ -135,7 +135,7 @@ export class WarPanel {
       `<div class="war-bar"><div style="width:${max ? Math.round((v / max) * 100) : 0}%;background:${color}"></div></div>`;
     const mine = b.a === s.you ? 'attack' : b.d === s.you ? 'defend' : '';
     return `<div class="war-row battle ${mine}">
-      <div class="war-title">⚔ Battle for ${name(b.d)}'s city <span class="war-time">⏱ ${mmss(b.left)}</span></div>
+      <div class="war-title">${b.siege ? '🏰 Siege of' : '⚔ Battle for'} ${name(b.d)}'s city <span class="war-time">⏱ ${mmss(b.left)}</span></div>
       <div class="war-sides">
         <div><i style="background:${s.color(b.a)}"></i>${name(b.a)} <span class="muted">attacks</span>${bar(b.as, b.a0, s.color(b.a))}<span class="muted">fallen ${b.al}</span></div>
         <div><i style="background:${s.color(b.d)}"></i>${name(b.d)} <span class="muted">defends</span>${bar(b.ds, Math.max(b.d0, 1), s.color(b.d))}<span class="muted">fallen ${b.dl}</span></div>

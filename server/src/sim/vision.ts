@@ -1,7 +1,7 @@
 // Niebla de guerra en el servidor: qué ve cada jugador en este paso y qué exploró ya.
 // El filtro de lo que se manda a cada alumno está en net/sync.ts.
 
-import { BUILDING_DEFS } from '../../../shared/data.ts';
+import { BUILDING_DEFS, VISION_PER_LEVEL, WALL_LEVELS } from '../../../shared/data.ts';
 import { addExplored, computeVisible, type VisionSource } from '../../../shared/vision.ts';
 import type { World } from './world.ts';
 
@@ -14,7 +14,8 @@ export function buildingSight(type: keyof typeof BUILDING_DEFS, progress: number
 function sourcesOf(world: World, playerId: number): VisionSource[] {
   const out: VisionSource[] = [];
   const team = (owner: number) => owner === playerId || world.relation(owner, playerId) === 'ally';
-  for (const u of world.units.values()) if (u.hp > 0 && team(u.owner)) out.push({ x: u.x, y: u.y, r: world.statsOf(u).sight });
+  for (const u of world.units.values())
+    if (u.hp > 0 && team(u.owner)) out.push({ x: u.x, y: u.y, r: world.statsOf(u).sight + (world.onWall(u) === 1 ? WALL_LEVELS * VISION_PER_LEVEL : 0) });
   for (const b of world.buildings.values())
     if (team(b.owner)) out.push({ x: b.tx + b.size / 2, y: b.ty + b.size / 2, r: buildingSight(b.type, b.progress) + b.size / 2 });
   return out;

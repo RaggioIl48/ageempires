@@ -30,6 +30,7 @@ import {
 import { UnitGrid } from './combat.ts';
 import { isEnemy } from './diplomacy.ts';
 import { buffMoraleLoss, isHero, nearGeneral } from './general.ts';
+import { fatigueOf } from './fatigue.ts';
 import { pathToPoint } from './pathfinding.ts';
 import type { Unit, World } from './world.ts';
 
@@ -69,6 +70,7 @@ export function hitMorale(world: World, victim: Unit, dmg: number, side: 0 | 1 |
   loss /= resolveOf(world, victim.owner);
   loss *= buffMoraleLoss(victim);
   loss /= 1 + RANK_RESOLVE * rankOf(victim.kills); // los veteranos aguantan más
+  loss *= fatigueOf(victim.stamina).morale; // los cansados, menos
   if (nearGeneral(world, victim)) loss /= GENERAL_AURA_RESOLVE;
   victim.morale -= loss;
   if (victim.morale <= 0) startRout(world, victim);

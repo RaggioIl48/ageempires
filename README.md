@@ -93,6 +93,9 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Draw a formation (Total War style) | With soldiers selected, **drag with the right button** on the ground: the line is the front, the arrow shows where they will face. They line up along it and face forward when they arrive |
 | General | Every player starts with one (Legate, Khan, Jarl…). Select him: **Q 📯 Inspire** (morale back, routing soldiers rally, +25% damage for 20 s) · **E 🛡 Hold the Line** (+3 armor, steadier for 20 s). If he falls, train another at the Town Center |
 | Hills | Cities stand on hills. From higher ground units hit harder and archers shoot farther; climbing is slow |
+| Battles in lines | Troops that arrive in formation hold their spot. Right click an enemy to charge: each soldier takes the nearest enemy of that formation |
+| Fatigue | Running, climbing and fighting tire troops (yellow bar): they get slower and weaker. Marching in formation tires less; rest them before attacking |
+| Sieges | Right click your own wall: infantry and archers spread along it (higher, covered from arrows). Attacking a walled city is a siege: infantry climbs with ladders (slow and exposed) or rams break the gate |
 | Guard mode | With soldiers selected: **G** (or "🛡 Guard mode"): they hold position and formation and do not chase. Archers without guard mode back away from melee (skirmish) |
 | How to win | Take enemy capitals (Town Centers): the last empire or alliance standing wins · or hold the **Sacred Hill** (central summit) for 5 minutes from the Medieval Age · or have the most **Glory** when time is up |
 | Fog of war | You only see what your troops, buildings and allies see (the teacher can turn it off when creating the game) |

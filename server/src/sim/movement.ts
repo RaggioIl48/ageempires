@@ -1,21 +1,26 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
-import { UNIT_DEFS, UPHILL_MIN_SPEED, type Category } from '../../../shared/data.ts';
+import { FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category } from '../../../shared/data.ts';
+import { fatigueOf, spend } from './fatigue.ts';
 import type { Formation } from '../../../shared/protocol.ts';
 import { formationLayout, rankOf } from '../../../shared/formation.ts';
 import { clearLine, pathToPoint } from './pathfinding.ts';
-import type { Point, Unit, World } from './world.ts';
+import { WALL, type Point, type Unit, type World } from './world.ts';
 
 /** Avanza cada unidad por su camino. `dt` en segundos. */
 export function moveUnits(world: World, dt: number): void {
   for (const u of world.units.values()) {
     if (u.path.length === 0) continue;
     const stats = world.statsOf(u);
-    world.walker = u.owner;
+    world.setWalker(u);
     // En formación, todos marchan al paso del más lento.
     const speed = u.routing > 0 ? stats.speed * 1.2 : u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
-    let budget = speed * dt * (stats.flies ? 1 : uphill(world, u));
+    const slope = stats.flies ? 1 : uphill(world, u);
+    const wallMode = world.onWall(u);
+    const wallSpeed = wallMode === 1 ? WALL_SPEED_DEFENDER : wallMode === 2 ? WALL_SPEED_CLIMBER : 1;
+    let budget = speed * dt * slope * fatigueOf(u.stamina).speed * wallSpeed;
+    const walked = budget;
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
       const d = Math.hypot(wp.x - u.x, wp.y - u.y);
@@ -33,6 +38,9 @@ export function moveUnits(world: World, dt: number): void {
       budget -= step;
       if (step >= d) u.path.shift();
     }
+    // Cansancio: por lo recorrido; al paso en formación, menos; cuesta arriba, más.
+    const done = walked - Math.max(0, budget);
+    if (done > 0) spend(u, done * FATIGUE_PER_TILE * (u.speedCap > 0 ? FATIGUE_FORMATION : 1) * (u.routing > 0 ? 1.4 : 1) / slope);
     if (u.path.length === 0 && u.state === 'moving') {
       u.state = 'idle';
       u.speedCap = 0;
@@ -70,6 +78,8 @@ export function moveGroup(
 ): void {
   if (units.length === 0) return;
   world.walker = units[0].owner;
+  // Los puestos pueden caer sobre la muralla solo si todos son de a pie.
+  world.walkerFoot = units.every((u) => ['infantry', 'ranged'].includes(UNIT_DEFS[u.type].category));
   // Al arrastrar un frente (face), siempre en filas.
   if (face && formation === 'loose') formation = 'line';
   const ranked = formation !== 'loose' && (units.length > 1 || face !== undefined);
@@ -99,7 +109,9 @@ export function moveGroup(
     u.speedCap = 0;
     // En formación, al llegar todos miran al frente (importa para los flancos).
     u.arriveFace = plan ? [plan.face.x, plan.face.y] : null;
-    if (u.guard) u.post = { ...spot };
+    const soldier = UNIT_DEFS[u.type].category !== 'worker';
+    u.hold = plan !== null && soldier;
+    if (u.guard || u.hold) u.post = { ...spot };
     if (plan && u.state === 'idle') [u.fx, u.fy] = u.arriveFace!;
   }
   // En formación, todos al paso del más lento (los aviones y el asedio van aparte).
@@ -109,6 +121,52 @@ export function moveGroup(
     const cap = Math.min(...ground.map((u) => world.statsOf(u).speed));
     for (const u of ground) if (u.state === 'moving') u.speedCap = cap;
   }
+}
+
+/**
+ * Guarnecer la muralla: los soldados de a pie se reparten por los tramos de muralla propia
+ * unidos al que se eligió (uno por tramo, empezando por el más cercano). Devuelve false si no
+ * corresponde (no es muralla propia o hay unidades que no pueden subir).
+ */
+export function manWalls(world: World, units: Unit[], tx: number, ty: number): boolean {
+  if (!units.length || !world.inBounds(tx, ty)) return false;
+  const i0 = ty * world.size + tx;
+  if (world.solid[i0] !== WALL) return false;
+  const first = world.buildings.get(world.occupant[i0]);
+  if (!first || world.relation(units[0].owner, first.owner) !== 'ally') return false;
+  if (!units.every((u) => ['infantry', 'ranged'].includes(UNIT_DEFS[u.type].category))) return false;
+  // Tramos unidos al elegido, por cercanía (recorrido en anchura).
+  const tiles: Point[] = [];
+  const seen = new Set([i0]);
+  const queue = [i0];
+  while (queue.length && tiles.length < units.length) {
+    const i = queue.shift()!;
+    const x = i % world.size, y = (i - x) / world.size;
+    tiles.push({ x: x + 0.5, y: y + 0.5 });
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (!world.inBounds(nx, ny)) continue;
+      const j = ny * world.size + nx;
+      if (seen.has(j) || world.solid[j] !== WALL) continue;
+      const b = world.buildings.get(world.occupant[j]);
+      if (!b || world.relation(units[0].owner, b.owner) !== 'ally') continue;
+      seen.add(j);
+      queue.push(j);
+    }
+  }
+  // Si sobran soldados, se ponen de a dos por tramo.
+  while (tiles.length < units.length) tiles.push({ ...tiles[tiles.length % Math.max(1, seen.size)] });
+  for (const { u, spot } of assignNearest(units, tiles, tiles[0])) {
+    u.task = null;
+    u.chaseGoal = null;
+    u.path = pathToPoint(world, u, spot.x, spot.y) ?? [];
+    u.state = u.path.length ? 'moving' : 'idle';
+    u.speedCap = 0;
+    u.arriveFace = null;
+    u.hold = true; // defienden su tramo
+    u.post = { ...spot };
+  }
+  return true;
 }
 
 /** Grupo suelto: cada puesto de una cuadrícula compacta lo ocupa la unidad más cercana. */
@@ -184,6 +242,7 @@ export function uphill(world: World, u: Unit): number {
 
 export function freeSpot(world: World, p: Point, taken: Set<number>, owner = 0): Point | null {
   if (owner) world.walker = owner;
+  world.walkerFoot = false; // los puestos sueltos, siempre en el suelo
   return freeNear(world, p, taken);
 }
 
@@ -262,7 +321,7 @@ export function separateUnits(world: World): void {
 
 function nudge(world: World, u: Unit, dx: number, dy: number): void {
   const nx = u.x + dx, ny = u.y + dy;
-  world.walker = u.owner;
+  world.setWalker(u);
   if (world.isWalkable(Math.floor(nx), Math.floor(ny))) {
     u.x = nx;
     u.y = ny;

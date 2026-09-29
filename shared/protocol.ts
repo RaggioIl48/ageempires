@@ -66,6 +66,8 @@ export interface UnitView {
   /** Rango de veteranía (1 a 3) y modo guardia. */
   rank?: number;
   guard?: 1;
+  /** Aguante (0–100, de a 5) si no está completo. */
+  st?: number;
 }
 
 export interface NodeView {
@@ -226,6 +228,8 @@ export interface MarchView {
 
 /** Batalla en curso por una ciudad. a = atacante, d = defensor. */
 export interface BattleView {
+  /** 1 si es un asedio (ciudad con murallas). */
+  siege?: 1;
   id: number;
   a: number;
   d: number;

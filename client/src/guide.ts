@@ -138,6 +138,15 @@ export class GuidePanel {
         <p><b>Guard mode (G):</b> soldiers hold their position and formation: they only fight enemies that come close and do not
         run after them. Perfect on a hill or in front of a gate. <b>Skirmish:</b> archers (without guard mode) back away when enemy
         infantry or cavalry charge at them.</p>
+        <p><b>Keep your lines:</b> troops that arrive in formation keep their spot and only fight what reaches them. To charge,
+        right click an enemy: each soldier takes the nearest enemy of that formation, like two regiments clashing. Use the
+        flanks and the rear!</p>
+        <p><b>Fatigue 💧:</b> running, climbing and fighting tire soldiers (yellow bar); marching in formation tires less and resting
+        recovers. Tired troops are slower, weaker and break sooner. After a forced march your army arrives tired: let it rest
+        before attacking, and keep fresh reserves.</p>
+        <p><b>Sieges 🏰:</b> put infantry and archers <b>on your walls</b> (right click on the wall): they stand higher, shoot farther
+        and are covered from arrows. In a battle for a walled city the attacker's infantry can <b>climb with ladders</b>, but
+        slowly and exposed; the alternative is breaking the gate with a <b>battering ram</b>. Sieges last longer (6 minutes).</p>
         <p><b>Veterans ▲:</b> soldiers that kill enemies gain ranks (2, 5 and 10 kills): each rank hits harder and holds its
         nerve better; from rank 2 they also get extra armour. Keep your veterans alive!</p>
         <p><b>Battering ram:</b> only attacks buildings, walls and gates; arrows barely hurt it, but soldiers destroy it.</p>

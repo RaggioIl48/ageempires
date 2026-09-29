@@ -58,6 +58,7 @@ export function useAbility(world: World, units: Unit[], ability: AbilityId): str
       u.buffUntil = world.tick + def.seconds * TICK_RATE;
       if (def.morale) {
         u.morale = Math.min(100, u.morale + def.morale);
+        u.stamina = Math.min(100, u.stamina + 25);
         if (u.routing > 0) {
           // ¡Se reagrupan!
           u.routing = 0;

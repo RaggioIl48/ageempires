@@ -496,6 +496,34 @@ Tested in the browser (general abilities with cooldowns, relief around the citie
 Tested in the browser (fog around the city and the hill, Sacred Hill panel, final screen, guard
 button, rank-up). **Tests**: 276.
 
+## Tactical battles: lines that hold, fatigue and sieges (2026-09-29)
+
+**Why battles were chaotic** (measured with a simulation of two lines of 10): on an attack order all
+10 soldiers went after the same enemy, and after ~12 s both lines had melted into a blob (line depth
+0 → 1.5 tiles). Fixes:
+- **Regiments clash**: an attack order on a unit spreads the attackers over the enemies of that
+  formation (within 6 tiles), at most ~1–2 per enemy. Idle troops fighting on their own prefer
+  enemies that nobody is fighting yet. Result: one-on-one along the line, depth stays ≈ 0.1 tiles.
+- **Hold the line**: troops that arrive in formation keep their spot (like guard mode: they only
+  fight what reaches them and return to their post) until their next order.
+
+**Fatigue** (`server/src/sim/fatigue.ts`): stamina 0–100. Walking costs 0.9 per tile (40% less
+marching in formation, more uphill and when routing), each melee blow 1.4, each shot 0.5, a charge 4;
+resting recovers 2.5/s (0.3/s while fighting). Tiers Fresh / Winded / Tired / Exhausted: down to
+−32% speed, −28% damage and +35% morale loss. Forced marches arrive at 60. Inspire gives +25.
+Yellow bar when tired and a line in the unit panel.
+
+**Sieges**:
+- Own (or allied) infantry and archers can stand **on the walls** (right click on your wall: they
+  spread along it, one per section): +1.5 height levels (hit harder, shoot and see farther) and
+  +3 armour against arrows. Archers on the walls do not skirmish away.
+- A battle for a city with 6+ wall sections is a **siege** (6 minutes, "🏰 Siege" panel): the
+  attacker's infantry can **climb the walls with ladders** — slow (30% speed), weak (50% damage) and
+  exposed (+30% damage taken). The alternative is breaking the gate with rams. Cavalry never climbs.
+- Pathfinding prefers the ground (walls cost extra) and straight lines never cross walls.
+
+Tested in the browser (siege panel, defenders on the walls, Mongols climbing). **Tests**: 286.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

@@ -354,6 +354,15 @@ export class Input {
       mark(n.tx + 0.5, n.ty + 0.5, '#ffe27a');
       return;
     }
+    // Muralla propia o aliada: los soldados de a pie suben y se reparten por ella.
+    if (target?.kind === 'building') {
+      const b = this.state.buildings.get(target.id);
+      if (b && (b.type === 'wall' || b.type === 'gate') && this.state.relation(this.state.you, b.owner) === 'ally' && workers.length === 0) {
+        this.net.command({ kind: 'move', unitIds: ids, x: b.tx + 0.5, y: b.ty + 0.5 });
+        mark(b.tx + 0.5, b.ty + 0.5, '#7dff8a');
+        return;
+      }
+    }
     // Los soldados marchan en la formación elegida; los trabajadores, sueltos.
     const soldiers = ids.filter((id) => this.state.units.get(id)?.v.type !== 'worker').length;
     const formation = soldiers >= 2 ? this.formation : 'loose';

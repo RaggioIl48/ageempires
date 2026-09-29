@@ -25,7 +25,7 @@ import {
   type FactionId,
   type ResourceType,
   type TechId,
-  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, type AbilityId } from '../../shared/data.ts';
+  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
@@ -416,6 +416,11 @@ export class Hud {
       u.rank ? `${'▲'.repeat(u.rank)} ${RANK_NAMES[u.rank]}: +${Math.round(RANK_DAMAGE * u.rank * 100)}% damage, steadier${u.rank >= 2 ? `, +${u.rank - 1} armor` : ''}` : '',
       def.category !== 'worker' && def.category !== 'siege' && st.attack.type === 'ranged' && !u.guard ? 'Skirmish: backs away when melee enemies get close' : '',
       u.guard ? '🛡 Guard mode: holds position' : '',
+      u.st !== undefined ? (() => {
+        const t = FATIGUE_TIERS.find((f) => (u.st ?? 100) >= f.min) ?? FATIGUE_TIERS[FATIGUE_TIERS.length - 1];
+        return `💧 Stamina ${u.st}% · ${t.name}${t.speed < 1 ? ` (−${Math.round((1 - t.speed) * 100)}% speed, −${Math.round((1 - t.attack) * 100)}% attack): rest them` : ''}`;
+      })() : '',
+      onWallText(this.state, u),
       u.buff ? (u.buff === 1 ? '📯 Inspired: +25% damage' : '🛡 Holding the line: +3 armor, steadier') : '',
     ].filter(Boolean);
     const n = u.crew ?? 1;
@@ -561,7 +566,7 @@ export class Hud {
       return `${abilities}${formation}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
-        <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it and face forward.
+        <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it, face forward and hold their spot.
         Idle troops attack the enemies they see on their own.</p>`;
     }
     if (b) {
@@ -674,4 +679,15 @@ function moraleRow(u: UnitView): string {
 function hpBar(hp: number, max: number): string {
   const frac = Math.max(0, Math.min(1, hp / max));
   return `<div class="hpbar"><div style="width:${Math.round(frac * 100)}%"></div><span>${Math.ceil(hp)}/${max}</span></div>`;
+}
+
+/** ¿Está sobre una muralla? (la propia: arriba y cubierto; la enemiga: trepando) */
+function onWallText(state: ClientState, u: UnitView): string {
+  const tx = Math.floor(u.x), ty = Math.floor(u.y);
+  for (const b of state.buildings.values())
+    if (b.type === 'wall' && b.tx === tx && b.ty === ty)
+      return state.relation(u.owner, b.owner) === 'ally'
+        ? `🏰 On the walls: higher ground, farther shots and +${WALL_COVER} armor against arrows`
+        : '🪜 Climbing the walls: slow, weak and exposed!';
+  return '';
 }

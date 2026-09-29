@@ -14,17 +14,18 @@ import type {
 import { buildingCost, canHitAir, scaleCost } from '../../../shared/stats.ts';
 import { wallLine } from '../../../shared/wall.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
-import { assignAttack, removeDead, targetOf, updateCombat } from './combat.ts';
+import { assignAttack, removeDead, spreadAttack, targetOf, updateCombat } from './combat.ts';
 import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
 import { assignField, assignGather, fieldFull, isOwnField, stopWork, updateGatherers } from './gather.ts';
 import { generateWorld, type MapOptions } from './mapgen.ts';
-import { moveGroup, moveUnits, separateUnits } from './movement.ts';
+import { manWalls, moveGroup, moveUnits, separateUnits } from './movement.ts';
 import { updateHealing } from './healing.ts';
 import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from './production.ts';
 import { trade } from './market.ts';
 import { retreat, startMarch, updateWar } from './war.ts';
 import { updateMorale } from './morale.ts';
 import { updateVision } from './vision.ts';
+import { tires, updateFatigue } from './fatigue.ts';
 import { gloryOf, updateVictory } from './victory.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
@@ -61,6 +62,7 @@ export class Game {
     updateBuffs(w);
     updateHealing(w, dt);
     moveUnits(w, dt);
+    updateFatigue(w, dt);
     updateGatherers(w, dt);
     updateBuilders(w, dt);
     removeDead(w);
@@ -152,6 +154,7 @@ export class Game {
         break;
       }
       case 'move':
+        if (!cmd.front && manWalls(w, units, Math.floor(cmd.x), Math.floor(cmd.y))) break;
         moveGroup(
           w,
           units,
@@ -237,7 +240,11 @@ export class Game {
           if (before && !attackers.length) return w.notify(playerId, 'Rams only attack buildings, walls and gates');
         }
         if (attackers.length === 0) return w.notify(playerId, 'Only ranged units can attack airplanes');
-        for (const u of attackers) assignAttack(u, cmd.targetId);
+        if (t.kind === 'unit') spreadAttack(w, attackers, t.unit);
+        else for (const u of attackers) {
+          u.hold = false;
+          assignAttack(u, cmd.targetId);
+        }
         break;
       }
     }
@@ -403,6 +410,7 @@ function unitView(u: Unit, tick: number): UnitView {
   const rank = rankOf(u.kills);
   if (rank) v.rank = rank;
   if (u.guard) v.guard = 1;
+  if (tires(u) && u.stamina < 100) v.st = Math.floor(u.stamina / 5) * 5;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }

@@ -188,6 +188,14 @@ export function moraleBar(ctx: CanvasRenderingContext2D, x: number, y: number, f
   ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), 2);
 }
 
+/** Aguante: barra amarilla fina (naranja cuando están agotados). */
+export function staminaBar(ctx: CanvasRenderingContext2D, x: number, y: number, frac: number, w = 18): void {
+  ctx.fillStyle = '#1a1406';
+  ctx.fillRect(x - w / 2, y, w, 2);
+  ctx.fillStyle = frac > 0.2 ? '#e8c547' : '#ff8a3d';
+  ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), 2);
+}
+
 /** Bandera blanca que ondea sobre una tropa en desbandada. */
 export function whiteFlag(ctx: CanvasRenderingContext2D, x: number, y: number, now: number): void {
   const w = Math.sin(now / 120) * 1.5;

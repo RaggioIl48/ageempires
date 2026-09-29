@@ -1079,6 +1079,41 @@ export function rankOf(kills: number): number {
   return r;
 }
 
+// ---------- Asedios (Total War) ----------
+/** Altura (en niveles) que da estar sobre la muralla, y armadura extra contra flechas (almenas). */
+export const WALL_LEVELS = 1.5;
+export const WALL_COVER = 3;
+/** Velocidad sobre la muralla: el defensor por las escaleras; el atacante trepando con escalas. */
+export const WALL_SPEED_DEFENDER = 0.6;
+export const WALL_SPEED_CLIMBER = 0.3;
+/** El que trepa pega menos y recibe más daño (está colgado de la escala). */
+export const CLIMB_DAMAGE_DEALT = 0.5;
+export const CLIMB_DAMAGE_TAKEN = 1.3;
+/** Batalla de asedio (ciudad con murallas): dura más. Murallas mínimas para que cuente. */
+export const SIEGE_SECONDS = 360;
+export const SIEGE_MIN_WALLS = 6;
+
+// ---------- Cansancio (Total War) ----------
+/** Aguante que se gasta por casilla recorrida (en formación, al paso, un 40 % menos; subiendo, más). */
+export const FATIGUE_PER_TILE = 0.9;
+export const FATIGUE_FORMATION = 0.6;
+/** Aguante por golpe (cuerpo a cuerpo / a distancia) y extra por una carga. */
+export const FATIGUE_MELEE_HIT = 1.4;
+export const FATIGUE_RANGED_HIT = 0.5;
+export const FATIGUE_CHARGE = 4;
+/** Recuperación por segundo: quieto, y quieto pero peleando. */
+export const FATIGUE_REST = 2.5;
+export const FATIGUE_REST_COMBAT = 0.3;
+/** Con cuánto aguante llega un ejército de una marcha forzada. */
+export const MARCH_STAMINA = 60;
+/** Niveles de cansancio: desde qué aguante, y multiplicadores de velocidad, daño y moral perdida. */
+export const FATIGUE_TIERS = [
+  { min: 70, name: 'Fresh', speed: 1, attack: 1, morale: 1 },
+  { min: 45, name: 'Winded', speed: 0.93, attack: 0.93, morale: 1.08 },
+  { min: 20, name: 'Tired', speed: 0.82, attack: 0.84, morale: 1.2 },
+  { min: 0, name: 'Exhausted', speed: 0.68, attack: 0.72, morale: 1.35 },
+] as const;
+
 // ---------- Victoria ----------
 /** Colina Sagrada (la del centro): radio de la cima, minutos para ganar, soldados y era mínimos. */
 export const HILL_RADIUS = 3;

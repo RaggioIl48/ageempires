@@ -2,7 +2,8 @@
 // esquinas), con suavizado por línea de visión para que las unidades no
 // caminen en zigzag de casilla en casilla.
 
-import { freeTilesAround, type Point, type World } from './world.ts';
+import { freeTilesAround, WALL, type Point, type World } from './world.ts';
+import type { UnitType } from '../../../shared/data.ts';
 
 const SQRT2 = Math.SQRT2;
 const DIRS: readonly [number, number, number][] = [
@@ -15,8 +16,9 @@ const DIRS: readonly [number, number, number][] = [
  * aliados cuentan como abiertas mientras se busca su camino.
  */
 function useWalker(world: World, from: Point): void {
-  const owner = (from as { owner?: number }).owner;
-  if (owner !== undefined) world.walker = owner;
+  const u = from as { owner?: number; type?: UnitType };
+  if (u.owner !== undefined && u.type !== undefined) world.setWalker({ owner: u.owner, type: u.type });
+  else if (u.owner !== undefined) world.walker = u.owner;
 }
 
 /** Límite de casillas exploradas por búsqueda (protege el tick del servidor). */
@@ -99,7 +101,8 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
       if (dx !== 0 && dy !== 0 && (!world.isWalkable(cx + dx, cy) || !world.isWalkable(cx, cy + dy))) continue;
       const ni = ny * size + nx;
       if (closed[ni] === s) continue;
-      const ng = gCost[cur] + cost;
+      // Subir a una muralla cuesta (escaleras o escalas): se prefiere el suelo si hay otro camino.
+      const ng = gCost[cur] + cost + (world.solid[ni] === WALL ? 4 : 0);
       if (seen[ni] !== s || ng < gCost[ni]) {
         seen[ni] = s;
         gCost[ni] = ng;
@@ -195,6 +198,8 @@ export function clearLine(world: World, a: Point, b: Point): boolean {
       const cx = Math.floor(x + px * k), cy = Math.floor(y + py * k);
       if (cx === ax && cy === ay) continue;
       if (!world.isWalkable(cx, cy)) return false;
+      // Una línea recta no cruza murallas de paso: subir o bajar de ellas lo decide el A*.
+      if (world.solid[cy * world.size + cx] === WALL && (cx !== Math.floor(b.x) || cy !== Math.floor(b.y))) return false;
     }
   }
   return true;

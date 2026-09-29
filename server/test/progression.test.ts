@@ -106,5 +106,5 @@ describe('full progression on a generated map', () => {
       if (d.faction && d.faction !== me.faction) expect(built.has(type), type).toBe(false);
       else expect(built.has(type) || type === 'house', type).toBe(true);
     }
-  });
+  }, 30_000); // recorre toda la partida: con los tests en paralelo puede tardar
 });

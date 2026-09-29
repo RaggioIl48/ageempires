@@ -20,6 +20,7 @@ import {
   generalBanner,
   healthBar,
   moraleBar,
+  staminaBar,
   whiteFlag,
   outlineFootprint,
   RESOURCE_COLORS,
@@ -185,7 +186,7 @@ export interface Ghost {
 }
 
 type Drawable =
-  | { depth: number; k: 'unit'; u: UnitView; x: number; y: number; face: number }
+  | { depth: number; k: 'unit'; u: UnitView; x: number; y: number; face: number; lift: number }
   | { depth: number; k: 'node'; n: NodeView }
   | { depth: number; k: 'building'; b: BuildingView }
   | { depth: number; k: 'mountain'; tx: number; ty: number };
@@ -199,6 +200,9 @@ const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, rank: 1600, 
 const SHELL_MS = 600;
 const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
   e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
+
+/** Píxeles que sube una unidad parada sobre una muralla. */
+const WALL_LIFT = 30;
 
 export class Renderer {
   private terrain: HTMLCanvasElement | null = null;
@@ -304,7 +308,10 @@ export class Renderer {
       const p = state.unitPos(cu, now);
       // Los aviones se dibujan encima de todo.
       const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y, face: cu.face });
+      // Sobre una muralla: el defensor arriba del todo; el que trepa, a media altura de la escala.
+      const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
+      const lift = wallOwner === undefined ? 0 : state.relation(cu.v.owner, wallOwner) === 'ally' ? WALL_LIFT : WALL_LIFT / 2;
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y, face: cu.face, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 
@@ -318,7 +325,7 @@ export class Renderer {
       if (d.k === 'unit' && sel.units.has(d.u.id)) {
         const p = worldToPx(d.x, d.y);
         const r = UNIT_LOOK[d.u.type].ring;
-        ellipse(ctx, p.px, p.py, r, r / 2, null, ringColor(state, d.u.owner), 1.5);
+        ellipse(ctx, p.px, p.py - d.lift, r, r / 2, null, ringColor(state, d.u.owner), 1.5);
       } else if (d.k === 'node' && sel.node === d.n.id) {
         outlineFootprint(ctx, d.n.tx, d.n.ty, 1, '#ffe27a');
       }
@@ -412,6 +419,7 @@ export class Renderer {
         }
         case 'unit': {
           const p = worldToPx(d.x, d.y);
+          p.py -= d.lift;
           if (d.u.buff) buffRing(ctx, p.px, p.py, d.u.buff, UNIT_LOOK[d.u.type].ring + 2, now);
           drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)), d.face);
           break;
@@ -425,10 +433,12 @@ export class Renderer {
         const max = state.statsOf(d.u.owner, d.u.type).hp;
         if (d.u.hp < max || sel.units.has(d.u.id)) {
           const p = worldToPx(d.x, d.y);
-          healthBar(ctx, p.px, p.py - unitTop(d.u.type, state.faction(d.u.owner)) - 4, d.u.hp / max);
+          healthBar(ctx, p.px, p.py - d.lift - unitTop(d.u.type, state.faction(d.u.owner)) - 4, d.u.hp / max);
         }
-        const top = unitTop(d.u.type, state.faction(d.u.owner));
+        const top = unitTop(d.u.type, state.faction(d.u.owner)) + d.lift;
         const p = worldToPx(d.x, d.y);
+        // Aguante (amarillo) cuando la tropa está cansada.
+        if (d.u.st !== undefined && d.u.st < 70 && !d.u.rout) staminaBar(ctx, p.px, p.py - top + 2, d.u.st / 100);
         // Moral (azul) bajo la vida cuando no está completa; bandera blanca si huye.
         if (d.u.morale !== undefined && !d.u.rout) moraleBar(ctx, p.px, p.py - top - 0.5, d.u.morale / 100);
         if (d.u.rout) whiteFlag(ctx, p.px, p.py - top - 6, now + d.u.id * 97);

@@ -23,6 +23,7 @@ import {
   type TradeResource,
   type UnitType,
   MARKET_START,
+  WALL_LEVELS,
 } from '../../../shared/data.ts';
 import type { BattleResultView, GameEvent, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
@@ -60,11 +61,15 @@ export interface Battle {
   /** Soldados y edificios que participaron (para contar las pérdidas). */
   aIds: Set<number>;
   dIds: Set<number>;
+  /** Batalla de asedio (la ciudad tiene murallas): los atacantes tienen escalas. */
+  siege: boolean;
   buildings: Set<number>;
 }
 
 /** Valor de `solid` para las puertas: bloquean solo a quien no es aliado. */
 export const GATE = 2;
+/** Casilla de muralla: la pisan los soldados de a pie propios o aliados, y los atacantes con escalas en una batalla. */
+export const WALL = 3;
 
 export interface Point {
   x: number;
@@ -119,9 +124,13 @@ export interface Unit {
   kills: number;
   /** Modo guardia: mantiene su puesto (no persigue). */
   guard: boolean;
+  /** Mantiene su puesto en la formación a la que llegó (hasta la próxima orden). */
+  hold: boolean;
   post: Point | null;
   /** Hostigamiento: paso hasta el que no vuelve a retroceder. */
   skirmishUntil: number;
+  /** Aguante (0–100): baja al correr y pelear, sube descansando. Ver fatigue.ts. */
+  stamina: number;
   /** Solo el General: paso desde el que puede volver a usar cada habilidad. */
   ready: Record<AbilityId, number>;
 }
@@ -249,6 +258,8 @@ export class World {
    * a su dueño y a sus aliados (0 = nadie).
    */
   walker = 0;
+  /** true si el que camina es un soldado de a pie (puede subir a la muralla). */
+  walkerFoot = false;
 
   constructor(size: number) {
     this.size = size;
@@ -274,6 +285,14 @@ export class World {
     if (this.tiles[i] !== TILE_GRASS) return false;
     const s = this.solid[i];
     if (s === 0) return true;
+    if (s === WALL) {
+      if (this.walker === 0 || !this.walkerFoot) return false;
+      const wall = this.buildings.get(this.occupant[i]);
+      if (!wall) return false;
+      // Propia o aliada: se sube por las escaleras. Enemiga: solo con escalas, en una batalla por esa ciudad.
+      if (this.relation(this.walker, wall.owner) === 'ally') return true;
+      return this.battles.some((b) => b.attacker === this.walker && b.defender === wall.owner);
+    }
     if (s !== GATE || this.walker === 0) return false;
     const gate = this.buildings.get(this.occupant[i]);
     return !!gate && this.relation(this.walker, gate.owner) === 'ally';
@@ -437,7 +456,7 @@ export class World {
     for (let y = ty; y < ty + def.size; y++)
       for (let x = tx; x < tx + def.size; x++) {
         this.occupant[y * this.size + x] = b.id;
-        if (def.solid) this.solid[y * this.size + x] = type === 'gate' ? GATE : 1;
+        if (def.solid) this.solid[y * this.size + x] = type === 'gate' ? GATE : type === 'wall' ? WALL : 1;
       }
     if (def.solid) this.pushUnitsOut(b);
     return b;
@@ -505,12 +524,37 @@ export class World {
       arriveFace: null,
       kills: 0,
       guard: false,
+      hold: false,
       post: null,
       skirmishUntil: 0,
+      stamina: 100,
       ready: { inspire: 0, hold: 0 },
     };
     this.units.set(u.id, u);
     return u;
+  }
+
+/** Quién camina ahora (para murallas y puertas). */
+  setWalker(u: { owner: number; type: UnitType }): void {
+    this.walker = u.owner;
+    const c = UNIT_DEFS[u.type].category;
+    this.walkerFoot = c === 'infantry' || c === 'ranged';
+  }
+
+  /** ¿Está sobre una muralla? 1 = propia o aliada (defiende), 2 = enemiga (trepa), 0 = no. */
+  onWall(u: { owner: number; x: number; y: number }): 0 | 1 | 2 {
+    const tx = Math.floor(u.x), ty = Math.floor(u.y);
+    if (!this.inBounds(tx, ty)) return 0;
+    const i = ty * this.size + tx;
+    if (this.solid[i] !== WALL) return 0;
+    const wall = this.buildings.get(this.occupant[i]);
+    if (!wall) return 0;
+    return this.relation(u.owner, wall.owner) === 'ally' ? 1 : 2;
+  }
+
+  /** Altura de una unidad: el suelo más la muralla, si defiende sobre ella. */
+  unitHeight(u: { owner: number; x: number; y: number }): number {
+    return this.heightAt(u.x, u.y) + (this.onWall(u) === 1 ? WALL_LEVELS : 0);
   }
 
   /** Recalcular la superficie después de cambiar `levels` (al generar el mapa). */

@@ -21,6 +21,9 @@ import {
   RESOURCE_TYPES,
   TICK_RATE,
   UNIT_DEFS,
+  MARCH_STAMINA,
+  SIEGE_SECONDS,
+  SIEGE_MIN_WALLS,
 } from '../../../shared/data.ts';
 import type { BattleEnd, BattleResultView, BattleView, MarchView } from '../../../shared/protocol.ts';
 import { isEnemy } from './diplomacy.ts';
@@ -153,6 +156,7 @@ function deploy(world: World, owner: number, units: March['units'], at: Point, f
     const u = world.addUnit(s.type, owner, p.x, p.y);
     u.hp = Math.min(u.hp, s.hp);
     u.kills = s.kills ?? 0; // los veteranos siguen siéndolo
+    u.stamina = Math.min(u.stamina, MARCH_STAMINA); // la marcha forzada cansa
     u.guard = s.guard ?? false;
     out.push(u);
   });
@@ -165,6 +169,14 @@ function rank(type: March['units'][number]['type']): number {
 }
 
 /** Batalla por la ciudad de `defender` contra `attacker` (si ya hay una, esa misma). */
+/** ¿La ciudad tiene murallas? (unas cuantas casillas de muralla o puerta cerca) */
+function walledCity(world: World, owner: number, city: Point): boolean {
+  let n = 0;
+  for (const b of world.buildings.values())
+    if (b.owner === owner && (b.type === 'wall' || b.type === 'gate') && Math.hypot(b.tx + 0.5 - city.x, b.ty + 0.5 - city.y) <= CITY_RADIUS + 3) n++;
+  return n >= SIEGE_MIN_WALLS;
+}
+
 function openBattle(world: World, attacker: number, defender: number, city: Point): Battle {
   const old = world.battles.find((b) => b.attacker === attacker && b.defender === defender);
   if (old) return old;
@@ -176,7 +188,8 @@ function openBattle(world: World, attacker: number, defender: number, city: Poin
     y: city.y,
     r: FIELD_RADIUS,
     startTick: world.tick,
-    endTick: world.tick + BATTLE_SECONDS * TICK_RATE,
+    endTick: world.tick + (walledCity(world, defender, city) ? SIEGE_SECONDS : BATTLE_SECONDS) * TICK_RATE,
+    siege: walledCity(world, defender, city),
     as: 0,
     ds: 0,
     a0: 0,
@@ -189,8 +202,14 @@ function openBattle(world: World, attacker: number, defender: number, city: Poin
   world.battles.push(b);
   world.warVersion++;
   world.announce(`⚔ Battle! ${nameOf(world, attacker)} attacks ${nameOf(world, defender)}'s city`);
-  world.notify(attacker, `⚔ The battle for ${nameOf(world, defender)}'s city begins! Destroy their Town Center within ${Math.round(BATTLE_SECONDS / 60)} minutes`);
-  world.notify(defender, `⚔ Your city is under attack by ${nameOf(world, attacker)}! Hold on for ${Math.round(BATTLE_SECONDS / 60)} minutes`);
+  const mins = Math.round((b.endTick - b.startTick) / TICK_RATE / 60);
+  if (b.siege) {
+    world.notify(attacker, `🏰 Siege of ${nameOf(world, defender)}'s city! Your infantry can climb the walls with ladders, or break the gate with rams. ${mins} minutes`);
+    world.notify(defender, `🏰 ${nameOf(world, attacker)} besieges your city! Put infantry and archers on the walls and hold for ${mins} minutes`);
+  } else {
+    world.notify(attacker, `⚔ The battle for ${nameOf(world, defender)}'s city begins! Destroy their Town Center within ${mins} minutes`);
+    world.notify(defender, `⚔ Your city is under attack by ${nameOf(world, attacker)}! Hold on for ${mins} minutes`);
+  }
   updateBattle(world, b);
   return b;
 }
@@ -302,5 +321,6 @@ export function battleViews(world: World): BattleView[] {
     d0: b.d0,
     al: [...b.aIds].filter((id) => !world.units.has(id)).length,
     dl: [...b.dIds].filter((id) => !world.units.has(id)).length,
+    ...(b.siege ? { siege: 1 as const } : {}),
   }));
 }
