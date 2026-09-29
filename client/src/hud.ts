@@ -78,6 +78,7 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
   javelin_rider: '<svg viewBox="0 0 16 16"><ellipse cx="7" cy="11" rx="5.5" ry="2.8" fill="#3e3530"/><path d="M11 10 L14.5 6.5 L15.5 8 L12.5 11 Z" fill="#332b27"/><rect x="5" y="4.5" width="4" height="5" fill="currentColor"/><circle cx="7" cy="3.6" r="1.7" fill="#e2b68c"/><path d="M5.3 3.4 L7 0.8 L8.7 3.4 Z" fill="#8a9099"/><path d="M8 5 L15 0.5" stroke="#8b6a3e" stroke-width="1"/><circle cx="3.5" cy="7" r="1.8" fill="currentColor" stroke="#d9d2c0" stroke-width="0.5"/></svg>',
   gothic_warband: '<svg viewBox="0 0 16 16"><path d="M5 6 L8 2 L11 6 Z" fill="#8a9099"/><circle cx="8" cy="6.5" r="2.1" fill="#e2b68c"/><rect x="5" y="9" width="6" height="6" rx="1" fill="#8a6a20"/><ellipse cx="3.5" cy="11" rx="2.6" ry="4" fill="currentColor"/><path d="M11 11 L15 7" stroke="#d6d9de" stroke-width="1.4"/></svg>',
   ulfhednar: '<svg viewBox="0 0 16 16"><path d="M4.5 4 L5.5 0.5 L7 3.5 Z M11.5 4 L10.5 0.5 L9 3.5 Z" fill="#7e7b74"/><circle cx="8" cy="5" r="3.3" fill="#8f8b84"/><circle cx="8.5" cy="5.5" r="2" fill="#e2b68c"/><rect x="5" y="8.5" width="6" height="6.5" rx="1" fill="#d9a47a"/><rect x="5" y="12" width="6" height="3" fill="currentColor"/><path d="M11 11 L14.5 5" stroke="#6b4a2b" stroke-width="1.3"/><ellipse cx="14.5" cy="5" rx="1.8" ry="1.4" fill="#cfd3d8"/></svg>',
+  ram: '<svg viewBox="0 0 16 16"><path d="M2 9 L8 4 L14 9 Z" fill="#7d5431"/><rect x="2" y="9" width="12" height="3" fill="#5a3d26"/><rect x="0" y="7.5" width="5" height="2" fill="#9a9a9a"/><circle cx="4" cy="13" r="2" fill="#3b2818"/><circle cx="12" cy="13" r="2" fill="#3b2818"/><path d="M8 4 L8 2 L11 2.8 L8 3.6" fill="currentColor"/></svg>',
   tech: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#c9ccd1" stroke="#6d7077" stroke-width="1.6" stroke-dasharray="2.2 1.3"/><circle cx="8" cy="8" r="2" fill="#6d7077"/></svg>',
   era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
 };
@@ -412,7 +413,7 @@ export class Hud {
         ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}% per trip</b>` : ` · ${CREW_SIZE - n} more nearby for +${CREW_PCT}%`}</div>`
         : '';
     return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
-      <div class="row">${doing}</div>${carry}${crew}
+      <div class="row">${doing}</div>${carry}${crew}${MORALE_CATS.includes(def.category) ? moraleRow(u) : ''}
       <div class="stats">
         <div>Attack ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
         <div>Armor ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
@@ -632,6 +633,17 @@ function counterHtml(type: UnitType): string {
     (good.length ? `<div class="counter good">⚔ Good against: ${esc(good.join(', '))}</div>` : '') +
     (weak.length ? `<div class="counter bad">⚠ Weak against: ${esc(weak.join(', '))}</div>` : '')
   );
+}
+
+/** Categorías con moral (como en el servidor). */
+const MORALE_CATS: string[] = ['infantry', 'cavalry', 'ranged'];
+
+/** Estado de ánimo de un soldado. */
+function moraleRow(u: UnitView): string {
+  if (u.rout) return '<div class="row down" title="Routing: runs home, cannot be ordered and takes extra damage. Rallies when safe.">🏳 Routing!</div>';
+  const m = u.morale ?? 100;
+  const word = m >= 70 ? 'Steady' : m >= 35 ? 'Wavering' : 'Breaking';
+  return `<div class="row ${m >= 70 ? 'muted' : 'down'}" title="Morale drops when hit (more from the flank or rear) and when allies fall nearby. At 0 the unit routs.">⚑ Morale ${m}% · ${word}</div>`;
 }
 
 function hpBar(hp: number, max: number): string {

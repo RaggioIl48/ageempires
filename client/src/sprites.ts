@@ -138,6 +138,24 @@ export function healthBar(ctx: CanvasRenderingContext2D, x: number, y: number, f
   ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), 3);
 }
 
+/** Moral: barra azul fina bajo la de vida (se vuelve naranja cuando flaquea). */
+export function moraleBar(ctx: CanvasRenderingContext2D, x: number, y: number, frac: number, w = 18): void {
+  ctx.fillStyle = '#0d1b2a';
+  ctx.fillRect(x - w / 2, y, w, 2);
+  ctx.fillStyle = frac > 0.4 ? '#5ab0ff' : '#ff9f43';
+  ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, frac)), 2);
+}
+
+/** Bandera blanca que ondea sobre una tropa en desbandada. */
+export function whiteFlag(ctx: CanvasRenderingContext2D, x: number, y: number, now: number): void {
+  const w = Math.sin(now / 120) * 1.5;
+  line(ctx, x, y, x, y - 14, '#5a4a3a', 1.2);
+  poly(ctx, [x, y - 14, x + 9, y - 13 + w, x + 8, y - 8 + w, x, y - 9], '#f4f4f0');
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+}
+
 // ---------- Terreno y recursos ----------
 
 export function drawMountain(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
@@ -1069,6 +1087,7 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   javelin_rider: { half: 13, top: 34, ring: 13 },
   gothic_warband: { half: 9, top: 28, ring: 10 },
   ulfhednar: { half: 10, top: 30, ring: 10 },
+  ram: { half: 17, top: 28, ring: 16 },
 };
 /** Altura de vuelo de los aviones (px). */
 export const FLY_HEIGHT = 40;
@@ -1287,6 +1306,19 @@ function drawUnitBody(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: 
     }
     case 'trebuchet':
       return drawTrebuchet(ctx, x, y, color, t, attacking);
+    case 'ram': {
+      // Ariete: cobertizo de madera con techo a dos aguas sobre ruedas y un tronco con punta de hierro.
+      ellipse(ctx, x, y, 17, 6, 'rgba(0,0,0,0.3)');
+      const hitK = attacking ? Math.max(0, Math.sin(t * 2.2)) ** 6 * 5 : 0;
+      line(ctx, x - 16 + hitK, y - 9, x + 14 + hitK, y - 9, '#6b4a2b', 4);
+      poly(ctx, [x + 14 + hitK, y - 11, x + 19 + hitK, y - 9, x + 14 + hitK, y - 7], '#9a9a9a');
+      poly(ctx, [x - 13, y - 6, x - 13, y - 14, x, y - 24, x + 12, y - 14, x + 12, y - 6], '#7d5431');
+      poly(ctx, [x - 13, y - 14, x, y - 24, x + 12, y - 14, x, y - 20], '#5a3d26');
+      for (const dx of [-9, 8]) ellipse(ctx, x + dx, y - 3, 3.5, 3.5, '#3b2818');
+      line(ctx, x, y - 24, x, y - 32, '#3a3a3a', 1.2);
+      poly(ctx, [x, y - 32, x + 8, y - 30, x, y - 28], color);
+      return;
+    }
     case 'war_chariot':
       return drawChariot(ctx, x, y, color, t, walking, attacking);
     case 'chosen_axeman': {

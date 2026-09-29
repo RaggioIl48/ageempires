@@ -53,6 +53,10 @@ export interface UnitView {
   targetId?: number;
   /** Cuadrilla: trabajadores que recogen lo mismo cerca (contándolo), si son 2 o más. */
   crew?: number;
+  /** Moral (0–100, de a 10) si no está completa; solo soldados. */
+  morale?: number;
+  /** 1 si huye (desbandada). */
+  rout?: 1;
 }
 
 export interface NodeView {
@@ -111,7 +115,7 @@ export type GameEvent =
   /** s: 0 flecha, 1 bala, 2 proyectil de cañón. */
   | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number }
   /** c: 1 = golpe de carga (más grande). */
-  | { k: 'hit'; x: number; y: number; c?: 1 }
+  | { k: 'hit'; x: number; y: number; c?: 1; fl?: 1 | 2 }
   | { k: 'death'; x: number; y: number }
   /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
   | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }

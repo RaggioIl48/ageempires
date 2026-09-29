@@ -24,6 +24,7 @@ import {
 } from '../../../shared/data.ts';
 import type { BattleEnd, BattleResultView, BattleView, MarchView } from '../../../shared/protocol.ts';
 import { isEnemy } from './diplomacy.ts';
+import { isRouting } from './morale.ts';
 import { freeSpot } from './movement.ts';
 import type { Battle, March, Point, Unit, World } from './world.ts';
 
@@ -214,7 +215,7 @@ function detectRaids(world: World): void {
 function updateBattle(world: World, b: Battle): void {
   let as = 0, ds = 0;
   for (const u of world.units.values()) {
-    if (!isSoldier(u) || !inField(b, u.x, u.y)) continue;
+    if (!isSoldier(u) || isRouting(u) || !inField(b, u.x, u.y)) continue;
     if (u.owner === b.attacker) {
       as += u.hp;
       b.aIds.add(u.id);

@@ -16,6 +16,8 @@ import {
   fillFootprint,
   hash,
   healthBar,
+  moraleBar,
+  whiteFlag,
   outlineFootprint,
   RESOURCE_COLORS,
   setEraLookup,
@@ -120,10 +122,11 @@ type Drawable =
 const CORPSE_MS = 4000;
 
 /** Duración de cada efecto (ms). */
-const EFFECT_MS = { shot: 300, hit: 180, death: 900, destroyed: 1200, gain: 1600 } as const;
+const EFFECT_MS = { shot: 300, hit: 180, flank: 900, death: 900, destroyed: 1200, gain: 1600 } as const;
 /** Los disparos de cañón vuelan más lento y terminan en una explosión. */
 const SHELL_MS = 600;
-const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number }) => (e.k === 'shot' && e.s === 2 ? SHELL_MS : EFFECT_MS[e.k]);
+const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
+  e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
 
 export class Renderer {
   private terrain: HTMLCanvasElement | null = null;
@@ -275,6 +278,11 @@ export class Renderer {
           const p = worldToPx(d.x, d.y);
           healthBar(ctx, p.px, p.py - unitTop(d.u.type, state.faction(d.u.owner)) - 4, d.u.hp / max);
         }
+        const top = unitTop(d.u.type, state.faction(d.u.owner));
+        const p = worldToPx(d.x, d.y);
+        // Moral (azul) bajo la vida cuando no está completa; bandera blanca si huye.
+        if (d.u.morale !== undefined && !d.u.rout) moraleBar(ctx, p.px, p.py - top - 0.5, d.u.morale / 100);
+        if (d.u.rout) whiteFlag(ctx, p.px, p.py - top - 6, now + d.u.id * 97);
       } else if (d.k === 'building') {
         const max = state.maxHpOf(d.b);
         if (d.b.progress >= 1 && (d.b.hp < max || sel.building === d.b.id)) {
@@ -403,15 +411,33 @@ export class Renderer {
         }
         case 'hit': {
           const p = worldToPx(e.x, e.y);
-          ctx.globalAlpha = 1 - age;
+          const spark = (now - t0) / EFFECT_MS.hit;
+          if (spark < 1) {
+          ctx.globalAlpha = 1 - spark;
           ctx.fillStyle = e.c ? '#ffb347' : '#fff3b0';
           // Golpe de carga: más chispas y más grandes.
           const n = e.c ? 8 : 4, spread = e.c ? 10 : 5, sz = e.c ? 3 : 2;
           for (let i = 0; i < n; i++) {
             const ang = i * ((Math.PI * 2) / n) + 0.4;
-            ctx.fillRect(p.px + Math.cos(ang) * spread * (0.5 + age) - 1, p.py - 14 + Math.sin(ang) * spread * (0.5 + age) - 1, sz, sz);
+            ctx.fillRect(p.px + Math.cos(ang) * spread * (0.5 + spark) - 1, p.py - 14 + Math.sin(ang) * spread * (0.5 + spark) - 1, sz, sz);
           }
           ctx.globalAlpha = 1;
+          }
+          if (e.fl) {
+            // Golpe de costado o por la espalda (hace más daño y quiebra la moral).
+            const a2 = age;
+            ctx.globalAlpha = 1 - a2;
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+            const text = e.fl === 2 ? 'Rear!' : 'Flank!';
+            ctx.strokeText(text, p.px, p.py - 34 - a2 * 14);
+            ctx.fillStyle = e.fl === 2 ? '#ff6b5b' : '#ffb347';
+            ctx.fillText(text, p.px, p.py - 34 - a2 * 14);
+            ctx.textAlign = 'start';
+            ctx.globalAlpha = 1;
+          }
           break;
         }
         case 'death': {

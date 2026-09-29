@@ -23,7 +23,7 @@ export const q = (v: number): number => Math.round(v * 100);
 const dq = (v: number): number => v / 100;
 
 // ---------- Unidades ----------
-// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla]
+// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla, moral, huye]
 export type UnitTuple = number[];
 export const U_X = 3;
 export const U_Y = 4;
@@ -43,6 +43,8 @@ export function encodeUnit(u: UnitView): UnitTuple {
     u.carryAmount ?? 0,
     u.targetId ?? 0,
     u.crew ?? 0,
+    u.morale ?? 100,
+    u.rout ? 1 : 0,
   ];
 }
 
@@ -64,6 +66,8 @@ export function decodeUnit(t: UnitTuple): UnitView {
   }
   if (t[11]) v.targetId = t[11];
   if (t[12] > 1) v.crew = t[12];
+  if (t[13] < 100) v.morale = t[13];
+  if (t[14]) v.rout = 1;
   return v;
 }
 
@@ -129,7 +133,7 @@ export function sameTuple(a: readonly number[] | undefined, b: readonly number[]
 }
 
 // ---------- Efectos ----------
-// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
+// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga, flanco] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
 // gain: [4, x, y, dueño, recurso, cantidad]
 export type EventTuple = number[];
 
@@ -138,7 +142,7 @@ export function encodeEvent(e: GameEvent): EventTuple {
     case 'shot':
       return [0, q(e.x1), q(e.y1), q(e.x2), q(e.y2), e.s ?? 0];
     case 'hit':
-      return e.c ? [1, q(e.x), q(e.y), 1] : [1, q(e.x), q(e.y)];
+      return e.fl ? [1, q(e.x), q(e.y), e.c ?? 0, e.fl] : e.c ? [1, q(e.x), q(e.y), 1] : [1, q(e.x), q(e.y)];
     case 'death':
       return [2, q(e.x), q(e.y)];
     case 'destroyed':
@@ -153,7 +157,12 @@ export function decodeEvent(t: EventTuple): GameEvent {
     case 0:
       return { k: 'shot', x1: dq(t[1]), y1: dq(t[2]), x2: dq(t[3]), y2: dq(t[4]), ...(t[5] ? { s: t[5] } : {}) };
     case 1:
-      return t[3] ? { k: 'hit', x: dq(t[1]), y: dq(t[2]), c: 1 } : { k: 'hit', x: dq(t[1]), y: dq(t[2]) };
+    {
+      const h: GameEvent = { k: 'hit', x: dq(t[1]), y: dq(t[2]) };
+      if (t[3]) h.c = 1;
+      if (t[4] === 1 || t[4] === 2) h.fl = t[4];
+      return h;
+    }
     case 2:
       return { k: 'death', x: dq(t[1]), y: dq(t[2]) };
     case 4:

@@ -406,6 +406,36 @@ software rasterizer with sunlight, ambient occlusion and team-color masks; no Bl
 Tested in the browser with two players (march, warning with countdown, battle panel, retreat, result
 for both). **Tests**: 239.
 
+## Morale, rout and flanks (Total War: Attila style), ram and 0 A.D. vehicles (2026-09-28)
+
+**Morale** (`server/src/sim/morale.ts`): every soldier (infantry, cavalry, ranged) has morale 0–100.
+- It drops when hit (in proportion to the damage), **more from the flank (+5) or the rear (+12)**, and
+  when an ally falls within 5 tiles (−9). It recovers by itself away from enemies (+4/s).
+- At 0 the unit **routs**: a white flag 🏳 appears, it runs home 20% faster, **ignores orders** and
+  takes ×1.25 damage. After at least 8 s, once safe and back at 45 morale, it rallies.
+- Routing soldiers do not count for the battle strength of a city battle, so breaking an army
+  wins the battle even if not everyone died.
+- Peoples feel different (like Attila): **Romans** (discipline, −35% morale loss), **Vikings**
+  (shield wall −25%, and +15% fear), **Visigoths** (−15%), **Ostrogoths** (−10%); **Gauls** (war
+  cries: their melee hits break morale 40% faster), **Germans** (+25%), **Mongols** (+20%).
+
+**Flanks**: each soldier faces where it walks or strikes. Melee hits from the side deal ×1.25 and from
+behind ×1.5 ("Flank!" / "Rear!" floating text). Pin with infantry, go around with cavalry.
+
+**Battering ram** (Medieval Age, Barracks, 180 wood + 40 metal): only attacks buildings, walls and
+gates (armor 30 against arrows); ordering it against soldiers says "Rams only attack buildings".
+
+**Art from 0 A.D. 3D models** (8 directions, own renderer): the celtic **ram**, the Gaulish **war
+chariot** (the elite unit that still had the basic shape: two ponies, charioteer and warrior with team
+color) and the Mongol **traction trebuchet** (Han model, with its crew). The 0 A.D. loader now reads
+variant files (horse coats, bodies) and props attached to bones (heads, helmets).
+
+Interface: thin blue morale bar under the health bar (orange when it wavers), morale line in the unit
+panel (Steady / Wavering / Breaking / Routing!), and a "Morale / Flanks / Ram" section in the guide.
+
+Tested in the browser with two players (Gauls against Mongols): chariots charging, a Mongol warrior
+routing with the white flag and being chased, the trebuchet and the ram. **Tests**: 244.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

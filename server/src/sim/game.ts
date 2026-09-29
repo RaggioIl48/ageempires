@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, FACTIONS, TICK_MS, eraLabel } from '../../../shared/data.ts';
+import { BUILDING_DEFS, FACTIONS, TICK_MS, UNIT_DEFS, eraLabel } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -23,6 +23,7 @@ import { updateHealing } from './healing.ts';
 import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from './production.ts';
 import { trade } from './market.ts';
 import { retreat, startMarch, updateWar } from './war.ts';
+import { updateMorale } from './morale.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
@@ -53,6 +54,7 @@ export class Game {
     updateDiplomacy(w);
     updateProduction(w, dt);
     updateCombat(w, dt);
+    updateMorale(w, dt);
     updateHealing(w, dt);
     moveUnits(w, dt);
     updateGatherers(w, dt);
@@ -112,7 +114,7 @@ export class Game {
     // Órdenes sobre unidades.
     const units = cmd.unitIds
       .map((id) => w.units.get(id))
-      .filter((u): u is Unit => u !== undefined && u.owner === playerId && u.hp > 0);
+      .filter((u): u is Unit => u !== undefined && u.owner === playerId && u.hp > 0 && u.routing === 0); // los que huyen no obedecen
     if (units.length === 0) return;
     const workers = units.filter((u) => u.type === 'worker');
     switch (cmd.kind) {
@@ -195,7 +197,12 @@ export class Game {
         }
         if (owner === playerId) return;
         // A los aviones solo los alcanzan los ataques a distancia.
-        const attackers = t.kind === 'unit' && w.statsOf(t.unit).flies ? units.filter((u) => canHitAir(w.statsOf(u).attack)) : units;
+        let attackers = t.kind === 'unit' && w.statsOf(t.unit).flies ? units.filter((u) => canHitAir(w.statsOf(u).attack)) : units;
+        if (t.kind === 'unit') {
+          const before = attackers.length;
+          attackers = attackers.filter((u) => !UNIT_DEFS[u.type].buildingsOnly);
+          if (before && !attackers.length) return w.notify(playerId, 'Rams only attack buildings, walls and gates');
+        }
         if (attackers.length === 0) return w.notify(playerId, 'Only ranged units can attack airplanes');
         for (const u of attackers) assignAttack(u, cmd.targetId);
         break;
@@ -354,6 +361,8 @@ function unitView(u: Unit): UnitView {
     v.carryAmount = u.carryAmount;
   }
   if (u.crew > 1) v.crew = u.crew;
+  if (u.morale < 100) v.morale = Math.max(0, Math.floor(u.morale / 10) * 10);
+  if (u.routing > 0) v.rout = 1;
   return v;
 }
 

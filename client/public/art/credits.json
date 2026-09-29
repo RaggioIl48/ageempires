@@ -24,7 +24,7 @@
    "version": "af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615"
   },
   "0ad": {
-   "title": "0 A.D. (fortresses, towers and walls)",
+   "title": "0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)",
    "url": "https://github.com/0ad/0ad",
    "version": "61a3b9507d974084e6badb88a0826bd89a6d5b8b"
   }
@@ -32,7 +32,7 @@
  "items": {
   "0ad:structures": {
    "pack": "0ad",
-   "title": "0 A.D. buildings, walls and towers",
+   "title": "0 A.D. buildings, walls, towers and vehicles (ram, war chariot, trebuchet)",
    "authors": [
     "Wildfire Games",
     "0 A.D. artists and contributors"

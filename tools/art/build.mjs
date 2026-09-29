@@ -21,7 +21,8 @@ import { OGA_PACKS, ensureOgaFiles } from './oga.mjs';
 import { normalizeLicenses, sheetLicense } from './licenses.mjs';
 import { UH_COMMIT, UH_CREDITS, UH_REPO, buildBuildings } from './buildings.mjs';
 import { buildForts } from './forts.mjs';
-import { ZEROAD_COMMIT, ZEROAD_CREDIT, ZEROAD_REPO } from './zeroad.mjs';
+import { ZEROAD_COMMIT, ZEROAD_CREDIT, ZEROAD_REPO, ZeroAD } from './zeroad.mjs';
+import { cropRender, render } from './raster.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -118,6 +119,24 @@ async function main() {
     console.log(`  ${s.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
+  // ---------- Vehículos (modelos 3D de 0 A.D., dibujados en 8 direcciones) ----------
+  const vehicles = [
+    // Ariete celta con techo de cueros.
+    { id: 'any-ram', unit: '*/ram', actor: 'structures/celts/siege_ram.xml', tiles: 1.5, skip: /decals|props\/units/ },
+    // Carro de guerra celta (britanos de 0 A.D.): dos ponis, auriga y guerrero.
+    { id: 'gauls-war_chariot', unit: 'gauls/war_chariot', actor: 'units/britons/chariot_javelinist_c_m.xml', tiles: 1.7, main: true, skip: /decals|particle/ },
+    // Trebuchet de tracción Han (lo usaron los mongoles de la dinastía Yuan), con sus tiradores.
+    { id: 'mongols-trebuchet', unit: 'mongols/trebuchet', actor: 'units/han/siege_mangonel.xml', tiles: 1.5, main: true, fs: 320, recoil: true, skip: /decals|particle|packed/ },
+  ];
+  for (const v of vehicles) {
+    if (only && only !== v.id) continue;
+    const anims = await zeroadVehicle(new ZeroAD(CACHE), v);
+    const packed = packSheet(anims);
+    const license = sheetLicense([normalizeLicenses(ZEROAD_CREDIT.licenses)]);
+    save(v.id, [v.unit], packed, { scale: 0.5, o: 'oga8', credits: ['0ad:structures'], license });
+    console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
+  }
+
   // ---------- Edificios (Unknown Horizons) y fuertes, torres y murallas (0 A.D.) ----------
   let buildingCredits = [];
   if (!only || only === 'buildings') {
@@ -157,7 +176,7 @@ async function main() {
       lpc: { title: 'Universal LPC Spritesheet Character Generator', url: LPC_REPO, version: LPC_COMMIT },
       ...Object.fromEntries(Object.entries(OGA_PACKS).map(([k, v]) => [k, { title: v.title, url: v.url }])),
       uh: { title: 'Unknown Horizons (buildings)', url: UH_REPO, version: UH_COMMIT },
-      '0ad': { title: '0 A.D. (fortresses, towers and walls)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
+      '0ad': { title: '0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
     },
     items,
   };
@@ -210,6 +229,62 @@ function cannon(dir) {
     return out;
   };
   return { o: 'lpc4', anims: siegeAnims(4, 5, frame, 1) };
+}
+
+/**
+ * Vehículo de 0 A.D. (ariete, carro, trebuchet) en las 8 direcciones de las hojas de asedio
+ * (S, SE, E, NE, N, NW, W, SW), dibujado al doble de tamaño (la hoja se usa a escala 0,5).
+ * `tiles` es el largo de la pieza principal (`main`) o de todo. Andar: un leve vaivén;
+ * atacar: embiste hacia adelante y vuelve (o retrocede, si es `recoil`).
+ */
+async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224, recoil = false }) {
+  const parts = await z.actor(actor, undefined, (a) => skip.test(a));
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of main ? parts.slice(0, 1) : parts) for (const t of p.tris) for (const c of t) {
+    x0 = Math.min(x0, c.p[0]); x1 = Math.max(x1, c.p[0]);
+    y0 = Math.min(y0, c.p[1]); y1 = Math.max(y1, c.p[1]);
+  }
+  const unit = Math.max(x1 - x0, y1 - y0) / (tiles * 2), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const AX = FS / 2, AY = Math.round(FS * 0.67);
+  const views = [];
+  for (let r = 0; r < 8; r++) {
+    // El frente del modelo es −y; con el giro a = (r+1)·45° mira a S, SE, E, …
+    const a = (((r + 1) % 8) * Math.PI) / 4, ca = Math.cos(a), sa = Math.sin(a);
+    const rot = (x, y) => [x * ca - y * sa, -(x * sa + y * ca)];
+    const tp = parts.map((p) => ({
+      ...p,
+      clip: (u, v, h) => h >= -0.02,
+      tris: p.tris.map((t) => t.map((c) => {
+        const [u, v] = rot(c.p[0] - cx, c.p[1] - cy);
+        return { ...c, p: [u / unit, v / unit, c.p[2] / unit], n: c.n ? [...rot(c.n[0], c.n[1]), c.n[2]] : null };
+      })),
+    }));
+    const [fu, fv] = rot(0, -1);
+    views.push({ c: cropRender(render(tp)), dx: (fu - fv) * 0.7071, dy: (fu + fv) * 0.3536 });
+  }
+  const frame = (r, push = 0, bob = 0) => {
+    const { c, dx, dy } = views[r];
+    const img = new Img(FS, FS), mask = new Img(FS, FS);
+    const ox = Math.round(AX - c.ox + dx * push), oy = Math.round(AY - c.oy + dy * push + bob);
+    img.draw(c.img, 0, 0, c.img.w, c.img.h, ox, oy);
+    mask.draw(c.mask, 0, 0, c.mask.w, c.mask.h, ox, oy);
+    return [img, mask];
+  };
+  const anim = (n, fps, f) => {
+    const base = [], mask = [];
+    for (let r = 0; r < 8; r++) {
+      const fr = [...Array(n).keys()].map((k) => f(r, k));
+      base.push(fr.map((x) => x[0]));
+      mask.push(fr.map((x) => x[1]));
+    }
+    return { fs: FS, dirs: 8, n, base, mask, ax: AX, ay: AY, fps };
+  };
+  const PUSH = recoil ? [0, -6, -10, -6, -3, 0] : [0, -4, -8, 6, 14, 6];
+  return {
+    idle: anim(1, 1, (r) => frame(r)),
+    walk: anim(4, 8, (r, k) => frame(r, 0, k % 2)),
+    attack: anim(PUSH.length, 8, (r, k) => frame(r, PUSH[k])),
+  };
 }
 
 function siegeAnims(dirs, attackFrames, frame, walkFrames = 6) {

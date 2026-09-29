@@ -7,6 +7,8 @@ import {
   CATEGORY_LABELS,
   CHARGE_BONUS,
   CHARGE_READY_SEC,
+  FLANK_DAMAGE,
+  REAR_DAMAGE,
   ERAS,
   FACTIONS,
   RESOURCE_TYPES,
@@ -123,6 +125,11 @@ export class GuidePanel {
         cavalry beats ranged units and artillery, ranged units beat infantry, siege destroys buildings.</p>
         <p><b>Cavalry charge:</b> a mounted melee unit that has not fought for ${CHARGE_READY_SEC} s hits ×${CHARGE_BONUS} on its first strike
         (${esc(f.name)}: ×${charge}). Attack, pull back, and charge again!</p>
+        <p><b>Morale:</b> soldiers lose morale when hit and when allies fall nearby. At 0 they <b>rout</b> 🏳: they run home,
+        ignore orders and take extra damage, then rally once safe. A battle is often won by breaking the enemy, not killing everyone.</p>
+        <p><b>Flanks:</b> melee hits from the side deal ×${FLANK_DAMAGE} and from behind ×${REAR_DAMAGE}, and break morale faster.
+        Pin the enemy with infantry and send cavalry around the back!</p>
+        <p><b>Battering ram:</b> only attacks buildings, walls and gates; arrows barely hurt it, but soldiers destroy it.</p>
         <p><b>Upgrades ★:</b> research them in the building that trains the unit. Units already on the map improve too.</p>
         <p><b>Airplanes</b> can only be hit by ranged attacks and towers.</p>
       </details>

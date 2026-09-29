@@ -110,7 +110,9 @@ export type UnitType =
   | 'gothic_knight' | 'armored_archer'
   | 'gothic_lancer' | 'heavy_spearman'
   | 'berserker' | 'huscarl'
-  | 'triarius' | 'trebuchet' | 'war_chariot' | 'chosen_axeman' | 'javelin_rider' | 'gothic_warband' | 'ulfhednar';
+  | 'triarius' | 'trebuchet' | 'war_chariot' | 'chosen_axeman' | 'javelin_rider' | 'gothic_warband' | 'ulfhednar'
+  // Asedio de la Edad Media
+  | 'ram';
 
 export interface UnitDef {
   label: string;
@@ -136,6 +138,8 @@ export interface UnitDef {
   faction?: FactionId;
   /** Se cura sola (vida por segundo). */
   regen?: number;
+  /** Solo ataca edificios (ariete). */
+  buildingsOnly?: boolean;
   /** Para la interfaz: en qué es buena y en qué no. */
   strong: string;
   weak: string;
@@ -232,6 +236,11 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     label: 'Legionary', hp: 85, speed: 1.3, sight: 4, pop: 1, cost: { food: 70, metal: 40 }, trainTime: 22,
     attack: melee(9), armor: { melee: 3, ranged: 4 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans',
     strong: 'Heavy shield wall: holds any line', weak: 'Slow and costly',
+  },
+  ram: {
+    label: 'Battering Ram', hp: 320, speed: 1.0, sight: 4, pop: 2, cost: { wood: 180, metal: 40 }, trainTime: 30,
+    attack: melee(35, 3), armor: { melee: 1, ranged: 30 }, category: 'siege', era: 2, untilEra: 3, buildingsOnly: true,
+    strong: 'Breaks walls, gates and buildings; arrows barely scratch it', weak: 'Cannot fight units: infantry and cavalry destroy it',
   },
   scorpion: {
     label: 'Scorpion', hp: 60, speed: 1.0, sight: 8, pop: 1, cost: { wood: 120, metal: 60 }, trainTime: 28,
@@ -482,7 +491,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
     size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['warrior', 'scout', 'spearman', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
+    trains: ['warrior', 'scout', 'spearman', 'ram', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 1,
   },
   archery_range: {
@@ -898,6 +907,10 @@ export interface FactionDef {
     regen?: Partial<Record<Category, number>>;
     /** Multiplicador de la carga de caballería (reemplaza al normal). */
     charge?: number;
+    /** Firmeza: divide la moral que pierden sus soldados (1.3 = pierden 30 % menos). */
+    resolve?: number;
+    /** Miedo que causan: multiplica la moral que hacen perder sus golpes cuerpo a cuerpo. */
+    fear?: number;
   };
   strengths: string[];
   weaknesses: string[];
@@ -912,8 +925,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     buildingHp: 1.1,
     strengths: ['Infantry: +15% health and +1 armor', 'Siege: +15% attack', 'Buildings: +10% health'],
     weaknesses: ['Cavalry: −15% attack'],
-    traits: { buildSpeed: 1.3 },
-    abilities: ['Roman engineering: workers build 30% faster', 'The Castrum shoots arrows like a fort'],
+    traits: { buildSpeed: 1.3, resolve: 1.35 },
+    abilities: ['Roman engineering: workers build 30% faster', 'Legion discipline: soldiers lose 35% less morale', 'The Castrum shoots arrows like a fort'],
   },
   mongols: {
     name: 'Mongols',
@@ -923,8 +936,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     buildingHp: 0.85,
     strengths: ['Cavalry: +15% speed and +10% attack', 'Food: +10% gathering'],
     weaknesses: ['Infantry: −20% health', 'Buildings: −15% health'],
-    traits: { trainSpeed: { cavalry: 1.25 } },
-    abilities: ['Steppe riders: cavalry trains 25% faster', 'The Ordu gives +10 population'],
+    traits: { trainSpeed: { cavalry: 1.25 }, fear: 1.2 },
+    abilities: ['Steppe riders: cavalry trains 25% faster', 'Terror of the steppe: their attacks break enemy morale 20% faster', 'The Ordu gives +10 population'],
   },
   gauls: {
     name: 'Gauls',
@@ -934,7 +947,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     buildingHp: 0.9,
     strengths: ['Infantry: +15% attack and +5% speed', 'Wood: +15% gathering'],
     weaknesses: ['Ranged: −10% attack', 'Buildings: −10% health'],
-    abilities: ['Druids: the Nemeton heals your units nearby (+2 health per second)'],
+    traits: { fear: 1.4 },
+    abilities: ['Druids: the Nemeton heals your units nearby (+2 health per second)', 'Wild war cries: melee attacks break enemy morale 40% faster'],
   },
   germans: {
     name: 'Germans',
@@ -943,8 +957,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     gather: { food: 1.1, wood: 1.1 },
     strengths: ['Infantry: +10% health', 'Food and wood: +10% gathering'],
     weaknesses: ['Siege: −20% attack'],
-    traits: { trainSpeed: { infantry: 1.25 } },
-    abilities: ['Barbarian hordes: infantry trains 25% faster', 'The War Hall is a food and wood drop-off'],
+    traits: { trainSpeed: { infantry: 1.25 }, fear: 1.25 },
+    abilities: ['Barbarian hordes: infantry trains 25% faster', 'Furor teutonicus: melee attacks break enemy morale 25% faster', 'The War Hall is a food and wood drop-off'],
   },
   visigoths: {
     name: 'Visigoths',
@@ -952,8 +966,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     units: { cavalry: { hp: 1.15 }, ranged: { range: 1 }, infantry: { attack: 0.9 } },
     strengths: ['Cavalry: +15% health', 'Ranged: +1 range'],
     weaknesses: ['Infantry: −10% attack'],
-    traits: { charge: 1.8 },
-    abilities: ['Heavy charge: cavalry charges deal ×1.8 damage', 'The Royal Hall is a drop-off for all resources'],
+    traits: { charge: 1.8, resolve: 1.15 },
+    abilities: ['Heavy charge: cavalry charges deal ×1.8 damage', 'Nobles of Toledo: soldiers lose 15% less morale', 'The Royal Hall is a drop-off for all resources'],
   },
   ostrogoths: {
     name: 'Ostrogoths',
@@ -962,8 +976,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     gather: { stone: 1.15 },
     strengths: ['Cavalry: +20% attack', 'Stone: +15% gathering'],
     weaknesses: ['Ranged: −15% attack'],
-    traits: { charge: 2.2 },
-    abilities: ['Lance of Theodoric: cavalry charges deal ×2.2 damage', 'The Royal Palace gives +5 population'],
+    traits: { charge: 2.2, resolve: 1.1 },
+    abilities: ['Lance of Theodoric: cavalry charges deal ×2.2 damage', 'Oath of the comitatus: soldiers lose 10% less morale', 'The Royal Palace gives +5 population'],
   },
   vikings: {
     name: 'Vikings',
@@ -972,8 +986,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     gather: { wood: 1.1, metal: 1.1 },
     strengths: ['Infantry: +10% attack and +10% speed', 'Wood and metal: +10% gathering'],
     weaknesses: ['Cavalry: −25% health'],
-    traits: { regen: { infantry: 0.5 } },
-    abilities: ['Berserkergang: infantry heals 0.5 health per second', 'Berserkers heal even faster'],
+    traits: { regen: { infantry: 0.5 }, resolve: 1.25, fear: 1.15 },
+    abilities: ['Berserkergang: infantry heals 0.5 health per second', 'Shield wall: soldiers lose 25% less morale', 'Berserkers heal even faster'],
   },
 };
 export const FACTION_ORDER: readonly FactionId[] = ['romans', 'mongols', 'gauls', 'germans', 'visigoths', 'ostrogoths', 'vikings'];
@@ -984,6 +998,32 @@ export function uniquesOf(faction: FactionId): { units: UnitType[]; building: Bu
     building: (Object.keys(BUILDING_DEFS) as BuildingType[]).find((b) => BUILDING_DEFS[b].faction === faction),
   };
 }
+
+// ---------- Moral y flancos (idea de Total War: Attila) ----------
+/**
+ * Moral de 0 a 100. Baja al recibir golpes (más si vienen del flanco o de atrás) y al ver
+ * caer compañeros cerca; sube sola fuera de peligro. En 0 la tropa huye hacia su ciudad sin
+ * pelear; si se aleja del peligro y recupera ROUT_RALLY, se reagrupa.
+ */
+export const MORALE_MAX = 100;
+/** Moral que se pierde por cada 100 % de vida perdida. */
+export const MORALE_PER_HP = 70;
+/** Moral extra que se pierde por un golpe de costado / por la espalda. */
+export const MORALE_FLANK = 5;
+export const MORALE_REAR = 12;
+/** Moral que pierde cada compañero a menos de 5 casillas de uno que cae. */
+export const MORALE_ALLY_DEATH = 9;
+/** Recuperación por segundo: lejos del peligro, cerca de enemigos y huyendo. */
+export const MORALE_REGEN_SAFE = 4;
+export const MORALE_REGEN_COMBAT = 0.5;
+export const MORALE_REGEN_ROUT = 8;
+/** Moral con la que se reagrupa, y segundos mínimos de huida. */
+export const ROUT_RALLY = 45;
+export const ROUT_MIN_SECONDS = 8;
+/** Daño de los golpes de costado y por la espalda (cuerpo a cuerpo), y contra los que huyen. */
+export const FLANK_DAMAGE = 1.25;
+export const REAR_DAMAGE = 1.5;
+export const ROUTING_DAMAGE = 1.25;
 
 /** Carga de caballería: tras unos segundos sin pelear, el primer golpe cuerpo a cuerpo hace más daño. */
 export const CHARGE_BONUS = 1.5;

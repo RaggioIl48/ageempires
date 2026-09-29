@@ -6,10 +6,11 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, CHARGE_READY_SEC, MELEE_REACH, TICK_RATE, UNIT_DEFS, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { isEnemy } from './diplomacy.ts';
 import { stopWork } from './gather.ts';
+import { deathMorale, flankSide, hitMorale, isRouting } from './morale.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Point, type Unit, type World } from './world.ts';
 
@@ -76,9 +77,11 @@ export function findTarget(
   radius: number,
   unitsOnly = false,
   hitsAir = false,
+  buildingsOnly = false,
 ): Target | null {
   let best: Target | null = null;
   let bestScore = Infinity;
+  if (!buildingsOnly)
   for (const o of grid.near(x, y, radius)) {
     if (!isEnemy(world, owner, o.owner)) continue;
     if (!hitsAir && world.statsOf(o).flies) continue;
@@ -125,10 +128,22 @@ function centerOf(t: Target): Point {
 }
 
 /** Aplica un golpe. `from` es la posición del atacante (para dibujar flechas). */
-function strike(world: World, owner: number, attack: AttackDef, cat: Category, from: Point, t: Target, attacker?: Unit): void {
+export function strike(world: World, owner: number, attack: AttackDef, cat: Category, from: Point, t: Target, attacker?: Unit): void {
   const armor = t.kind === 'unit' ? world.statsOf(t.unit).armor : BUILDING_DEFS[t.building.type].armor;
   const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
   let dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
+  // Flancos (Attila): cuerpo a cuerpo de costado o por la espalda hace más daño; el que huye recibe más.
+  let side: 0 | 1 | 2 = 0;
+  if (t.kind === 'unit') {
+    if (attacker) side = flankSide(t.unit, attacker.x, attacker.y);
+    if (attack.type === 'melee') dmg = Math.round(dmg * (side === 2 ? REAR_DAMAGE : side === 1 ? FLANK_DAMAGE : 1));
+    if (isRouting(t.unit)) dmg = Math.round(dmg * ROUTING_DAMAGE);
+  }
+  if (attacker) {
+    // Quien golpea mira a su objetivo.
+    const c = centerOf(t), dx = c.x - attacker.x, dy = c.y - attacker.y, d = Math.hypot(dx, dy);
+    if (d > 1e-6) [attacker.fx, attacker.fy] = [dx / d, dy / d];
+  }
   // Carga: la caballería cuerpo a cuerpo que lleva un rato sin pelear golpea más fuerte la primera vez.
   let charge = false;
   if (attacker && cat === 'cavalry' && attack.type === 'melee' && world.tick - attacker.lastStrike >= CHARGE_READY_SEC * TICK_RATE) {
@@ -138,8 +153,10 @@ function strike(world: World, owner: number, attack: AttackDef, cat: Category, f
   if (attacker) attacker.lastStrike = world.tick;
   const at = centerOf(t);
   const before = t.kind === 'unit' ? t.unit.hp : t.building.hp;
-  if (t.kind === 'unit') t.unit.hp -= dmg;
-  else t.building.hp -= dmg;
+  if (t.kind === 'unit') {
+    t.unit.hp -= dmg;
+    hitMorale(world, t.unit, dmg, side, owner, attack.type === 'melee');
+  } else t.building.hp -= dmg;
   // Estadística: quién dio el golpe final.
   if (before > 0 && before - dmg <= 0) {
     const p = world.players.get(owner);
@@ -149,7 +166,7 @@ function strike(world: World, owner: number, attack: AttackDef, cat: Category, f
     const look = attacker ? UNIT_DEFS[attacker.type].shot : undefined;
     world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: at.x, y2: at.y, s: look === 'bullet' ? 1 : look === 'shell' ? 2 : 0 });
   }
-  else world.events.push(charge ? { k: 'hit', x: at.x, y: at.y, c: 1 } : { k: 'hit', x: at.x, y: at.y });
+  else world.events.push({ k: 'hit', x: at.x, y: at.y, ...(charge ? { c: 1 as const } : {}), ...(side ? { fl: side } : {}) });
 
   // Aviso para el atacado (como mucho uno cada 15 segundos).
   const victim = world.players.get(ownerOf(t));
@@ -158,7 +175,7 @@ function strike(world: World, owner: number, attack: AttackDef, cat: Category, f
     world.notify(victim.id, 'You are under attack!');
   }
   // Una unidad militar quieta que recibe un golpe responde.
-  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker')
+  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly)
     assignAttack(t.unit, attacker.id, true);
 }
 
@@ -172,12 +189,14 @@ export function updateCombat(world: World, dt: number): void {
 
   for (const u of world.units.values()) {
     if (u.cooldown > 0) u.cooldown = Math.max(0, u.cooldown - dt);
+    if (isRouting(u)) continue; // huyendo no pelea
     const stats = world.statsOf(u);
+    const onlyBuildings = UNIT_DEFS[u.type].buildingsOnly === true;
 
     // Militares quietos: buscan enemigos a la vista.
     const hitsAir = canHitAir(stats.attack);
     if (!u.task && u.state === 'idle' && stats.category !== 'worker' && (world.tick + u.id) % SCAN_EVERY === 0) {
-      const t = findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir);
+      const t = findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir, onlyBuildings);
       if (t) assignAttack(u, t.kind === 'unit' ? t.unit.id : t.building.id, true);
     }
     if (u.task?.kind !== 'attack') continue;
@@ -185,11 +204,12 @@ export function updateCombat(world: World, dt: number): void {
     let t = targetOf(world, u.task.targetId);
     if (t && !isEnemy(world, u.owner, ownerOf(t))) t = null;
     if (t && t.kind === 'unit' && !hitsAir && world.statsOf(t.unit).flies) t = null;
+    if (t && t.kind === 'unit' && onlyBuildings) t = null;
     // Si lo eligió sola, lo deja si se aleja demasiado (no persigue por todo el mapa).
     if (t && u.task.auto && distanceTo(u.x, u.y, t) > stats.sight + 3) t = null;
     if (!t) {
       // Objetivo muerto o perdido: si es militar, busca otro cerca; si no, queda libre.
-      const next = stats.category !== 'worker' ? findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir) : null;
+      const next = stats.category !== 'worker' ? findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir, onlyBuildings) : null;
       if (next) assignAttack(u, next.kind === 'unit' ? next.unit.id : next.building.id, true);
       else stopWork(u);
       continue;
@@ -246,6 +266,7 @@ function chase(world: World, u: Unit, t: Target): void {
 export function removeDead(world: World): void {
   for (const u of world.units.values()) {
     if (u.hp > 0) continue;
+    deathMorale(world, u);
     world.units.delete(u.id);
     world.events.push({ k: 'death', x: u.x, y: u.y });
   }

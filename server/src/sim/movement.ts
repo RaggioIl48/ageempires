@@ -13,7 +13,7 @@ export function moveUnits(world: World, dt: number): void {
     const stats = world.statsOf(u);
     world.walker = u.owner;
     // En formación, todos marchan al paso del más lento.
-    const speed = u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
+    const speed = u.routing > 0 ? stats.speed * 1.2 : u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
     let budget = speed * dt;
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
@@ -26,6 +26,7 @@ export function moveUnits(world: World, dt: number): void {
         rerouteBlocked(world, u);
         break;
       }
+      if (step > 1e-6) [u.fx, u.fy] = [(nx - u.x) / step, (ny - u.y) / step]; // mira hacia donde camina
       u.x = nx;
       u.y = ny;
       budget -= step;

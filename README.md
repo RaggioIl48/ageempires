@@ -90,6 +90,7 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Groups | **Shift+1…9** saves the selection as a group · **1…9** selects it (press twice: the camera goes there) |
 | March on a city (Total War style) | With soldiers selected: **⚔ March on a city** and choose an enemy city. The army leaves the map and appears in front of that city after 12–45 s (the enemy sees it coming); a **battle** for the city begins, shown to everyone with a panel (strength, fallen, 4-minute clock, *Go to battle*, *Retreat*). The city **falls** if you destroy its Town Center (you sack 30% of its resources); otherwise your army returns home |
 | Formation | With 2 or more soldiers: **▤ Line** (infantry in front, ranged behind, cavalry on the flanks), **▥ Column** (3 wide) or **⁘ Loose**. In formation everyone marches at the pace of the slowest |
+| Morale and flanks (Attila style) | Soldiers lose morale when hit (more from the side or behind) and when allies fall nearby; at 0 they **rout** 🏳 (run home, ignore orders) and rally once safe. Melee from the side deals ×1.25, from behind ×1.5. The **Battering Ram** only attacks buildings |
 | Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
 | Build | With workers: **Q E R T F G Z X C V B N M Y U I O P** in the order of the buttons (more buildings appear with each age; your people's unique building appears in the Medieval Age; Shift: place several) |
 | Wall | Choose **Wall**, **click where it starts and click where it ends** (or drag): one order builds the whole line; workers move on from one section to the next. A **Gate** placed on your own wall replaces that section |
@@ -122,7 +123,8 @@ Units are drawn with sprite sheets built by `tools/art/build.mjs` from open proj
 - [[LPC] Horses](https://opengameart.org/content/lpc-horses) and
   [[LPC] Horse Riding](https://opengameart.org/content/lpc-horse-riding-updated-091) (cavalry),
 - [[LPC] Siege Weapons](https://opengameart.org/content/lpc-siege-weapons) (scorpion and artillery),
-- [0 A.D.](https://play0ad.com) by Wildfire Games (fortresses, towers and walls of each people: 3D models
+- [0 A.D.](https://play0ad.com) by Wildfire Games (fortresses, towers and walls of each people, the battering
+  ram, the Gaulish war chariot and the Mongol traction trebuchet: 3D models
   rendered to isometric pictures by our own renderer, `tools/art/raster.mjs`),
 - [Unknown Horizons](https://unknown-horizons.org) (buildings and trees: each people has its own building
   style in each age — e.g. the Romans go from timber-framed to stone, the Mongols live in tents until

@@ -102,6 +102,12 @@ export interface Unit {
   crew: number;
   /** Límite de velocidad mientras marcha en formación (0 = sin límite). */
   speedCap: number;
+  /** Moral (0–100) y pasos que le quedan de huida (0 = no huye). Ver morale.ts. */
+  morale: number;
+  routing: number;
+  /** Hacia dónde mira (vector unitario en casillas): para los ataques por el flanco. */
+  fx: number;
+  fy: number;
 }
 
 export interface ResourceNode {
@@ -450,6 +456,10 @@ export class World {
       lastStrike: -Infinity,
       crew: 0,
       speedCap: 0,
+      morale: 100,
+      routing: 0,
+      fx: Math.SQRT1_2,
+      fy: Math.SQRT1_2,
     };
     this.units.set(u.id, u);
     return u;

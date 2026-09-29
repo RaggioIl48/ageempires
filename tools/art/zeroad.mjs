@@ -15,7 +15,7 @@ const RAW = `https://raw.githubusercontent.com/0ad/0ad/${ZEROAD_COMMIT}/binaries
 
 export const ZEROAD_CREDIT = {
   pack: '0ad',
-  title: '0 A.D. buildings, walls and towers',
+  title: '0 A.D. buildings, walls, towers and vehicles (ram, war chariot, trebuchet)',
   authors: ['Wildfire Games', '0 A.D. artists and contributors'],
   licenses: ['CC-BY-SA 3.0'],
   urls: ['https://play0ad.com', 'https://www.wildfiregames.com', `${ZEROAD_REPO}/blob/${ZEROAD_COMMIT}/binaries/data/mods/public/art/LICENSE.txt`],
@@ -60,6 +60,14 @@ export class ZeroAD {
     return this.textures.get(rel);
   }
 
+  async variantFile(rel) {
+    try {
+      return kid(parseXml(fs.readFileSync(await this.file(`variants/${rel}`), 'utf8')), 'variant');
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Piezas de un actor ya ubicadas: [{ tris, tex, ao, mode }] en coordenadas del modelo.
    * `skip(actorPath)` permite omitir accesorios (p. ej. adornos del suelo); `variantName`
@@ -82,10 +90,14 @@ export class ZeroAD {
       const named = variantName && variants.find((x) => x.attrs.name === variantName);
       const v = named || [...ok].sort((a, b) => Number(b.attrs.frequency ?? 1) - Number(a.attrs.frequency ?? 1))[0];
       if (!v) continue;
-      const mesh = kid(v, 'mesh');
-      if (mesh && !meshRel) meshRel = mesh.text.trim();
-      for (const t of kid(v, 'textures')?.children ?? []) if (t.attrs.name && !tex[t.attrs.name]) tex[t.attrs.name] = t.attrs.file;
-      for (const p of kid(v, 'props')?.children ?? []) if (p.attrs.actor) props.push(p.attrs);
+      // La variante puede heredar de un archivo (art/variants/…): lo propio manda sobre lo heredado.
+      for (let cur = v, n = 0; cur && n < 6; n++) {
+        const mesh = kid(cur, 'mesh');
+        if (mesh && !meshRel) meshRel = mesh.text.trim();
+        for (const t of kid(cur, 'textures')?.children ?? []) if (t.attrs.name && !tex[t.attrs.name]) tex[t.attrs.name] = t.attrs.file;
+        for (const p of kid(cur, 'props')?.children ?? []) if (p.attrs.actor) props.push(p.attrs);
+        cur = cur.attrs.file ? await this.variantFile(cur.attrs.file) : null;
+      }
     }
     const parts = [];
     let points = {};

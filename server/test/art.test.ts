@@ -14,7 +14,7 @@ const units = JSON.parse(fs.readFileSync(path.join(ART, 'units.json'), 'utf8'));
 const credits = JSON.parse(fs.readFileSync(path.join(ART, 'credits.json'), 'utf8'));
 
 /** Unidades que todavía se dibujan con formas (no hay arte abierto adecuado). */
-const PROCEDURAL: UnitType[] = ['trebuchet', 'war_chariot'];
+const PROCEDURAL: UnitType[] = [];
 
 describe('arte de unidades', () => {
   it('cada crédito tiene título, autores, licencias abiertas y enlace', () => {

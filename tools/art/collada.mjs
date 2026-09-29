@@ -123,6 +123,8 @@ export function loadCollada(text) {
     const name = node.attrs.name ?? node.attrs.id ?? '';
     const pm = /^prop[-_](.+)$/.exec(name);
     if (pm) points[pm[1]] = m;
+    // Los accesorios también pueden ir en un hueso (p. ej. la cabeza en "head").
+    else if (node.attrs.type === 'JOINT' && name && !points[name]) points[name] = m;
     for (const ig of kids(node, 'instance_geometry')) place(geomTris(ig.attrs.url.slice(1)), m);
     for (const ic of kids(node, 'instance_controller')) {
       const ctl = controllers.get(ic.attrs.url.slice(1));
