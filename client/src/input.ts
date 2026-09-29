@@ -252,6 +252,14 @@ export class Input {
     return false;
   }
 
+  /** Modo guardia (Total War): si alguno no lo tiene, se activa para todos; si todos lo tienen, se quita. */
+  toggleGuard(): void {
+    const ids = this.ownSoldiers();
+    if (!ids.length) return;
+    const all = ids.every((id) => this.state.units.get(id)?.v.guard);
+    this.net.command({ kind: 'stance', unitIds: ids, guard: !all });
+  }
+
   /** Generales propios seleccionados. */
   ownGenerals(): number[] {
     return this.ownSelected().filter((id) => this.state.units.get(id)?.v.type === 'general');
@@ -685,6 +693,11 @@ export class Input {
       e.preventDefault();
       if (e.shiftKey || e.ctrlKey || e.metaKey) this.saveGroup(Number(digit[1]));
       else this.recallGroup(Number(digit[1]));
+      return;
+    }
+    // G: modo guardia de los soldados elegidos.
+    if (e.code === 'KeyG' && this.ownWorkersSelected().length === 0 && !this.ownBuilding() && this.ownSoldiers().length > 0) {
+      this.toggleGuard();
       return;
     }
     // Cuadrícula de acciones: construir con trabajadores, entrenar o investigar con un edificio.

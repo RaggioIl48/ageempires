@@ -99,6 +99,7 @@ export function moveGroup(
     u.speedCap = 0;
     // En formación, al llegar todos miran al frente (importa para los flancos).
     u.arriveFace = plan ? [plan.face.x, plan.face.y] : null;
+    if (u.guard) u.post = { ...spot };
     if (plan && u.state === 'idle') [u.fx, u.fy] = u.arriveFace!;
   }
   // En formación, todos al paso del más lento (los aviones y el asedio van aparte).

@@ -35,7 +35,7 @@ export interface March {
   owner: number;
   /** Jugador a cuya ciudad va (en la vuelta, el propio dueño). */
   target: number;
-  units: { type: UnitType; hp: number }[];
+  units: { type: UnitType; hp: number; kills?: number; guard?: boolean }[];
   /** De dónde salió (para desplegarse del lado de donde viene). */
   from: Point;
   arriveTick: number;
@@ -115,6 +115,13 @@ export interface Unit {
   buffUntil: number;
   /** Hacia dónde mirar al terminar de marchar en formación. */
   arriveFace: [number, number] | null;
+  /** Bajas que causó (veteranía). */
+  kills: number;
+  /** Modo guardia: mantiene su puesto (no persigue). */
+  guard: boolean;
+  post: Point | null;
+  /** Hostigamiento: paso hasta el que no vuelve a retroceder. */
+  skirmishUntil: number;
   /** Solo el General: paso desde el que puede volver a usar cada habilidad. */
   ready: Record<AbilityId, number>;
 }
@@ -496,6 +503,10 @@ export class World {
       buff: 0,
       buffUntil: 0,
       arriveFace: null,
+      kills: 0,
+      guard: false,
+      post: null,
+      skirmishUntil: 0,
       ready: { inspire: 0, hold: 0 },
     };
     this.units.set(u.id, u);

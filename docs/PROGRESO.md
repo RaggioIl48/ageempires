@@ -463,8 +463,39 @@ Siege engines no longer slow the whole formation.
 Tested in the browser (general abilities with cooldowns, relief around the cities, drawn front line).
 **Tests**: 259.
 
+## Fog of war, victory, guard mode, skirmish and veterans (2026-09-29)
+
+**Fog of war** (`shared/vision.ts`, `server/src/sim/vision.ts`; teacher option "Fog of war", on by default):
+- Each student only sees what their troops, buildings and **allies** see; from a hill you see farther
+  (+1.5 tiles per level). Unexplored land is black; explored land keeps its terrain and the enemy
+  buildings as last seen, under a grey veil.
+- The server does not send hidden enemy troops, effects or building changes (no cheating by
+  reading the network). Enemy buildings destroyed in the fog stay as "ghosts" until seen again.
+- What each student explored is kept on the server (reconnecting keeps the map). The teacher sees
+  everything; a defeated player loses the fog and can watch the rest of the game.
+
+**Victory** (`server/src/sim/victory.ts`):
+- **Conquest**: the Town Center is the capital. If it falls, the empire falls (troops surrender,
+  buildings become ruins, the one who struck last "took the city"). The last empire (or alliance)
+  standing wins.
+- **Sacred Hill**: the summit of the central hill. From the Medieval Age, 3+ soldiers there with no
+  enemies for 5 minutes in total wins. War panel row with holder, clock and leaders; golden ring and
+  banner on the summit and on the minimap.
+- **Time limit / teacher ends the game**: the empire with the most **Glory** wins (3 per kill, 250
+  per city taken, 1 per second on the hill, 50 per age, 1 per 50 resources, +100 if still standing).
+  Final screen: 🏆 Victory / 💀 Defeat, sorted by glory.
+
+**Total War battle modes**:
+- **Guard mode (G)**: soldiers hold their post and formation, only fight what comes close (melee 2
+  tiles, archers within range) and go back to their post instead of chasing.
+- **Skirmish**: archers (not in guard mode, without a direct attack order) back away 3.5 tiles when
+  melee enemies get close.
+- **Veterans**: ranks at 2, 5 and 10 kills (gold chevrons, "▲ Veteran!"): +8% damage and 12% more
+  resolve per rank, +1 armour per rank from rank 2. Veterans keep their rank on forced marches.
+
+Tested in the browser (fog around the city and the hill, Sacred Hill panel, final screen, guard
+button, rank-up). **Tests**: 276.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
-- Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.
-- There is no victory yet: the final table sorts by resources gathered (Phase 6).
 - If the server is restarted, the games in progress are lost (they are in memory).

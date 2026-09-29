@@ -16,6 +16,7 @@ import {
   fillFootprint,
   hash,
   buffRing,
+  chevrons,
   generalBanner,
   healthBar,
   moraleBar,
@@ -31,7 +32,7 @@ import {
 import { drawDyingUnit } from './art.ts';
 import type { ClientState } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
-import { MAX_LEVEL } from '../../shared/data.ts';
+import { MAX_LEVEL, RANK_NAMES } from '../../shared/data.ts';
 
 export { RESOURCE_COLORS, shade } from './sprites.ts';
 
@@ -193,7 +194,7 @@ type Drawable =
 const CORPSE_MS = 4000;
 
 /** Duración de cada efecto (ms). */
-const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, death: 900, destroyed: 1200, gain: 1600 } as const;
+const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, rank: 1600, death: 900, destroyed: 1200, gain: 1600 } as const;
 /** Los disparos de cañón vuelan más lento y terminan en una explosión. */
 const SHELL_MS = 600;
 const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
@@ -431,6 +432,7 @@ export class Renderer {
         // Moral (azul) bajo la vida cuando no está completa; bandera blanca si huye.
         if (d.u.morale !== undefined && !d.u.rout) moraleBar(ctx, p.px, p.py - top - 0.5, d.u.morale / 100);
         if (d.u.rout) whiteFlag(ctx, p.px, p.py - top - 6, now + d.u.id * 97);
+        if (d.u.rank) chevrons(ctx, p.px - 13, p.py - top - 1, d.u.rank);
         if (d.u.type === 'general') generalBanner(ctx, p.px + 9, p.py - top + 6, state.color(d.u.owner), now + d.u.id * 31);
       } else if (d.k === 'building') {
         const max = state.maxHpOf(d.b);
@@ -587,6 +589,23 @@ export class Renderer {
             ctx.textAlign = 'start';
             ctx.globalAlpha = 1;
           }
+          break;
+        }
+        case 'rank': {
+          // Ascenso de veteranía: texto dorado que sube.
+          const p = worldToPx(e.x, e.y);
+          const y = p.py - 40 - age * 22;
+          ctx.globalAlpha = Math.min(1, (1 - age) * 2);
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+          const text = `▲ ${RANK_NAMES[e.r] ?? 'Veteran'}!`;
+          ctx.strokeText(text, p.px, y);
+          ctx.fillStyle = '#f0c14b';
+          ctx.fillText(text, p.px, y);
+          ctx.textAlign = 'start';
+          ctx.globalAlpha = 1;
           break;
         }
         case 'ability': {

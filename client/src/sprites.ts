@@ -148,6 +148,24 @@ export function buffRing(ctx: CanvasRenderingContext2D, x: number, y: number, ki
   ctx.stroke();
 }
 
+/** Galones de veteranía: uno, dos o tres chevrones dorados sobre la unidad. */
+export function chevrons(ctx: CanvasRenderingContext2D, x: number, y: number, rank: number): void {
+  ctx.strokeStyle = '#1a1208';
+  ctx.lineWidth = 3;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < rank; i++) {
+      const cy = y - i * 3;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, cy);
+      ctx.lineTo(x, cy - 2.5);
+      ctx.lineTo(x + 4, cy);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#f0c14b';
+    ctx.lineWidth = 1.4;
+  }
+}
+
 /** Estandarte del General: asta alta con un pendón del color del jugador y una estrella. */
 export function generalBanner(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, now: number): void {
   const w = Math.sin(now / 200) * 1.5;

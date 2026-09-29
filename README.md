@@ -93,6 +93,9 @@ Example in PowerShell: `$env:TEACHER_PIN="2468"; npm start`
 | Draw a formation (Total War style) | With soldiers selected, **drag with the right button** on the ground: the line is the front, the arrow shows where they will face. They line up along it and face forward when they arrive |
 | General | Every player starts with one (Legate, Khan, Jarl…). Select him: **Q 📯 Inspire** (morale back, routing soldiers rally, +25% damage for 20 s) · **E 🛡 Hold the Line** (+3 armor, steadier for 20 s). If he falls, train another at the Town Center |
 | Hills | Cities stand on hills. From higher ground units hit harder and archers shoot farther; climbing is slow |
+| Guard mode | With soldiers selected: **G** (or "🛡 Guard mode"): they hold position and formation and do not chase. Archers without guard mode back away from melee (skirmish) |
+| How to win | Take enemy capitals (Town Centers): the last empire or alliance standing wins · or hold the **Sacred Hill** (central summit) for 5 minutes from the Medieval Age · or have the most **Glory** when time is up |
+| Fog of war | You only see what your troops, buildings and allies see (the teacher can turn it off when creating the game) |
 | Morale and flanks (Attila style) | Soldiers lose morale when hit (more from the side or behind) and when allies fall nearby; at 0 they **rout** 🏳 (run home, ignore orders) and rally once safe. Melee from the side deals ×1.25, from behind ×1.5. The **Battering Ram** only attacks buildings |
 | Rally point | With a building selected: right click on the map (on a resource: new workers go gather there) |
 | Build | With workers: **Q E R T F G Z X C V B N M Y U I O P** in the order of the buttons (more buildings appear with each age; your people's unique building appears in the Medieval Age; Shift: place several) |

@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel } from '../../../shared/data.ts';
+import { BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -132,6 +132,14 @@ export class Game {
     switch (cmd.kind) {
       case 'stop':
         for (const u of units) stopWork(u);
+        break;
+      case 'stance':
+        // Modo guardia: el puesto es donde está ahora (o adonde va, si está marchando).
+        for (const u of units) {
+          u.guard = cmd.guard;
+          const last = u.path[u.path.length - 1];
+          u.post = cmd.guard ? (last ? { x: last.x, y: last.y } : { x: u.x, y: u.y }) : null;
+        }
         break;
       case 'ability': {
         const error = useAbility(w, units, cmd.ability);
@@ -392,6 +400,9 @@ function unitView(u: Unit, tick: number): UnitView {
   if (u.morale < 100) v.morale = Math.max(0, Math.floor(u.morale / 10) * 10);
   if (u.routing > 0) v.rout = 1;
   if (u.buff) v.buff = u.buff;
+  const rank = rankOf(u.kills);
+  if (rank) v.rank = rank;
+  if (u.guard) v.guard = 1;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }

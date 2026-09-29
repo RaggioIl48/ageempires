@@ -6,7 +6,7 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { elevationDamage } from '../../../shared/terrain.ts';
 import { isEnemy } from './diplomacy.ts';
@@ -132,10 +132,15 @@ function centerOf(t: Target): Point {
 /** Aplica un golpe. `from` es la posición del atacante (para dibujar flechas). */
 export function strike(world: World, owner: number, attack: AttackDef, cat: Category, from: Point, t: Target, attacker?: Unit): void {
   let armor = t.kind === 'unit' ? world.statsOf(t.unit).armor : BUILDING_DEFS[t.building.type].armor;
-  if (t.kind === 'unit' && buffArmor(t.unit)) armor = { melee: armor.melee + buffArmor(t.unit), ranged: armor.ranged + buffArmor(t.unit) };
+  if (t.kind === 'unit') {
+    const extra = buffArmor(t.unit) + Math.max(0, rankOf(t.unit.kills) - 1);
+    if (extra) armor = { melee: armor.melee + extra, ranged: armor.ranged + extra };
+  }
   const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
   let dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
   if (attacker && attacker.buff === 1) dmg = Math.round(dmg * buffDamage(attacker));
+  // Veteranía: cada rango pega un poco más y el veterano de rango 2+ tiene más armadura.
+  if (attacker && attacker.kills) dmg = Math.round(dmg * (1 + RANK_DAMAGE * rankOf(attacker.kills)));
   // Colinas: de arriba hacia abajo se pega más fuerte (y al revés, menos).
   { const c = centerOf(t); dmg = Math.max(1, Math.round(dmg * elevationDamage(world.heightAt(from.x, from.y), world.heightAt(c.x, c.y)))); }
   // Flancos (Attila): cuerpo a cuerpo de costado o por la espalda hace más daño; el que huye recibe más.
@@ -174,6 +179,11 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   if (before > 0 && before - dmg <= 0) {
     const p = world.players.get(owner);
     if (p) p.kills++;
+    if (attacker && t.kind === 'unit') {
+      const before = rankOf(attacker.kills);
+      attacker.kills++;
+      if (rankOf(attacker.kills) > before) world.events.push({ k: 'rank', x: attacker.x, y: attacker.y, r: rankOf(attacker.kills) });
+    }
   }
   if (attack.type === 'ranged') {
     const look = attacker ? UNIT_DEFS[attacker.type].shot : undefined;
@@ -206,10 +216,13 @@ export function updateCombat(world: World, dt: number): void {
     const stats = world.statsOf(u);
     const onlyBuildings = UNIT_DEFS[u.type].buildingsOnly === true;
 
-    // Militares quietos: buscan enemigos a la vista.
+    // Hostigamiento: los arqueros retroceden si un enemigo cuerpo a cuerpo se les viene encima.
+    if ((world.tick + u.id) % SCAN_EVERY === 0 && skirmish(world, grid, u, stats)) continue;
+    // Militares quietos: buscan enemigos a la vista (en modo guardia, solo los que llegan cerca).
     const hitsAir = canHitAir(stats.attack);
     if (!u.task && u.state === 'idle' && stats.category !== 'worker' && (world.tick + u.id) % SCAN_EVERY === 0) {
-      const t = findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir, onlyBuildings);
+      const scan = u.guard ? (stats.attack.type === 'ranged' ? stats.attack.range + 0.5 : GUARD_ENGAGE) : stats.sight;
+      const t = findTarget(world, grid, u.owner, u.x, u.y, scan, false, hitsAir, onlyBuildings);
       if (t) assignAttack(u, t.kind === 'unit' ? t.unit.id : t.building.id, true);
     }
     if (u.task?.kind !== 'attack') continue;
@@ -220,10 +233,17 @@ export function updateCombat(world: World, dt: number): void {
     if (t && t.kind === 'unit' && onlyBuildings) t = null;
     // Si lo eligió sola, lo deja si se aleja demasiado (no persigue por todo el mapa).
     if (t && u.task.auto && distanceTo(u.x, u.y, t) > stats.sight + 3) t = null;
+    // En modo guardia no se aleja de su puesto: vuelve a él.
+    if (t && u.task.auto && u.guard && u.post && Math.hypot(u.x - u.post.x, u.y - u.post.y) > GUARD_LEASH) {
+      backToPost(world, u);
+      continue;
+    }
     if (!t) {
       // Objetivo muerto o perdido: si es militar, busca otro cerca; si no, queda libre.
-      const next = stats.category !== 'worker' ? findTarget(world, grid, u.owner, u.x, u.y, stats.sight, false, hitsAir, onlyBuildings) : null;
+      const scan = u.guard ? (stats.attack.type === 'ranged' ? stats.attack.range + 0.5 : GUARD_ENGAGE) : stats.sight;
+      const next = stats.category !== 'worker' ? findTarget(world, grid, u.owner, u.x, u.y, scan, false, hitsAir, onlyBuildings) : null;
       if (next) assignAttack(u, next.kind === 'unit' ? next.unit.id : next.building.id, true);
+      else if (u.guard && u.post && Math.hypot(u.x - u.post.x, u.y - u.post.y) > 0.8) backToPost(world, u);
       else stopWork(u);
       continue;
     }
@@ -261,6 +281,43 @@ export function withHeight(world: World, attack: AttackDef, u: Point, t: Target)
   const c = centerOf(t);
   const up = world.heightAt(u.x, u.y) - world.heightAt(c.x, c.y);
   return up > 0 ? { ...attack, range: attack.range + up * ELEV_RANGE_PER_LEVEL } : attack;
+}
+
+/** Modo guardia: vuelve a su puesto. */
+function backToPost(world: World, u: Unit): void {
+  stopWork(u);
+  const p = u.post!;
+  u.path = clearLine(world, u, p) ? [p] : (pathToPoint(world, u, p.x, p.y) ?? []);
+  u.state = u.path.length ? 'moving' : 'idle';
+}
+
+/**
+ * Hostigamiento (Total War): un arquero (o jinete arquero) que no está en modo guardia y no
+ * recibió una orden directa retrocede si un enemigo cuerpo a cuerpo está por alcanzarlo.
+ * Devuelve true si retrocedió.
+ */
+function skirmish(world: World, grid: UnitGrid, u: Unit, stats: ReturnType<World['statsOf']>): boolean {
+  if (stats.attack.type !== 'ranged' || stats.category === 'siege' || stats.category === 'building' || u.guard) return false;
+  if (u.task && !(u.task.kind === 'attack' && u.task.auto)) return false; // el jugador le ordenó atacar: obedece
+  if (world.tick < u.skirmishUntil || u.state === 'moving') return false;
+  let threat: Unit | null = null, best = SKIRMISH_DIST ** 2;
+  for (const o of grid.near(u.x, u.y, SKIRMISH_DIST)) {
+    if (!isEnemy(world, u.owner, o.owner) || o.routing > 0) continue;
+    const os = world.statsOf(o);
+    if (os.attack.type !== 'melee' || os.category === 'worker' || UNIT_DEFS[o.type].buildingsOnly) continue;
+    const d = (o.x - u.x) ** 2 + (o.y - u.y) ** 2;
+    if (d < best) [best, threat] = [d, o];
+  }
+  if (!threat) return false;
+  const dx = u.x - threat.x, dy = u.y - threat.y, len = Math.hypot(dx, dy) || 1;
+  const goal = { x: u.x + (dx / len) * SKIRMISH_STEP, y: u.y + (dy / len) * SKIRMISH_STEP };
+  if (!world.inBounds(Math.floor(goal.x), Math.floor(goal.y)) || !world.isWalkable(Math.floor(goal.x), Math.floor(goal.y))) return false;
+  if (!clearLine(world, u, goal)) return false;
+  stopWork(u);
+  u.path = [goal];
+  u.state = 'moving';
+  u.skirmishUntil = world.tick + 2 * TICK_RATE;
+  return true;
 }
 
 /** Persigue al objetivo: en línea recta si se puede, si no con A*. */

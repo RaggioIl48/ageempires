@@ -25,7 +25,7 @@ import {
   type FactionId,
   type ResourceType,
   type TechId,
-  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, type AbilityId } from '../../shared/data.ts';
+  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, type AbilityId } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
@@ -196,6 +196,8 @@ export class Hud {
           return this.onMarch();
         case 'ability':
           return this.input.ability(arg as AbilityId);
+        case 'guard':
+          return this.input.toggleGuard();
       }
     });
     el('army-bar').addEventListener('click', (e) => {
@@ -411,6 +413,9 @@ export class Hud {
       st.category === 'cavalry' && st.attack.type === 'melee' ? `Charge ×${chargeOf(this.state.faction(u.owner))}` : '',
       def.hero ? `Aura: soldiers within ${GENERAL_AURA} tiles lose less morale and recover it faster · never routs` : '',
       heightAt(u.x, u.y) >= 0.75 ? `⛰ High ground (level ${Math.round(heightAt(u.x, u.y))}): hits harder downhill${st.attack.type === 'ranged' ? ' and shoots farther' : ''}` : '',
+      u.rank ? `${'▲'.repeat(u.rank)} ${RANK_NAMES[u.rank]}: +${Math.round(RANK_DAMAGE * u.rank * 100)}% damage, steadier${u.rank >= 2 ? `, +${u.rank - 1} armor` : ''}` : '',
+      def.category !== 'worker' && def.category !== 'siege' && st.attack.type === 'ranged' && !u.guard ? 'Skirmish: backs away when melee enemies get close' : '',
+      u.guard ? '🛡 Guard mode: holds position' : '',
       u.buff ? (u.buff === 1 ? '📯 Inspired: +25% damage' : '🛡 Holding the line: +3 armor, steadier') : '',
     ].filter(Boolean);
     const n = u.crew ?? 1;
@@ -547,8 +552,13 @@ export class Hud {
               <span class="key">${ACTION_KEYS[i]}</span><b>${d.icon} ${d.label}</b><span class="costs">${wait > 0 ? `ready in ${wait} s` : 'ready'}</span></button>`;
           }).join('')}</div>`
         : '';
+      const soldierViews = own.map((id) => this.state.units.get(id)?.v).filter((u) => u && u.type !== 'worker');
+      const guardOn = soldierViews.length > 0 && soldierViews.every((u) => u!.guard);
+      const guard = soldiers > 0
+        ? `<button class="act small ${guardOn ? 'on' : ''}" data-action="guard" title="Guard mode (G): they hold their position and formation, only fight enemies that come close and do not chase. Archers without guard mode back away from melee (skirmish).">🛡 Guard mode: ${guardOn ? 'ON' : 'off'} <span class="key">G</span></button>`
+        : '';
       const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${abilities}${formation}${march}<button class="act small" data-action="stop">■ Stop</button>
+      return `${abilities}${formation}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it and face forward.

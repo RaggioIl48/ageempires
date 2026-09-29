@@ -63,6 +63,9 @@ export interface UnitView {
   buff?: 1 | 2;
   /** Solo el General: segundos que faltan para poder usar Inspire y Hold the Line. */
   cd?: [number, number];
+  /** Rango de veteranía (1 a 3) y modo guardia. */
+  rank?: number;
+  guard?: 1;
 }
 
 export interface NodeView {
@@ -126,6 +129,8 @@ export type GameEvent =
   /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
   | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }
   | { k: 'destroyed'; x: number; y: number; size: number }
+  /** Una unidad subió de rango (veteranía). */
+  | { k: 'rank'; x: number; y: number; r: number }
   /** Un General usó una habilidad (a: 1 Inspire, 2 Hold the Line; r: radio). */
   | { k: 'ability'; x: number; y: number; a: 1 | 2; r: number };
 
@@ -274,6 +279,7 @@ export type Command =
   /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
   | { kind: 'march'; unitIds: number[]; target: number }
   | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
+  | { kind: 'stance'; unitIds: number[]; guard: boolean }
   /** El atacante se retira de una batalla: sus soldados vuelven a casa. */
   | { kind: 'retreat'; battleId: number }
   | { kind: 'stop'; unitIds: number[] }
@@ -604,6 +610,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
       return { kind: 'stop', unitIds };
     case 'march':
       return isId(c.target) ? { kind: 'march', unitIds, target: c.target } : null;
+    case 'stance':
+      return typeof c.guard === 'boolean' ? { kind: 'stance', unitIds, guard: c.guard } : null;
     case 'ability':
       return (ABILITY_IDS as readonly unknown[]).includes(c.ability) ? { kind: 'ability', unitIds, ability: c.ability as AbilityId } : null;
     case 'gather':

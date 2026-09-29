@@ -135,6 +135,11 @@ export class GuidePanel {
         <p><b>General</b> (${esc(f.hero)}): every army has one leader. Soldiers near him lose less morale and recover it faster; if he
         falls, they lose heart. Select him and press <b>Q · 📯 Inspire</b> (morale back at once, routing soldiers rally, +25% damage)
         or <b>E · 🛡 Hold the Line</b> (+3 armor, much steadier). Only one General per player: if he dies, train another at the Town Center.</p>
+        <p><b>Guard mode (G):</b> soldiers hold their position and formation: they only fight enemies that come close and do not
+        run after them. Perfect on a hill or in front of a gate. <b>Skirmish:</b> archers (without guard mode) back away when enemy
+        infantry or cavalry charge at them.</p>
+        <p><b>Veterans ▲:</b> soldiers that kill enemies gain ranks (2, 5 and 10 kills): each rank hits harder and holds its
+        nerve better; from rank 2 they also get extra armour. Keep your veterans alive!</p>
         <p><b>Battering ram:</b> only attacks buildings, walls and gates; arrows barely hurt it, but soldiers destroy it.</p>
         <p><b>Upgrades ★:</b> research them in the building that trains the unit. Units already on the map improve too.</p>
         <p><b>Airplanes</b> can only be hit by ranged attacks and towers.</p>

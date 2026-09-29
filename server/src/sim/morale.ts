@@ -8,6 +8,8 @@
 
 import {
   FACTIONS,
+  RANK_RESOLVE,
+  rankOf,
   GENERAL_AURA_REGEN,
   GENERAL_AURA_RESOLVE,
   GENERAL_DEATH_MORALE,
@@ -66,6 +68,7 @@ export function hitMorale(world: World, victim: Unit, dmg: number, side: 0 | 1 |
   if (melee) loss *= fearOf(world, attackerOwner);
   loss /= resolveOf(world, victim.owner);
   loss *= buffMoraleLoss(victim);
+  loss /= 1 + RANK_RESOLVE * rankOf(victim.kills); // los veteranos aguantan más
   if (nearGeneral(world, victim)) loss /= GENERAL_AURA_RESOLVE;
   victim.morale -= loss;
   if (victim.morale <= 0) startRout(world, victim);

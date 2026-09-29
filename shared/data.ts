@@ -1059,6 +1059,26 @@ export const UPHILL_MIN_SPEED = 0.6;
 /** Casillas de visión extra por cada nivel de altura (desde una colina se ve más lejos). */
 export const VISION_PER_LEVEL = 1.5;
 
+// ---------- Modos de combate y veteranía (Total War) ----------
+/** Modo guardia: solo pelea con lo que llega a esta distancia (cuerpo a cuerpo) y no se aleja más que esto de su puesto. */
+export const GUARD_ENGAGE = 2;
+export const GUARD_LEASH = 3;
+/** Hostigamiento (arqueros): si un enemigo cuerpo a cuerpo se acerca a esta distancia, retroceden tanto así. */
+export const SKIRMISH_DIST = 2.2;
+export const SKIRMISH_STEP = 3.5;
+/** Veteranía: bajas para cada rango (1, 2, 3) y lo que da cada rango. */
+export const RANK_KILLS = [2, 5, 10] as const;
+export const RANK_DAMAGE = 0.08;
+export const RANK_RESOLVE = 0.12;
+export const RANK_NAMES = ['Recruit', 'Veteran', 'Elite veteran', 'Legendary'] as const;
+
+/** Rango de veteranía según las bajas (0 = recluta … 3). */
+export function rankOf(kills: number): number {
+  let r = 0;
+  for (const k of RANK_KILLS) if (kills >= k) r++;
+  return r;
+}
+
 // ---------- Victoria ----------
 /** Colina Sagrada (la del centro): radio de la cima, minutos para ganar, soldados y era mínimos. */
 export const HILL_RADIUS = 3;
