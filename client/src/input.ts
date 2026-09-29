@@ -26,6 +26,7 @@ import {
 } from '../../shared/data.ts';
 import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
+import { dragFacing, formationLayout, rankOf } from '../../shared/formation.ts';
 import { wallLine } from '../../shared/wall.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
@@ -116,6 +117,10 @@ export class Input {
   private wallDragging = false;
   /** Formación con que marchan los grupos de soldados. */
   formation: Formation = 'line';
+  /** Clic derecho apretado (para saber si es un clic o un arrastre de formación). */
+  private rightDown: { x: number; y: number } | null = null;
+  /** Frente que se está dibujando con el clic derecho (Total War): extremos, hacia dónde mira y puestos. */
+  frontDrag: { a: { x: number; y: number }; b: { x: number; y: number }; face: { x: number; y: number }; spots: { x: number; y: number }[] } | null = null;
   /** Grupos guardados con Shift + número (1 a 9). */
   readonly groups = new Map<number, number[]>();
   private lastGroupKey = { n: 0, time: 0 };
@@ -348,6 +353,57 @@ export class Input {
     mark(x, y, '#7dff8a');
   }
 
+  // ---------- Frente de formación (arrastrar con el clic derecho) ----------
+
+  /** Soldados propios elegidos (sin trabajadores). */
+  ownSoldiers(): number[] {
+    return this.ownSelected().filter((id) => {
+      const t = this.state.units.get(id)?.v.type;
+      return t !== undefined && t !== 'worker';
+    });
+  }
+
+  private frontFormation(): Formation {
+    return this.formation === 'loose' ? 'line' : this.formation;
+  }
+
+  /** Recalcula la vista previa del frente mientras se arrastra. */
+  private updateFront(p: { x: number; y: number }): void {
+    const down = this.rightDown!;
+    const a = this.cam.screenToWorld(down.x, down.y), b = this.cam.screenToWorld(p.x, p.y);
+    const units = this.ownSelected().map((id) => this.state.units.get(id)?.v).filter((u) => u !== undefined);
+    if (units.length === 0) return;
+    const from = { x: units.reduce((s, u) => s + u.x, 0) / units.length, y: units.reduce((s, u) => s + u.y, 0) / units.length };
+    const face = dragFacing(a, b, from);
+    const formation = this.frontFormation();
+    const counts = new Map<number, number>();
+    for (const u of units) {
+      const r = rankOf(UNIT_DEFS[u.type].category, formation);
+      counts.set(r, (counts.get(r) ?? 0) + 1);
+    }
+    const width = Math.hypot(b.x - a.x, b.y - a.y);
+    const layout = formationLayout(counts, (a.x + b.x) / 2, (a.y + b.y) / 2, face.x, face.y, formation, width);
+    this.frontDrag = { a, b, face, spots: [...layout.values()].flat() };
+  }
+
+  /** Suelta el arrastre: todos van a sus puestos y al llegar miran al frente. */
+  private sendFront(): void {
+    const f = this.frontDrag!;
+    this.frontDrag = null;
+    const ids = this.ownSelected();
+    const x = (f.a.x + f.b.x) / 2, y = (f.a.y + f.b.y) / 2;
+    this.net.command({
+      kind: 'move',
+      unitIds: ids,
+      x,
+      y,
+      formation: this.frontFormation(),
+      front: { fx: f.face.x, fy: f.face.y, width: Math.hypot(f.b.x - f.a.x, f.b.y - f.a.y) },
+    });
+    const now = performance.now();
+    for (const s of f.spots) this.markers.push({ x: s.x, y: s.y, color: '#7dff8a', t0: now });
+  }
+
   // ---------- Grupos ----------
 
   /** Todas las unidades propias de una categoría (en todo el mapa). Shift: se suman a la selección. */
@@ -438,8 +494,12 @@ export class Input {
       e.preventDefault(); // evita el desplazamiento automático del navegador
       this.panFrom = { x: e.clientX, y: e.clientY };
     } else if (e.button === 2) {
-      const w = this.cam.screenToWorld(p.x, p.y);
-      this.commandAt(w.x, w.y, pick(this.state, this.cam, p.x, p.y, performance.now()));
+      // Con soldados elegidos, se espera a soltar: arrastrar dibuja el frente de la formación.
+      if (this.ownSoldiers().length > 0) this.rightDown = p;
+      else {
+        const w = this.cam.screenToWorld(p.x, p.y);
+        this.commandAt(w.x, w.y, pick(this.state, this.cam, p.x, p.y, performance.now()));
+      }
     }
   }
 
@@ -462,6 +522,7 @@ export class Input {
     }
     const p = this.local(e);
     this.mouse = p;
+    if (this.rightDown && (this.frontDrag || Math.hypot(p.x - this.rightDown.x, p.y - this.rightDown.y) > DRAG_THRESHOLD * 3)) this.updateFront(p);
     if (this.leftDown) {
       if (this.dragBox || Math.hypot(p.x - this.leftDown.x, p.y - this.leftDown.y) > DRAG_THRESHOLD)
         this.dragBox = { x0: this.leftDown.x, y0: this.leftDown.y, x1: p.x, y1: p.y };
@@ -525,6 +586,16 @@ export class Input {
       return;
     }
     if (e.button === 1) this.panFrom = null;
+    if (e.button === 2 && this.rightDown) {
+      const down = this.rightDown;
+      this.rightDown = null;
+      if (this.frontDrag) this.sendFront();
+      else {
+        const w = this.cam.screenToWorld(down.x, down.y);
+        this.commandAt(w.x, w.y, pick(this.state, this.cam, down.x, down.y, performance.now()));
+      }
+      return;
+    }
     if (e.button !== 0 || !this.leftDown) return;
     const p = this.local(e);
     const now = performance.now();

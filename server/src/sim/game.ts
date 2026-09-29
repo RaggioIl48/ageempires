@@ -134,7 +134,15 @@ export class Game {
         break;
       }
       case 'move':
-        moveGroup(w, units, clamp(cmd.x, 0, w.size - 0.01), clamp(cmd.y, 0, w.size - 0.01), cmd.formation ?? 'loose');
+        moveGroup(
+          w,
+          units,
+          clamp(cmd.x, 0, w.size - 0.01),
+          clamp(cmd.y, 0, w.size - 0.01),
+          cmd.formation ?? 'loose',
+          cmd.front ? { x: cmd.front.fx, y: cmd.front.fy } : undefined,
+          cmd.front?.width,
+        );
         break;
       case 'gather': {
         const node = w.nodes.get(cmd.targetId);

@@ -3,6 +3,7 @@
 
 import { UNIT_DEFS, UPHILL_MIN_SPEED, type Category } from '../../../shared/data.ts';
 import type { Formation } from '../../../shared/protocol.ts';
+import { formationLayout, rankOf } from '../../../shared/formation.ts';
 import { clearLine, pathToPoint } from './pathfinding.ts';
 import type { Point, Unit, World } from './world.ts';
 
@@ -35,6 +36,10 @@ export function moveUnits(world: World, dt: number): void {
     if (u.path.length === 0 && u.state === 'moving') {
       u.state = 'idle';
       u.speedCap = 0;
+      if (u.arriveFace) {
+        [u.fx, u.fy] = u.arriveFace;
+        u.arriveFace = null;
+      }
     }
   }
 }
@@ -54,11 +59,22 @@ const SHARE_PATH_RADIUS = 6;
  * (ver rankedSpots). Se calcula UN camino para el líder y el resto lo reutiliza
  * cuando puede (mucho más barato que una búsqueda por unidad).
  */
-export function moveGroup(world: World, units: Unit[], x: number, y: number, formation: Formation = 'loose'): void {
+export function moveGroup(
+  world: World,
+  units: Unit[],
+  x: number,
+  y: number,
+  formation: Formation = 'loose',
+  face?: Point,
+  width?: number,
+): void {
   if (units.length === 0) return;
   world.walker = units[0].owner;
-  const ranked = formation !== 'loose' && units.length > 1;
-  const assigned = ranked ? rankedSpots(world, units, x, y, formation) : looseSpots(world, units, x, y);
+  // Al arrastrar un frente (face), siempre en filas.
+  if (face && formation === 'loose') formation = 'line';
+  const ranked = formation !== 'loose' && (units.length > 1 || face !== undefined);
+  const plan = ranked ? rankedSpots(world, units, x, y, formation, face, width) : null;
+  const assigned = plan ? plan.spots : looseSpots(world, units, x, y);
 
   // Líder: la unidad más cercana al centro del grupo.
   const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
@@ -81,10 +97,14 @@ export function moveGroup(world: World, units: Unit[], x: number, y: number, for
     u.path = path ?? [];
     u.state = u.path.length > 0 ? 'moving' : 'idle';
     u.speedCap = 0;
+    // En formación, al llegar todos miran al frente (importa para los flancos).
+    u.arriveFace = plan ? [plan.face.x, plan.face.y] : null;
+    if (plan && u.state === 'idle') [u.fx, u.fy] = u.arriveFace!;
   }
-  // En formación, todos al paso del más lento (los aviones van aparte).
+  // En formación, todos al paso del más lento (los aviones y el asedio van aparte).
   if (ranked) {
-    const ground = units.filter((u) => !world.statsOf(u).flies);
+    // Las máquinas de asedio no frenan a la tropa: llegan detrás, a su paso.
+    const ground = units.filter((u) => !world.statsOf(u).flies && world.statsOf(u).category !== 'siege');
     const cap = Math.min(...ground.map((u) => world.statsOf(u).speed));
     for (const u of ground) if (u.state === 'moving') u.speedCap = cap;
   }
@@ -111,68 +131,45 @@ function assignNearest(units: Unit[], spots: Point[], fallback: Point): { u: Uni
   return assigned;
 }
 
-/** Separación entre puestos de una formación (casillas). */
-export const RANK_SPACING = 0.9;
-
-/** Fila de cada tipo en la formación (0 = adelante); −1 = caballería (a los lados). */
-const RANK: Record<Category, number> = { infantry: 0, armor: 0, worker: 0, ranged: 1, siege: 2, air: 2, building: 2, cavalry: -1 };
+export { RANK_SPACING } from '../../../shared/formation.ts';
 
 /**
- * Formación en filas mirando hacia donde va el grupo (del centro del grupo al destino).
- * 'line': frente ancho; infantería adelante, unidades a distancia detrás, asedio al
- * fondo y caballería en los flancos. 'column': de a 3 en fondo, la caballería abre la marcha.
+ * Formación en filas mirando hacia `face` (si falta, del centro del grupo al destino).
+ * La geometría está en shared/formation.ts (la misma que dibuja la vista previa del cliente).
  */
-function rankedSpots(world: World, units: Unit[], x: number, y: number, formation: Formation): { u: Unit; spot: Point }[] {
-  const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
-  const cy = units.reduce((s, u) => s + u.y, 0) / units.length;
-  let fx = x - cx, fy = y - cy;
-  const len = Math.hypot(fx, fy);
-  if (len < 0.5) [fx, fy] = [Math.SQRT1_2, Math.SQRT1_2]; // sin dirección clara: de frente a la cámara
-  else [fx, fy] = [fx / len, fy / len];
-  const rx = -fy, ry = fx; // hacia la derecha del frente
-  const at = (col: number, row: number): Point => ({
-    x: x + (rx * col - fx * row) * RANK_SPACING,
-    y: y + (ry * col - fy * row) * RANK_SPACING,
-  });
-
+function rankedSpots(
+  world: World,
+  units: Unit[],
+  x: number,
+  y: number,
+  formation: Formation,
+  face?: Point,
+  width?: number,
+): { spots: { u: Unit; spot: Point }[]; face: Point } {
+  let fx: number, fy: number;
+  if (face) [fx, fy] = [face.x, face.y];
+  else {
+    const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.y, 0) / units.length;
+    [fx, fy] = [x - cx, y - cy];
+    const len = Math.hypot(fx, fy);
+    if (len < 0.5) [fx, fy] = [Math.SQRT1_2, Math.SQRT1_2]; // sin dirección clara: de frente a la cámara
+    else [fx, fy] = [fx / len, fy / len];
+  }
   const byRank = new Map<number, Unit[]>();
   for (const u of units) {
-    let r = RANK[UNIT_DEFS[u.type].category];
-    if (r === -1 && formation === 'column') r = -2; // en columna, la caballería va primero
+    const r = rankOf(UNIT_DEFS[u.type].category, formation);
     byRank.set(r, [...(byRank.get(r) ?? []), u]);
   }
-  const cavalry = formation === 'line' ? (byRank.get(-1) ?? []) : [];
-  const main = units.length - cavalry.length;
-  const width = formation === 'column' ? 3 : Math.max(3, Math.ceil(Math.sqrt(main * 2.5)));
+  const layout = formationLayout(new Map([...byRank].map(([r, l]) => [r, l.length])), x, y, fx, fy, formation, width);
   const out: { u: Unit; spot: Point }[] = [];
-  let row = 0;
-  for (const r of [-2, 0, 1, 2]) {
-    const list = byRank.get(r);
-    if (!list) continue;
-    const spots: Point[] = [];
-    for (let i = 0; i < list.length; i += width, row++) {
-      const n = Math.min(width, list.length - i);
-      for (let c = 0; c < n; c++) spots.push(at(c - (n - 1) / 2, row));
-    }
-    out.push(...assignNearest(list, spots, { x, y }));
-  }
-  // Caballería en los flancos: izquierda y derecha alternadas, de adelante hacia atrás.
-  if (cavalry.length) {
-    const half = (Math.min(width, Math.max(main, 1)) - 1) / 2;
-    const spots = cavalry.map((_, i) => {
-      const side = i % 2 === 0 ? -1 : 1;
-      const k = Math.floor(i / 2);
-      return at(side * (half + 1.2 + (k % 2)), Math.floor(k / 2));
-    });
-    out.push(...assignNearest(cavalry, spots, { x, y }));
-  }
+  for (const [r, list] of byRank) out.push(...assignNearest(list, layout.get(r) ?? [], { x, y }));
   // Puestos sobre agua, montañas o edificios: al lugar libre más cercano.
   const taken = new Set<number>();
-  for (const a of out) a.spot = freeNear(world, a.spot, taken) ?? { x, y };
-  return out;
+  for (const o of out) o.spot = freeNear(world, o.spot, taken) ?? { x, y };
+  return { spots: out, face: { x: fx, y: fy } };
 }
 
-/** Punto caminable más cercano (de a media casilla), sin repetir uno ya tomado. */
 /** Subir una loma cuesta: fracción de la velocidad según la pendiente hacia el próximo punto. */
 export function uphill(world: World, u: Unit): number {
   const wp = u.path[0];
@@ -189,6 +186,7 @@ export function freeSpot(world: World, p: Point, taken: Set<number>, owner = 0):
   return freeNear(world, p, taken);
 }
 
+/** Punto caminable más cercano (de a media casilla), sin repetir uno ya tomado. */
 function freeNear(world: World, p: Point, taken: Set<number>): Point | null {
   for (let r = 0; r <= 6; r++)
     for (let j = -r; j <= r; j++)

@@ -551,6 +551,7 @@ export class Hud {
       return `${abilities}${formation}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
+        <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it and face forward.
         Idle troops attack the enemies they see on their own.</p>`;
     }
     if (b) {

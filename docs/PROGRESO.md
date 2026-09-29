@@ -436,6 +436,21 @@ panel (Steady / Wavering / Breaking / Routing!), and a "Morale / Flanks / Ram" s
 Tested in the browser with two players (Gauls against Mongols): chariots charging, a Mongol warrior
 routing with the white flag and being chased, the trebuchet and the ram. **Tests**: 244.
 
+## Audit after Phase 5 (2026-09-24)
+
+- **All game texts are in English** (menus, buttons, notices, server messages, teacher panel,
+  console). The teacher panel is now at `/teacher` (`/profesor` still works).
+- Smaller top bar (52 → 38 px) and bottom bar (150 → 112 px, minimap 268×134 → 192×96).
+  With nothing selected, the action buttons use the whole bar, so "Advance to the … Age" is
+  visible even in narrow windows. Clicking the faction/age label in the top bar selects the
+  Town Center.
+- The published site (Render) was still running the Phase 4 build: that is why the age button
+  was not visible online.
+- New end-to-end test on a generated map: builds every building with real orders, advances
+  through the four ages, researches every technology and trains all 15 units.
+- 181 tests pass. Benchmark (16 players, 800 units): average step 1.7 ms, worst 8 ms (budget 100 ms);
+  2.3 Mbit/s total network for the class.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - Everyone sees the whole map (fog of war in Phase 6). The server already sends each student their own view, which is where the filtering will go.

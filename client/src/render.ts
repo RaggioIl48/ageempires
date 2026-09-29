@@ -150,6 +150,14 @@ function ringColor(state: ClientState, owner: number): string {
   return rel === 'own' ? '#ffffff' : rel === 'ally' ? '#7dff8a' : rel === 'peace' ? '#ffe27a' : '#ff6b6b';
 }
 
+/** Frente que se está dibujando con el clic derecho. */
+export interface FrontPreview {
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+  face: { x: number; y: number };
+  spots: { x: number; y: number }[];
+}
+
 export interface Marker {
   x: number;
   y: number;
@@ -216,6 +224,7 @@ export class Renderer {
     markers: Marker[],
     ghost: Ghost | null,
     now: number,
+    front: FrontPreview | null = null,
   ): void {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = '#12161c';
@@ -283,6 +292,31 @@ export class Renderer {
     if (sel.building !== null) {
       const b = state.buildings.get(sel.building);
       if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
+    }
+
+    // Frente de formación que se está arrastrando: la línea, los puestos y una flecha hacia adelante.
+    if (front) {
+      const a = worldToPx(front.a.x, front.a.y), b = worldToPx(front.b.x, front.b.y);
+      ctx.strokeStyle = 'rgba(125,255,138,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(a.px, a.py);
+      ctx.lineTo(b.px, b.py);
+      ctx.stroke();
+      for (const s of front.spots) {
+        const p = worldToPx(s.x, s.y);
+        ellipse(ctx, p.px, p.py, 5, 2.5, 'rgba(125,255,138,0.35)', 'rgba(125,255,138,0.9)', 1);
+      }
+      const mx = (front.a.x + front.b.x) / 2, my = (front.a.y + front.b.y) / 2;
+      const m = worldToPx(mx, my), t = worldToPx(mx + front.face.x * 2.2, my + front.face.y * 2.2);
+      const ang = Math.atan2(t.py - m.py, t.px - m.px);
+      ctx.beginPath();
+      ctx.moveTo(m.px, m.py);
+      ctx.lineTo(t.px, t.py);
+      ctx.lineTo(t.px - Math.cos(ang - 0.5) * 9, t.py - Math.sin(ang - 0.5) * 9);
+      ctx.moveTo(t.px, t.py);
+      ctx.lineTo(t.px - Math.cos(ang + 0.5) * 9, t.py - Math.sin(ang + 0.5) * 9);
+      ctx.stroke();
     }
 
     // Campos de batalla: un anillo rojo con el radio de la batalla.

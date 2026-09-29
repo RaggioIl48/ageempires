@@ -251,11 +251,18 @@ export interface BattleResultView {
 
 /** Formaciones para mover grupos. */
 export const FORMATIONS = ['line', 'column', 'loose'] as const;
+/** Frente dibujado arrastrando el clic derecho: hacia dónde mira (vector unitario) y ancho en casillas. */
+export interface FrontLine {
+  fx: number;
+  fy: number;
+  width: number;
+}
+
 export type Formation = (typeof FORMATIONS)[number];
 
 export type Command =
   /** formation: 'line' = filas (infantería adelante, a distancia detrás, caballería a los lados), 'column' = columna angosta, 'loose' = grupo suelto. */
-  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation }
+  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation; front?: FrontLine }
   /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
   | { kind: 'march'; unitIds: number[]; target: number }
   | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
@@ -553,9 +560,17 @@ function parseCommand(c: Record<string, unknown>): Command | null {
   switch (c.kind) {
     case 'move':
       if (!isCoord(c.x) || !isCoord(c.y)) return null;
-      return (FORMATIONS as readonly unknown[]).includes(c.formation)
-        ? { kind: 'move', unitIds, x: c.x, y: c.y, formation: c.formation as Formation }
-        : { kind: 'move', unitIds, x: c.x, y: c.y };
+      {
+        const m: Extract<Command, { kind: 'move' }> = (FORMATIONS as readonly unknown[]).includes(c.formation)
+          ? { kind: 'move', unitIds, x: c.x, y: c.y, formation: c.formation as Formation }
+          : { kind: 'move', unitIds, x: c.x, y: c.y };
+        const f = c.front as Record<string, unknown> | undefined;
+        if (f && typeof f === 'object' && isCoord(f.fx) && isCoord(f.fy) && isCoord(f.width)) {
+          const len = Math.hypot(f.fx, f.fy);
+          if (len > 0.1 && f.width >= 0 && f.width <= 60) m.front = { fx: f.fx / len, fy: f.fy / len, width: f.width };
+        }
+        return m;
+      }
     case 'stop':
       return { kind: 'stop', unitIds };
     case 'march':

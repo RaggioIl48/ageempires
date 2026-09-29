@@ -113,6 +113,8 @@ export interface Unit {
   /** Habilidad del General que lo afecta (0 ninguna, 1 Inspire, 2 Hold the Line) y hasta qué paso. */
   buff: 0 | 1 | 2;
   buffUntil: number;
+  /** Hacia dónde mirar al terminar de marchar en formación. */
+  arriveFace: [number, number] | null;
   /** Solo el General: paso desde el que puede volver a usar cada habilidad. */
   ready: Record<AbilityId, number>;
 }
@@ -474,6 +476,7 @@ export class World {
       fy: Math.SQRT1_2,
       buff: 0,
       buffUntil: 0,
+      arriveFace: null,
       ready: { inspire: 0, hold: 0 },
     };
     this.units.set(u.id, u);

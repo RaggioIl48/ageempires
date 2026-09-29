@@ -96,7 +96,7 @@ export class GameView {
     this.input.update(dt);
     const dpr = window.devicePixelRatio || 1;
     const ctx = this.ctx;
-    this.renderer.draw(ctx, dpr, this.cam, this.state, this.input.sel, this.input.markers, this.input.ghost, now);
+    this.renderer.draw(ctx, dpr, this.cam, this.state, this.input.sel, this.input.markers, this.input.ghost, now, this.input.frontDrag);
 
     // Rectángulo de selección (en coordenadas de pantalla).
     const box = this.input.dragBox;
