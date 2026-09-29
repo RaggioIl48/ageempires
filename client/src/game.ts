@@ -94,6 +94,7 @@ export class GameView {
     this.last = now;
     if (!this.active || this.state.size === 0) return;
     this.input.update(dt);
+    this.state.updateVision(now);
     const dpr = window.devicePixelRatio || 1;
     const ctx = this.ctx;
     this.renderer.draw(ctx, dpr, this.cam, this.state, this.input.sel, this.input.markers, this.input.ghost, now, this.input.frontDrag);

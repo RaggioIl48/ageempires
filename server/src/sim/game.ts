@@ -24,6 +24,8 @@ import { cancelQueued, queueTech, queueUnit, setRally, updateProduction } from '
 import { trade } from './market.ts';
 import { retreat, startMarch, updateWar } from './war.ts';
 import { updateMorale } from './morale.ts';
+import { updateVision } from './vision.ts';
+import { gloryOf, updateVictory } from './victory.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 
@@ -63,7 +65,15 @@ export class Game {
     updateBuilders(w, dt);
     removeDead(w);
     updateWar(w);
+    updateVictory(w);
     separateUnits(w);
+    updateVision(w);
+  }
+
+  /** Activa la niebla de guerra (al empezar la partida). */
+  enableFog(): void {
+    this.world.fog = true;
+    updateVision(this.world);
   }
 
   /** Aplica una orden SOLO sobre lo que pertenece a quien la envía. */
@@ -313,6 +323,9 @@ export class Game {
       buildings: [...w.buildings.values()].filter((b) => b.owner === p.id && b.progress >= 1).length,
       kills: p.kills,
       era: p.era,
+      glory: gloryOf(w, p.id),
+      conquered: p.conquered,
+      defeated: p.defeated,
     }));
   }
 

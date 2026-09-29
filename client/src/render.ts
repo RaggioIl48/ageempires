@@ -25,6 +25,8 @@ import {
   setEraLookup,
   setWallLookup,
   unitTop,
+  line,
+  poly,
 } from './sprites.ts';
 import { drawDyingUnit } from './art.ts';
 import type { ClientState } from './state.ts';
@@ -211,6 +213,37 @@ export class Renderer {
       for (let tx = 0; tx < state.size; tx++) if (state.tile(tx, ty) === TILE_MOUNTAIN) this.mountains.push({ tx, ty });
   }
 
+  /** Velo de niebla casilla por casilla, siguiendo el relieve (esquinas a su altura). */
+  private drawFog(ctx: CanvasRenderingContext2D, state: ClientState, vis: { x0: number; y0: number; x1: number; y1: number }): void {
+    const n = state.size;
+    const steps = 8;
+    const paths: Path2D[] = Array.from({ length: steps + 1 }, () => new Path2D());
+    const used = new Array<boolean>(steps + 1).fill(false);
+    for (let ty = 0; ty < n; ty++)
+      for (let tx = 0; tx < n; tx++) {
+        const f = state.fogLevel[ty * n + tx];
+        if (f <= 0.01) continue;
+        const c = worldToPx(tx + 0.5, ty + 0.5);
+        if (c.px < vis.x0 - 64 || c.px > vis.x1 + 64 || c.py < vis.y0 - 64 || c.py > vis.y1 + 96) continue;
+        const k = Math.round(f * steps);
+        const a = worldToPx(tx, ty), b = worldToPx(tx + 1, ty), d = worldToPx(tx + 1, ty + 1), e = worldToPx(tx, ty + 1);
+        const p = paths[k];
+        p.moveTo(a.px, a.py - 0.5);
+        p.lineTo(b.px + 0.5, b.py);
+        p.lineTo(d.px, d.py + 0.5);
+        p.lineTo(e.px - 0.5, e.py);
+        p.closePath();
+        used[k] = true;
+      }
+    for (let k = 1; k <= steps; k++) {
+      if (!used[k]) continue;
+      const f = k / steps;
+      // 0.5 (explorado) → velo del 50 %; 1 (sin explorar) → negro.
+      ctx.fillStyle = `rgba(10,13,18,${Math.min(1, f <= 0.5 ? f : 0.5 + (f - 0.5) * 1.9)})`;
+      ctx.fill(paths[k]);
+    }
+  }
+
   get terrainTexture(): HTMLCanvasElement | null {
     return this.terrain;
   }
@@ -259,7 +292,7 @@ export class Renderer {
     for (const m of this.mountains)
       if (inView(m.tx + 0.5, m.ty + 0.5)) list.push({ depth: m.tx + m.ty + 1, k: 'mountain', tx: m.tx, ty: m.ty });
     for (const n of state.nodes.values())
-      if (inView(n.tx + 0.5, n.ty + 0.5)) list.push({ depth: n.tx + n.ty + 1, k: 'node', n });
+      if (state.seen(n.tx + 0.5, n.ty + 0.5) && inView(n.tx + 0.5, n.ty + 0.5)) list.push({ depth: n.tx + n.ty + 1, k: 'node', n });
     for (const b of state.buildings.values()) {
       const s = BUILDING_DEFS[b.type].size;
       if (!inView(b.tx + s / 2, b.ty + s / 2)) continue;
@@ -294,6 +327,9 @@ export class Renderer {
       if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
     }
 
+    // Niebla de guerra: negro donde nunca se estuvo, velo gris donde no se ve ahora.
+    if (state.fog) this.drawFog(ctx, state, vis);
+
     // Frente de formación que se está arrastrando: la línea, los puestos y una flecha hacia adelante.
     if (front) {
       const a = worldToPx(front.a.x, front.a.y), b = worldToPx(front.b.x, front.b.y);
@@ -317,6 +353,21 @@ export class Renderer {
       ctx.moveTo(t.px, t.py);
       ctx.lineTo(t.px - Math.cos(ang + 0.5) * 9, t.py - Math.sin(ang + 0.5) * 9);
       ctx.stroke();
+    }
+
+    // Colina Sagrada: anillo dorado en la cima (del color de quien la tiene).
+    const hill = state.victory.hill;
+    if (hill) {
+      const p = worldToPx(hill.x, hill.y);
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      ctx.lineDashOffset = -now / 90;
+      const col = hill.contested ? '#ff6b5b' : hill.holder ? state.color(hill.holder) : '#f0c14b';
+      ellipse(ctx, p.px, p.py, hill.r * 32 * Math.SQRT2, hill.r * 16 * Math.SQRT2, null, col, 2.5);
+      ctx.restore();
+      // Estandarte en la cima.
+      line(ctx, p.px, p.py, p.px, p.py - 34, '#5a4a3a', 2);
+      poly(ctx, [p.px, p.py - 34, p.px + 16, p.py - 30, p.px, p.py - 25], hill.holder ? state.color(hill.holder) : '#f0c14b');
     }
 
     // Campos de batalla: un anillo rojo con el radio de la batalla.

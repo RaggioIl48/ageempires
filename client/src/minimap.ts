@@ -16,6 +16,8 @@ const NODE_DOT: Record<NodeType, string> = {
 
 export class Minimap {
   private base = document.createElement('canvas'); // terreno + recursos
+  private fog = document.createElement('canvas'); // niebla: 1 px por casilla
+  private fogVersion = -1;
   private baseVersion = -1;
   private lastBaseAt = 0;
   private dragging = false;
@@ -68,6 +70,20 @@ export class Minimap {
     return { x: Math.min(n, Math.max(0, x)), y: Math.min(n, Math.max(0, y)) };
   }
 
+  private updateFog(): void {
+    if (this.fogVersion === this.state.fogVersion) return;
+    this.fogVersion = this.state.fogVersion;
+    const n = this.state.size;
+    if (this.fog.width !== n) this.fog.width = this.fog.height = n;
+    const ctx = this.fog.getContext('2d')!;
+    const img = ctx.createImageData(n, n);
+    for (let i = 0; i < n * n; i++) {
+      const f = this.state.fogLevel[i];
+      img.data[i * 4 + 3] = Math.round(255 * Math.min(1, f <= 0.5 ? f * 1.2 : 0.6 + (f - 0.5) * 0.8));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
   /** Llamar al recibir un mapa nuevo: el fondo se redibuja de inmediato. */
   reset(): void {
     this.baseVersion = -1;
@@ -111,8 +127,24 @@ export class Minimap {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.drawImage(this.base, 0, 0);
+    if (this.state.fog) {
+      this.updateFog();
+      const s = this.s;
+      ctx.setTransform(dpr * s, (dpr * s) / 2, -dpr * s, (dpr * s) / 2, (dpr * this.W) / 2, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(this.fog, 0, 0);
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    const hill = this.state.victory.hill;
+    if (hill) {
+      const p = this.toMini(hill.x, hill.y);
+      ctx.strokeStyle = hill.contested ? '#ff6b5b' : hill.holder ? this.state.color(hill.holder) : '#f0c14b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(p.mx, p.my, hill.r * this.s * 1.4, hill.r * this.s * 0.7, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     for (const b of this.state.buildings.values()) {
       const s = BUILDING_DEFS[b.type].size;
       const p = this.toMini(b.tx + s / 2, b.ty + s / 2);

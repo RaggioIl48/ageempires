@@ -93,7 +93,7 @@ export function poly(ctx: CanvasRenderingContext2D, pts: number[], fill: string)
   ctx.fill();
 }
 
-function line(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, color: string, lw = 1): void {
+export function line(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, color: string, lw = 1): void {
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.beginPath();

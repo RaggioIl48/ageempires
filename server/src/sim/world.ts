@@ -175,6 +175,12 @@ export interface Player {
   /** Estadísticas para el resumen final. */
   gathered: number;
   kills: number;
+  /** Victoria: imperio caído, ciudades tomadas, pasos en la Colina Sagrada y último que golpeó su capital. */
+  defeated: boolean;
+  conquered: number;
+  hillTicks: number;
+  capitalHitBy: number;
+  hadCapital: boolean;
   /** Era actual (1 = Tribal … 4 = Moderna). */
   era: number;
   /** Tecnologías investigadas (máscara en hexadecimal, ver stats.ts). */
@@ -187,6 +193,10 @@ export class World {
   /** Nivel de altura de cada casilla (colinas) y la superficie suave que forman. */
   readonly levels: Uint8Array;
   height: HeightField;
+  /** Niebla de guerra (si la partida la tiene): lo que ve cada jugador ahora y lo que ya exploró. */
+  fog = false;
+  readonly visible = new Map<number, Uint8Array>();
+  readonly explored = new Map<number, Uint8Array>();
   /** id del nodo o edificio que ocupa cada casilla (0 = libre). */
   readonly occupant: Int32Array;
   /** 1 = no se puede caminar (nodo o edificio sólido). */
@@ -285,6 +295,11 @@ export class World {
       lastAttackNotice: -Infinity,
       gathered: 0,
       kills: 0,
+      defeated: false,
+      conquered: 0,
+      hillTicks: 0,
+      capitalHitBy: 0,
+      hadCapital: false,
       era: 1,
       techs: NO_TECHS,
     };
@@ -311,6 +326,10 @@ export class World {
   /** Últimas noticias (para el profesor que mira) y cuántas hubo en total. */
   news: string[] = [];
   newsCount = 0;
+  /** Colina Sagrada (centro del mapa), resultado de la partida y versión para la red. */
+  hill: { x: number; y: number; holder: number; contested: boolean } | null = null;
+  outcome: { winners: number[]; reason: string } | null = null;
+  victoryVersion = 0;
 
   relation(a: number, b: number): Relation {
     if (a === b) return 'ally';

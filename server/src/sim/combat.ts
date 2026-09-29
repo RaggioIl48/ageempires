@@ -162,7 +162,14 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   if (t.kind === 'unit') {
     t.unit.hp -= dmg;
     hitMorale(world, t.unit, dmg, side, owner, attack.type === 'melee');
-  } else t.building.hp -= dmg;
+  } else {
+    t.building.hp -= dmg;
+    // Quién golpeó la capital por última vez (si cae, la conquistó él).
+    if (t.building.type === 'town_center') {
+      const victim = world.players.get(t.building.owner);
+      if (victim && owner !== victim.id) victim.capitalHitBy = owner;
+    }
+  }
   // Estadística: quién dio el golpe final.
   if (before > 0 && before - dmg <= 0) {
     const p = world.players.get(owner);

@@ -1055,6 +1055,19 @@ export const ELEV_RANGE_PER_LEVEL = 0.75;
 /** Subir cuesta: velocidad mínima (fracción) en la pendiente más empinada. */
 export const UPHILL_MIN_SPEED = 0.6;
 
+// ---------- Niebla de guerra ----------
+/** Casillas de visión extra por cada nivel de altura (desde una colina se ve más lejos). */
+export const VISION_PER_LEVEL = 1.5;
+
+// ---------- Victoria ----------
+/** Colina Sagrada (la del centro): radio de la cima, minutos para ganar, soldados y era mínimos. */
+export const HILL_RADIUS = 3;
+export const HILL_HOLD_SECONDS = 300;
+export const HILL_MIN_SOLDIERS = 3;
+export const HILL_MIN_ERA = 2;
+/** Gloria (desempate al acabarse el tiempo). */
+export const GLORY = { kill: 3, city: 250, hillSecond: 1, era: 50, gathered: 0.02, alive: 100 } as const;
+
 // ---------- General (héroe) y sus habilidades ----------
 /** Aura: los soldados a esta distancia de su General pierden menos moral y la recuperan antes. */
 export const GENERAL_AURA = 7;

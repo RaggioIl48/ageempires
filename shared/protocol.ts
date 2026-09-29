@@ -135,6 +135,8 @@ export interface MapView {
   tilesRle: number[];
   /** Niveles de altura (colinas), comprimidos igual que las casillas. */
   levelsRle?: number[];
+  /** Casillas ya exploradas por este jugador (con niebla de guerra). */
+  exploredRle?: number[];
 }
 
 // ---------- Salas (lobby) ----------
@@ -151,6 +153,8 @@ export interface RoomSettings {
   diplomacy: 'free' | 'locked';
   /** Chat entre jugadores (el profesor puede apagarlo). */
   chat: boolean;
+  /** Niebla de guerra: cada uno ve solo lo que ven sus tropas y las de sus aliados. */
+  fog: boolean;
 }
 
 export type RoomPhase = 'lobby' | 'playing' | 'ended';
@@ -186,6 +190,10 @@ export interface RoomSummary {
 /** Resultado de cada jugador al terminar. */
 export interface PlayerSummary {
   id: number;
+  /** Gloria, ciudades tomadas y si cayó su imperio. */
+  glory: number;
+  conquered: number;
+  defeated: boolean;
   name: string;
   color: string;
   faction: FactionId;
@@ -317,8 +325,27 @@ export type ClientMessage =
  * Cambios desde el último mensaje a ESTE cliente (el primero trae todo).
  * Solo van los campos que cambiaron; todos son opcionales.
  */
+/** Colina Sagrada: centro, radio, quién la tiene, si está disputada, segundos para ganar y los que más la tuvieron. */
+export interface HillView {
+  x: number;
+  y: number;
+  r: number;
+  holder: number;
+  contested: 0 | 1;
+  need: number;
+  held: [number, number][];
+}
+
+/** Victoria: la Colina Sagrada (si el mapa la tiene) y los imperios caídos. */
+export interface VictoryView {
+  hill?: HillView;
+  defeated: number[];
+}
+
 export interface DeltaMessage {
   t: 'd';
+  /** Colina Sagrada e imperios caídos (cuando cambian). */
+  vic?: VictoryView;
   k: number; // paso de simulación
   /** Unidades nuevas o con cambios además de la posición (tupla completa). */
   u?: UnitTuple[];
@@ -374,7 +401,7 @@ export type ServerMessage =
   | { t: 'players'; players: PlayerView[] }
   | DeltaMessage
   | { t: 'paused'; paused: boolean }
-  | { t: 'ended'; reason: string; summary: PlayerSummary[] }
+  | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[] }
   | { t: 'chat'; from: number; name: string; color: string; text: string; to: 'all' | 'allies' };
 
 /**
@@ -442,12 +469,14 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (!Number.isInteger(s.durationMin) || (s.durationMin as number) < 0 || (s.durationMin as number) > 240) return null;
   if (s.diplomacy !== undefined && s.diplomacy !== 'free' && s.diplomacy !== 'locked') return null;
   if (s.chat !== undefined && typeof s.chat !== 'boolean') return null;
+  if (s.fog !== undefined && typeof s.fog !== 'boolean') return null;
   return {
     maxPlayers: s.maxPlayers as number,
     mapSize: s.mapSize,
     durationMin: s.durationMin as number,
     diplomacy: (s.diplomacy as RoomSettings['diplomacy'] | undefined) ?? 'free',
     chat: (s.chat as boolean | undefined) ?? true,
+    fog: (s.fog as boolean | undefined) ?? true,
   };
 }
 

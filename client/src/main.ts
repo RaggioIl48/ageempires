@@ -239,25 +239,27 @@ function onMessage(msg: ServerMessage): void {
       game.hud.update();
       return;
     case 'ended':
-      showEnd(msg.reason, msg.summary);
+      showEnd(msg.reason, msg.summary, msg.winners ?? []);
       return;
   }
 }
 
 /** Resultados al terminar la partida. */
-function showEnd(reason: string, summary: PlayerSummary[]): void {
+function showEnd(reason: string, summary: PlayerSummary[], winners: number[]): void {
   el('paused').classList.add('hidden');
-  const sorted = [...summary].sort((a, b) => b.gathered - a.gathered);
+  const sorted = [...summary].sort((a, b) => Number(winners.includes(b.id)) - Number(winners.includes(a.id)) || (b.glory ?? 0) - (a.glory ?? 0));
+  const you = game.state.you;
   const rows = sorted
     .map(
-      (p) => `<tr class="${p.id === game.state.you ? 'me' : ''}"><td><i style="background:${p.color}"></i>${esc(p.name)}</td>
-        <td>${esc(FACTIONS[p.faction].name)}</td><td>${p.gathered}</td><td>${p.units}</td><td>${p.buildings}</td><td>${p.kills}</td><td>${ERAS[(p.era ?? 1) - 1].short}</td></tr>`,
+      (p) => `<tr class="${p.id === game.state.you ? 'me' : ''}"><td>${winners.includes(p.id) ? '🏆 ' : p.defeated ? '💀 ' : ''}<i style="background:${p.color}"></i>${esc(p.name)}</td>
+        <td>${esc(FACTIONS[p.faction].name)}</td><td><b>${p.glory ?? 0}</b></td><td>${p.conquered ?? 0}</td><td>${p.gathered}</td><td>${p.units}</td><td>${p.buildings}</td><td>${p.kills}</td><td>${ERAS[(p.era ?? 1) - 1].short}</td></tr>`,
     )
     .join('');
   const box = el('ended');
-  box.innerHTML = `<h2>Game over</h2><p>${esc(reason)}</p>
-    <table class="eco"><tr><th>Player</th><th>Faction</th><th>Gathered</th><th>Units</th><th>Buildings</th><th>Kills</th><th>Age</th></tr>${rows}</table>
-    <p class="muted">Victory conditions arrive in Phase 6. For now: who gathered the most?</p>
+  const title = you > 0 ? (winners.includes(you) ? '🏆 Victory!' : '💀 Defeat') : 'Game over';
+  box.innerHTML = `<h2>${title}</h2><p>${esc(reason)}</p>
+    <table class="eco"><tr><th>Player</th><th>Faction</th><th>Glory</th><th>Cities taken</th><th>Gathered</th><th>Units</th><th>Buildings</th><th>Kills</th><th>Age</th></tr>${rows}</table>
+    <p class="muted">Glory: 3 per kill, 250 per city taken, 1 per second on the Sacred Hill, 50 per age, +1 per 50 resources gathered, +100 if your empire still stands.</p>
     <button id="btn-end-close">${isTeacherPage ? 'Back to the panel' : 'Exit'}</button>`;
   box.classList.remove('hidden');
   el('btn-end-close').addEventListener('click', () => {

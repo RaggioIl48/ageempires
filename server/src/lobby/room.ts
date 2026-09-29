@@ -17,6 +17,7 @@ import type {
 import { buildFrame, ClientSync, welcomeMessage } from '../net/sync.ts';
 import { initRelations } from '../sim/diplomacy.ts';
 import { Game } from '../sim/game.ts';
+import { decideByGlory } from '../sim/victory.ts';
 import type { Conn } from './conn.ts';
 
 export interface Member {
@@ -46,7 +47,7 @@ export class Room {
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
   private nextMemberId = 1;
-  private ended: { reason: string; summary: PlayerSummary[] } | null = null;
+  private ended: { reason: string; summary: PlayerSummary[]; winners: number[] } | null = null;
 
   constructor(
     readonly code: string,
@@ -230,6 +231,7 @@ export class Room {
     });
     // Los del mismo equipo empiezan aliados; el resto, en guerra.
     initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
+    if (this.settings.fog !== false) this.game.enableFog();
     for (const m of players) {
       const p = this.game.world.players.get(m.id)!;
       p.connected = m.conn !== null;
@@ -248,11 +250,18 @@ export class Room {
     this.changed();
   }
 
-  end(reason: string): void {
+  end(reason: string, winners?: number[]): void {
     if (this.phase !== 'playing' || !this.game) return;
+    // Si la termina el profesor, gana quien tiene más Gloria.
+    if (!winners) {
+      const r = decideByGlory(this.game.world);
+      winners = r.winners;
+      const best = winners.length ? this.game.world.players.get(winners[0]) : undefined;
+      if (best) reason += ` Most glory: ${best.name}.`;
+    }
     this.phase = 'ended';
     this.paused = false;
-    this.ended = { reason, summary: this.game.summary() };
+    this.ended = { reason, summary: this.game.summary(), winners };
     this.broadcast({ t: 'ended', ...this.ended });
     this.changed();
   }
@@ -298,7 +307,12 @@ export class Room {
       sync.collect(frame);
       if (!conn.congested()) conn.send(sync.build(frame, game));
     }
-    if (limit > 0 && game.world.tick >= limit * TICK_RATE) this.end('Time is up!');
+    const outcome = game.world.outcome;
+    if (outcome) this.end(outcome.reason, outcome.winners);
+    else if (limit > 0 && game.world.tick >= limit * TICK_RATE) {
+      const r = decideByGlory(game.world);
+      this.end(r.reason, r.winners);
+    }
   }
 
   /** Empieza a mandar la partida a una conexión: bienvenida + foto completa. */

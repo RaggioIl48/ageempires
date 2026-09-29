@@ -2,7 +2,7 @@
 // (fuerza de cada bando, caídos, reloj, "ir a la batalla" y "retirarse"), el menú para
 // marchar sobre una ciudad enemiga y el resultado de cada batalla.
 
-import { FACTIONS, RESOURCE_LABELS, RESOURCE_TYPES, UNIT_DEFS } from '../../shared/data.ts';
+import { FACTIONS, HILL_MIN_ERA, HILL_MIN_SOLDIERS, RESOURCE_LABELS, RESOURCE_TYPES, UNIT_DEFS } from '../../shared/data.ts';
 import type { BattleResultView, BattleView } from '../../shared/protocol.ts';
 import type { Input } from './input.ts';
 import type { Net } from './net.ts';
@@ -28,6 +28,7 @@ export class WarPanel {
       const t = e.target as HTMLElement;
       const go = t.closest<HTMLElement>('[data-go]');
       if (go) return this.goTo(Number(go.dataset.go));
+      if (t.closest('[data-hill]') && this.state.victory.hill) return this.cam.centerOn(this.state.victory.hill.x, this.state.victory.hill.y);
       const rt = t.closest<HTMLElement>('[data-retreat]');
       if (rt) this.net.command({ kind: 'retreat', battleId: Number(rt.dataset.retreat) });
     });
@@ -64,7 +65,7 @@ export class WarPanel {
     if (!open) return;
     const s = this.state;
     const cities = [...s.players.values()].filter(
-      (p) => p.id !== s.you && s.relation(s.you, p.id) === 'war' && [...s.buildings.values()].some((b) => b.owner === p.id && b.type === 'town_center'),
+      (p) => p.id !== s.you && s.relation(s.you, p.id) === 'war' && !s.isDefeated(p.id),
     );
     box.innerHTML = `<div class="dp-head"><h3>⚔ March on a city</h3><button data-close title="Close">✕</button></div>
       <p class="muted">Your ${this.soldiersSelected().length} soldiers leave the map on a forced march and appear in front of the city. The enemy sees them coming.</p>
@@ -94,6 +95,8 @@ export class WarPanel {
       }
       rows.push(this.battleHtml(b));
     }
+    const hill = this.hillHtml();
+    if (hill) rows.unshift(hill);
     const html = rows.join('');
     if (html !== this.lastHtml) {
       this.lastHtml = html;
@@ -101,6 +104,28 @@ export class WarPanel {
       el('war-panel').classList.toggle('hidden', html === '');
     }
     if (!this.showing && s.battleResults.length) this.showResult(s.battleResults.shift()!);
+  }
+
+  /** Colina Sagrada: quién la tiene y cuánto le falta para ganar. */
+  private hillHtml(): string {
+    const s = this.state, h = s.victory.hill;
+    if (!h) return '';
+    const name = (id: number) => esc(s.players.get(id)?.name ?? `Player ${id}`);
+    const secs = (id: number) => h.held.find(([p]) => p === id)?.[1] ?? 0;
+    const status = h.contested
+      ? '<b class="down">contested!</b>'
+      : h.holder
+        ? `held by <i style="background:${s.color(h.holder)}"></i><b>${name(h.holder)}</b> · ${mmss(secs(h.holder))} / ${mmss(h.need)}`
+        : '<span class="muted">nobody holds it</span>';
+    const leaders = h.held
+      .filter(([id]) => id !== h.holder)
+      .map(([id, t]) => `<i style="background:${s.color(id)}"></i>${name(id)} ${mmss(t)}`)
+      .join(' · ');
+    const bar = h.holder ? `<div class="war-bar"><div style="width:${Math.round((secs(h.holder) / h.need) * 100)}%;background:${s.color(h.holder)}"></div></div>` : '';
+    return `<div class="war-row hill ${h.holder === s.you ? 'attack' : h.holder ? 'defend' : ''}" title="Keep ${HILL_MIN_SOLDIERS}+ soldiers on the summit of the central hill, with no enemies there, for ${mmss(h.need)} in total to win (from the Medieval Age)">
+      <div class="war-title">⛰ Sacred Hill: ${status} <button class="tiny" data-hill>👁</button></div>${bar}
+      ${leaders ? `<div class="muted">${leaders}</div>` : `<div class="muted">Hold it ${mmss(h.need)} to win · from the ${HILL_MIN_ERA === 2 ? 'Medieval' : ''} Age</div>`}
+    </div>`;
   }
 
   private battleHtml(b: BattleView): string {

@@ -6,6 +6,8 @@
 // todo lo que se perdió: nunca queda desincronizado.
 
 import {
+  BUILDING_TYPES,
+  dq,
   encodeBuilding,
   encodeEvent,
   encodeUnit,
@@ -18,10 +20,12 @@ import {
   type EventTuple,
   type UnitTuple,
 } from '../../../shared/codec.ts';
-import { TICK_RATE, TRADE_RESOURCES } from '../../../shared/data.ts';
+import { BUILDING_DEFS, TICK_RATE, TRADE_RESOURCES } from '../../../shared/data.ts';
+import { pointVisible, rectVisible } from '../../../shared/vision.ts';
 import { encodeTiles, type DeltaMessage, type EconomyView, type RoomSettings, type ServerMessage } from '../../../shared/protocol.ts';
 import { diploView } from '../sim/diplomacy.ts';
 import { battleViews, marchViews } from '../sim/war.ts';
+import { victoryView } from '../sim/victory.ts';
 import { buildingView, type Game } from '../sim/game.ts';
 
 /** Primer mensaje al entrar a la partida: mapa comprimido, jugadores y recursos. */
@@ -32,7 +36,12 @@ export function welcomeMessage(game: Game, you: number, settings: RoomSettings):
   return {
     t: 'welcome',
     you,
-    map: { size: w.size, tilesRle: encodeTiles(w.tiles), levelsRle: encodeTiles(w.levels) },
+    map: {
+      size: w.size,
+      tilesRle: encodeTiles(w.tiles),
+      levelsRle: encodeTiles(w.levels),
+      ...(w.fog && you > 0 && w.explored.has(you) ? { exploredRle: encodeTiles(w.explored.get(you)!) } : {}),
+    },
     players: game.playerViews(),
     nodes,
     settings,
@@ -89,6 +98,7 @@ export class ClientSync {
   private lastNews = -1;
   private lastTech = -1;
   private lastMarket = -1;
+  private lastVictory = -1;
 
   /** playerId 0 = observador (el profesor): ve todo y la economía de todos. */
   constructor(readonly playerId: number) {}
@@ -105,12 +115,21 @@ export class ClientSync {
   /** Mensaje con los cambios para este cliente (llamar después de collect). */
   build(frame: Frame, game: Game): DeltaMessage {
     const msg: DeltaMessage = { t: 'd', k: frame.tick };
+    // Niebla de guerra: de los que no son de su equipo, solo lo que se ve ahora.
+    const world = game.world;
+    // Quien cayó ya no tiene niebla: mira el resto de la partida.
+    const vis = world.fog && this.playerId > 0 && !world.players.get(this.playerId)?.defeated ? world.visible.get(this.playerId) : undefined;
+    const team = (owner: number) => owner === this.playerId || world.relation(owner, this.playerId) === 'ally';
+    const hidden = (owner: number, x: number, y: number) => vis !== undefined && !team(owner) && !pointVisible(world.size, vis, x, y);
+    const bVisible = (t: BuildingTuple) =>
+      vis === undefined || team(t[1]) || rectVisible(world.size, vis, t[3], t[4], BUILDING_DEFS[BUILDING_TYPES[t[2]]].size);
 
     // Unidades: nuevas o con cambios → tupla completa; solo movidas → [id, x, y].
     const seen = new Set<number>();
     const u: UnitTuple[] = [];
     const p: number[] = [];
     for (const t of frame.units) {
+      if (hidden(t[1], dq(t[U_X]), dq(t[U_Y]))) continue; // en la niebla: el cliente la olvida
       seen.add(t[0]);
       const old = this.units.get(t[0]);
       if (!old || !sameExceptPosition(old, t)) u.push(t);
@@ -132,6 +151,11 @@ export class ClientSync {
     const b: BuildingTuple[] = [];
     for (const entry of frame.buildings) {
       const t = entry.owner === this.playerId ? entry.own : entry.pub;
+      if (!bVisible(t)) {
+        // En la niebla: se recuerda como se lo vio por última vez (o no se conoce).
+        if (this.buildings.has(t[0])) bSeen.add(t[0]);
+        continue;
+      }
       bSeen.add(t[0]);
       if (!sameTuple(this.buildings.get(t[0]), t)) {
         b.push(t);
@@ -139,8 +163,9 @@ export class ClientSync {
       }
     }
     const br: number[] = [];
-    for (const id of this.buildings.keys())
-      if (!bSeen.has(id)) {
+    for (const [id, old] of this.buildings)
+      if (!bSeen.has(id) && bVisible(old)) {
+        // Solo se entera de que ya no está si ve el lugar.
         br.push(id);
         this.buildings.delete(id);
       }
@@ -160,7 +185,8 @@ export class ClientSync {
       if (nr.length) msg.nr = nr;
     }
 
-    if (frame.events.length) msg.e = frame.events;
+    const events = vis === undefined ? frame.events : frame.events.filter((e) => visibleEvent(world.size, vis, e));
+    if (events.length) msg.e = events;
 
     // Economía propia solo cuando cambia; el profesor recibe la de todos cada segundo.
     if (this.playerId > 0) {
@@ -210,6 +236,11 @@ export class ClientSync {
       this.sentResults = w.battleResults.length;
       if (!msg.res.length) delete msg.res;
     }
+    // Colina Sagrada e imperios caídos.
+    if (w.victoryVersion !== this.lastVictory) {
+      this.lastVictory = w.victoryVersion;
+      msg.vic = victoryView(w);
+    }
     // Precios del Mercado (iguales para todos).
     if (w.marketVersion !== this.lastMarket) {
       this.lastMarket = w.marketVersion;
@@ -232,4 +263,11 @@ export class ClientSync {
     }
     return msg;
   }
+}
+
+/** ¿Se ve el lugar de un efecto? (un disparo se ve si se ve de dónde sale o adónde llega) */
+function visibleEvent(size: number, vis: Uint8Array, e: EventTuple): boolean {
+  if (e[0] === 4) return true; // ganancia de recursos: es propia
+  if (pointVisible(size, vis, dq(e[1]), dq(e[2]))) return true;
+  return e[0] === 0 && pointVisible(size, vis, dq(e[3]), dq(e[4]));
 }

@@ -27,6 +27,7 @@ export function settingsText(s: RoomSettings): string {
     s.durationMin ? `${s.durationMin} minutes` : 'no time limit',
     s.diplomacy === 'locked' ? 'fixed teams' : 'free diplomacy',
     s.chat ? 'chat on' : 'no chat',
+    s.fog === false ? 'no fog of war' : 'fog of war',
   ].join(' · ');
 }
 
@@ -187,6 +188,7 @@ export class TeacherScreen {
           durationMin: Number(el<HTMLSelectElement>('in-duration').value),
           diplomacy: el<HTMLSelectElement>('in-diplo').value as RoomSettings['diplomacy'],
           chat: el<HTMLSelectElement>('in-chat').value === '1',
+          fog: el<HTMLSelectElement>('in-fog').value === '1',
         },
       });
     });

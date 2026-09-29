@@ -3,6 +3,7 @@
 // (Código sin navegador: también lo usan las pruebas del servidor.)
 
 import { HeightField } from '../../shared/terrain.ts';
+import { addExplored, computeVisible, type VisionSource } from '../../shared/vision.ts';
 import { setHeightField } from './view.ts';
 import { decodeBuilding, decodeEvent, decodeUnit, NODE_TYPES } from '../../shared/codec.ts';
 import { BUILDING_DEFS, FACTIONS, RELATIONS, TICK_MS, TILE_GRASS, type BuildingType, type FactionId, type Relation, type UnitType } from '../../shared/data.ts';
@@ -11,6 +12,7 @@ import {
   type BuildingView,
   type BattleResultView,
   type BattleView,
+  type VictoryView,
   type DeltaMessage,
   type MarchView,
   type EconomyView,
@@ -69,6 +71,15 @@ export class ClientState {
   tiles: Uint8Array = new Uint8Array(0);
   /** Relieve (colinas). */
   height = new HeightField(1, new Uint8Array(1));
+  /** Niebla de guerra (solo alumnos, si la partida la tiene): lo visible ahora y lo explorado. */
+  fog = false;
+  visible: Uint8Array = new Uint8Array(0);
+  explored: Uint8Array = new Uint8Array(0);
+  /** Nivel de niebla de cada casilla (0 se ve, 0.5 explorada, 1 sin explorar), suavizado. */
+  fogLevel: Float32Array = new Float32Array(0);
+  /** Sube cuando cambia la niebla (para redibujar el minimapa). */
+  fogVersion = 0;
+  private lastVisionAt = -Infinity;
   settings: RoomSettings | null = null;
   players = new Map<number, PlayerView>();
   nodes = new Map<number, NodeView>();
@@ -108,6 +119,8 @@ export class ClientState {
   marches: MarchView[] = [];
   battles: BattleView[] = [];
   battleResults: BattleResultView[] = [];
+  /** Colina Sagrada e imperios caídos. */
+  victory: VictoryView = { defeated: [] };
 
   /** Relación entre dos jugadores (uno mismo cuenta como aliado). */
   relation(a: number, b: number): Relation {
@@ -116,6 +129,48 @@ export class ClientState {
   }
 
   /** Relación de un jugador con el propio (para colores y órdenes). */
+  /** Recalcula lo que se ve (unas 6 veces por segundo): tropas y edificios propios y aliados. */
+  updateVision(now: number): void {
+    if (!this.fog || now - this.lastVisionAt < 160 || this.size === 0) return;
+    this.lastVisionAt = now;
+    const team = (o: number) => o === this.you || this.relation(this.you, o) === 'ally';
+    const src: VisionSource[] = [];
+    for (const cu of this.units.values())
+      if (team(cu.v.owner)) src.push({ x: cu.v.x, y: cu.v.y, r: this.statsOf(cu.v.owner, cu.v.type).sight });
+    for (const b of this.buildings.values())
+      if (team(b.owner)) {
+        const d = BUILDING_DEFS[b.type];
+        src.push({ x: b.tx + d.size / 2, y: b.ty + d.size / 2, r: (b.progress < 1 ? 2 : d.sight) + d.size / 2 });
+      }
+    computeVisible(this.size, this.height, src, this.visible);
+    addExplored(this.visible, this.explored);
+    // Nivel de niebla suavizado con los vecinos (bordes difusos).
+    const n = this.size, raw = (x: number, y: number) => {
+      if (x < 0 || y < 0 || x >= n || y >= n) return 1;
+      const i = y * n + x;
+      return this.visible[i] ? 0 : this.explored[i] ? 0.5 : 1;
+    };
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++) {
+        let s = raw(x, y) * 4;
+        s += raw(x - 1, y) + raw(x + 1, y) + raw(x, y - 1) + raw(x, y + 1);
+        this.fogLevel[y * n + x] = s / 8;
+      }
+    this.fogVersion++;
+  }
+
+  /** ¿Cayó el imperio de este jugador? */
+  isDefeated(id: number): boolean {
+    return this.victory.defeated.includes(id);
+  }
+
+  /** ¿Se ve (o ya se exploró) esta casilla? */
+  seen(x: number, y: number): boolean {
+    if (!this.fog) return true;
+    const tx = Math.floor(x), ty = Math.floor(y);
+    return tx >= 0 && ty >= 0 && tx < this.size && ty < this.size && this.explored[ty * this.size + tx] === 1;
+  }
+
   relationTo(playerId: number): Relation | 'own' {
     if (playerId === this.you) return 'own';
     return this.relation(this.you, playerId);
@@ -133,6 +188,12 @@ export class ClientState {
         this.tiles = decodeTiles(msg.map.tilesRle, msg.map.size);
         this.height = new HeightField(msg.map.size, msg.map.levelsRle ? decodeTiles(msg.map.levelsRle, msg.map.size) : new Uint8Array(msg.map.size ** 2));
         setHeightField(this.height);
+        this.fog = msg.settings.fog !== false && msg.you > 0;
+        const n2 = msg.map.size ** 2;
+        this.visible = new Uint8Array(n2).fill(this.fog ? 0 : 1);
+        this.explored = msg.map.exploredRle ? decodeTiles(msg.map.exploredRle, msg.map.size) : new Uint8Array(n2).fill(this.fog ? 0 : 1);
+        this.fogLevel = new Float32Array(n2);
+        this.lastVisionAt = -Infinity;
         this.settings = msg.settings;
         this.players = new Map(msg.players.map((p) => [p.id, p]));
         this.nodes.clear();
@@ -251,6 +312,17 @@ export class ClientState {
       this.battles = d.war.b;
     }
     if (d.res) this.battleResults.push(...d.res);
+    if (d.vic) {
+      this.victory = d.vic;
+      // Quien cae deja de tener niebla: mira el resto de la partida.
+      if (this.fog && d.vic.defeated.includes(this.you)) {
+        this.fog = false;
+        this.visible.fill(1);
+        this.explored.fill(1);
+        this.fogLevel.fill(0);
+        this.fogVersion++;
+      }
+    }
     if (d.pt) {
       for (let i = 0; i + 2 < d.pt.length; i += 3) {
         this.eras.set(Number(d.pt[i]), Number(d.pt[i + 1]));

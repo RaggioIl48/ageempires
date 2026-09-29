@@ -139,6 +139,16 @@ export class GuidePanel {
         <p><b>Upgrades ★:</b> research them in the building that trains the unit. Units already on the map improve too.</p>
         <p><b>Airplanes</b> can only be hit by ranged attacks and towers.</p>
       </details>
+      <details class="g-rules"><summary>How to win</summary>
+        <p><b>Conquest:</b> your Town Center is your capital. If it falls, your empire falls: your troops surrender and your
+        buildings become ruins. The last empire standing wins (or the last alliance, all together).</p>
+        <p><b>Sacred Hill ⛰:</b> the high hill in the centre of the map. From the Medieval Age, keep at least 3 soldiers on its
+        summit with no enemies there for 5 minutes in total and you win. Enemies on the summit stop your clock.</p>
+        <p><b>Time limit:</b> if the teacher set one, when time is up the empire with the most <b>Glory</b> wins
+        (kills, cities taken, time on the Sacred Hill, ages reached, resources gathered, and still standing).</p>
+        <p><b>Fog of war:</b> you only see what your troops, buildings and allies see. From a hill you see farther. Places you have
+        explored stay on the map, but enemy troops there are hidden: send scouts!</p>
+      </details>
       <div class="g-tabs">${tabs}</div>
       <p class="muted">${eraLabel(this.tab)}${this.tab > s.eraOf(s.you) ? ' — not reached yet' : ''}</p>
       <div class="g-list">${cards || '<p class="muted">No units.</p>'}</div>

@@ -20,7 +20,7 @@ const RES = RESOURCE_TYPES;
 
 /** Casilla → entero en centésimas. */
 export const q = (v: number): number => Math.round(v * 100);
-const dq = (v: number): number => v / 100;
+export const dq = (v: number): number => v / 100;
 
 // ---------- Unidades ----------
 // [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla, moral, huye, efecto, espera1, espera2]

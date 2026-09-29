@@ -31,7 +31,7 @@ class FakeConn implements Conn {
   }
 }
 
-const SETTINGS: RoomSettings = { maxPlayers: 4, mapSize: 'normal', durationMin: 0, diplomacy: 'free', chat: true };
+const SETTINGS: RoomSettings = { maxPlayers: 4, mapSize: 'normal', durationMin: 0, diplomacy: 'free', chat: true, fog: false };
 
 function setup() {
   const lobby = new Lobby({ pin: '4321', urls: () => ['http://192.168.1.20:8080'], seed: () => 77 });

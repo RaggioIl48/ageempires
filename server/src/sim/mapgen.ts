@@ -121,6 +121,7 @@ function tryGenerate(opts: MapOptions, seed: number): World | null {
   // 2b) Relieve (Total War): cada ciudad sobre una meseta (igual para todos), una colina en el
   //     centro por la que pelear y lomas sueltas para las batallas en campo abierto.
   raiseHills(world, starts, center, rng, nearStart, nearCenter);
+  world.hill = { x: center, y: center, holder: 0, contested: false };
 
   // 3) Región que se puede recorrer a pie desde el primer inicio. Los recursos
   //    solo se colocan dentro de ella (nada en islas ni en bolsillos de montaña).
