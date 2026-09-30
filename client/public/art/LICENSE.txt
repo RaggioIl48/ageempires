@@ -13,10 +13,10 @@ The images in this folder (units/*.png and buildings/*.png) come from open-licen
     https://opengameart.org/content/lpc-siege-weapons
   - 0 A.D., by Wildfire Games (fortresses, towers, walls, battering ram, war chariot, trebuchet,
     siege tower: 3D models rendered by tools/art/raster.mjs), CC-BY-SA 3.0: https://play0ad.com
-  - PixVoxel Very Diverse Isometric Wargame Sprites, by Tommy Ettinger (Industrial and Modern Age
-    units: riflemen, machine guns, anti-tank, mechanized infantry, armored cars, tanks, artillery,
-    airplanes; repainted with the player color), CC0:
-    https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites
+  - LPC Shotgun Animation and Icon, by blancaster45 (the muskets and rifles of the Industrial and
+    Modern Age soldiers), CC0: https://opengameart.org/content/lpc-shotgun-animation-and-icon
+  - 3D models rendered by tools/art/raster.mjs, all CC0 from OpenGameArt: T-12 soviet light tank
+    and Lowpoly soviet jeep (GAZ-67) by artie31, Low-Poly Biplane by mfep
   - Unknown Horizons (buildings, buildings/*.png), by the Unknown Horizons team,
     CC-BY-SA 3.0: https://unknown-horizons.org
 

@@ -14,6 +14,10 @@
    "title": "[LPC] Horse Riding (0.9.0)",
    "url": "https://opengameart.org/content/lpc-horse-riding-updated-091"
   },
+  "lpc-shotgun": {
+   "title": "LPC Shotgun Animation and Icon",
+   "url": "https://opengameart.org/content/lpc-shotgun-animation-and-icon"
+  },
   "lpc-siege-weapons": {
    "title": "[LPC] Siege Weapons",
    "url": "https://opengameart.org/content/lpc-siege-weapons"
@@ -23,9 +27,9 @@
    "url": "https://github.com/unknown-horizons/unknown-horizons",
    "version": "af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615"
   },
-  "pixvoxel": {
-   "title": "PixVoxel Very Diverse Isometric Wargame Sprites",
-   "url": "https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites"
+  "model": {
+   "title": "Low-poly vehicle models (OpenGameArt, CC0)",
+   "url": "https://opengameart.org"
   },
   "0ad": {
    "title": "0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)",
@@ -71,6 +75,22 @@
     "http://opengameart.org/content/lpc-clothing-updates"
    ],
    "notes": "original by wulax, recolors by bigbeargames; adapted to v3 bases and further recolors by bluecarrot16, climb/emote/jump by JaidynReiman"
+  },
+  "lpc:backpack/squarepack": {
+   "pack": "lpc",
+   "title": "Square pack",
+   "authors": [
+    "Benjamin K. Smith (BenCreating)",
+    "macmanmatty"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-backpacks"
+   ],
+   "notes": "trivial adjustments by bluecarrot16 to be compatible with v3 bases"
   },
   "lpc:beards/beard/basic": {
    "pack": "lpc",
@@ -341,6 +361,24 @@
     "https://opengameart.org/content/lpc-expanded-socks-shoes"
    ],
    "notes": "original by Nila122, edited for male and v3 bases by bluecarrot16, Jump/Sit/Emote/Run/Revised Combat by JaidynReiman"
+  },
+  "lpc:feet/boots/rimmed": {
+   "pack": "lpc",
+   "title": "Rimmed Boots",
+   "authors": [
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY 3.0",
+    "CC-BY 4.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-kimono-relm",
+    "https://opengameart.org/content/lpc-expanded-socks-shoes"
+   ],
+   "notes": ""
   },
   "lpc:feet/sandals": {
    "pack": "lpc",
@@ -629,6 +667,25 @@
    ],
    "notes": "original version by bluecarrot16, color reduction by Napsio (Vitruvian Studio)"
   },
+  "lpc:hat/helmet/kettle": {
+   "pack": "lpc",
+   "title": "Kettle helm",
+   "authors": [
+    "Johannes Sjölund (wulax)",
+    "JaidynReiman",
+    "Napsio (Vitruvian Studio)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "previously referred to as chain-hat, color reduction by Napsio (Vitruvian Studio)"
+  },
   "lpc:hat/helmet/legion": {
    "pack": "lpc",
    "title": "Legion",
@@ -747,6 +804,21 @@
    ],
    "notes": ""
   },
+  "lpc:hat/pirate/bicorne/athwart": {
+   "pack": "lpc",
+   "title": "Bicorne Athwart",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-pirates",
+    "https://opengameart.org/content/lpc-expanded-hats-facial-helmets"
+   ],
+   "notes": "Pirate Hat by Bluecarrot16, layers and added animations by JaidynReiman"
+  },
   "lpc:head/heads/human/male": {
    "pack": "lpc",
    "title": "Human Male",
@@ -765,6 +837,30 @@
     "https://opengameart.org/content/lpc-character-bases"
    ],
    "notes": "original head by Redshrike, tweaks by BenCreating, modular version by bluecarrot16"
+  },
+  "lpc:legs/formal": {
+   "pack": "lpc",
+   "title": "Formal Pants",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman",
+    "ElizaWy",
+    "Johannes Sjölund (wulax)",
+    "Stephen Challener (Redshrike)"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+    "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+    "https://opengameart.org/content/lpc-2-characters",
+    "https://opengameart.org/content/lpc-gentleman",
+    "https://opengameart.org/content/lpc-expanded-pants"
+   ],
+   "notes": "Original pants by Stephen Challener (Redshrike), thrust/shoot bases by Wulax, Formal Pants by Bluecarrot16, climb/jump/run/sit/emotes/revised combat by JaidynReiman"
   },
   "lpc:legs/pants/male": {
    "pack": "lpc",
@@ -809,6 +905,21 @@
     "https://opengameart.org/content/lpc-expanded-armour"
    ],
    "notes": "original by Nila122 to legion, adapted to v3 bases by bluecarrot16, climb/jump/sit/run by JaidynReiman"
+  },
+  "lpc:neck/cravat": {
+   "pack": "lpc",
+   "title": "Cravat",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": ""
   },
   "lpc:shield": {
    "pack": "lpc",
@@ -876,6 +987,25 @@
    ],
    "notes": ""
   },
+  "lpc:shield/kite": {
+   "pack": "lpc",
+   "title": "Kite",
+   "authors": [
+    "DarkwallLKE",
+    "Tuomo Untinen (reemax)",
+    "Michael Whitlock (bigbeargames)"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 2.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-kite-shield",
+    "https://opengameart.org/content/lpc-shields-pack"
+   ],
+   "notes": ""
+  },
   "lpc:shield/round": {
    "pack": "lpc",
    "title": "Round Shield",
@@ -910,6 +1040,22 @@
     "https://opengameart.org/content/lpc-shields"
    ],
    "notes": ""
+  },
+  "lpc:shoulders/epaulets": {
+   "pack": "lpc",
+   "title": "Epaulets",
+   "authors": [
+    "bluecarrot16",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0",
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": "Original by bluecarrot16, jump/run/sit/emote/revised combat frames and female by JaidynReiman"
   },
   "lpc:shoulders/legion": {
    "pack": "lpc",
@@ -1157,6 +1303,36 @@
    ],
    "notes": "original by ElizaWy; sleeveless adapted from original by JaidynReiman"
   },
+  "lpc:torso/jacket/collared": {
+   "pack": "lpc",
+   "title": "Collared coat",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-gentleman",
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": ""
+  },
+  "lpc:torso/jacket/frock": {
+   "pack": "lpc",
+   "title": "Frock coat",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": ""
+  },
   "lpc:torso/jacket/tabard": {
    "pack": "lpc",
    "title": "Tabard",
@@ -1174,6 +1350,35 @@
     "http://opengameart.org/content/lpc-clothing-updates"
    ],
    "notes": "original by wulax, edited to v3 base by bluecarrot16"
+  },
+  "lpc:torso/jacket/trench": {
+   "pack": "lpc",
+   "title": "Trench coat",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0",
+    "GPL 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-gentleman"
+   ],
+   "notes": ""
+  },
+  "lpc:torso/jacket/trim": {
+   "pack": "lpc",
+   "title": "Frock collar",
+   "authors": [
+    "bluecarrot16"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-pirates"
+   ],
+   "notes": ""
   },
   "lpc:torso/waist/belt_leather": {
    "pack": "lpc",
@@ -1382,6 +1587,48 @@
    ],
    "notes": ""
   },
+  "model:biplane": {
+   "pack": "model",
+   "title": "Low-Poly Biplane",
+   "authors": [
+    "mfep"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/low-poly-biplane"
+   ],
+   "notes": "Airplane (Modern Age)."
+  },
+  "model:gaz67": {
+   "pack": "model",
+   "title": "Lowpoly soviet jeep (GAZ-67)",
+   "authors": [
+    "artie31"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lowpoly-soviet-jeep"
+   ],
+   "notes": "Armored car (Industrial Age), painted in the player color."
+  },
+  "model:t12": {
+   "pack": "model",
+   "title": "T-12 soviet light tank lowpoly",
+   "authors": [
+    "artie31"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/t-12-soviet-light-tank-lowpoly"
+   ],
+   "notes": "Tank (Modern Age), painted in the player color."
+  },
   "oga:lpc-horse-riding": {
    "pack": "lpc-horse-riding",
    "title": "[LPC] Horse Riding (0.9.0)",
@@ -1417,6 +1664,20 @@
    ],
    "notes": ""
   },
+  "oga:lpc-shotgun": {
+   "pack": "lpc-shotgun",
+   "title": "LPC Shotgun Animation and Icon",
+   "authors": [
+    "blancaster45"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-shotgun-animation-and-icon"
+   ],
+   "notes": "Long gun layer for LPC characters (walk and aim): the muskets and rifles of the Industrial and Modern Age soldiers."
+  },
   "oga:lpc-siege-weapons": {
    "pack": "lpc-siege-weapons",
    "title": "[LPC] Siege Weapons",
@@ -1435,20 +1696,6 @@
     "https://opengameart.org/content/lpc-siege-weapons"
    ],
    "notes": ""
-  },
-  "pixvoxel": {
-   "pack": "pixvoxel",
-   "title": "PixVoxel Very Diverse Isometric Wargame Sprites",
-   "authors": [
-    "Tommy Ettinger"
-   ],
-   "licenses": [
-    "CC0"
-   ],
-   "urls": [
-    "https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites"
-   ],
-   "notes": "Industrial and Modern Age units (riflemen, machine guns, anti-tank, mechanized infantry, armored cars, tanks, artillery, airplanes), repainted with each player's color."
   },
   "uh:barracks-props": {
    "pack": "uh",

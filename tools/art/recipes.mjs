@@ -90,6 +90,19 @@ const D = {
   pickaxe: 'tools/tool_pickaxe',
   hammer: 'tools/tool_hammer',
   hoe: 'tools/tool_hoe',
+  // uniformes de las eras Industrial y Moderna (estilo Napoleón / Gran Guerra)
+  frock: 'torso/jacket/torso_jacket_frock',
+  frockCollar: 'torso/jacket/accessory/torso_jacket_frock_collar',
+  frockButtons: 'torso/jacket/accessory/torso_jacket_frock_buttons',
+  collared: 'torso/jacket/torso_jacket_collared',
+  trench: 'torso/jacket/torso_jacket_trench',
+  epaulets: 'arms/shoulders/shoulders_epaulets',
+  cravat: 'headwear/neck/neck_cravat',
+  pantsFormal: 'legs/pants/legs_formal',
+  bootsRim: 'feet/boots/feet_boots_rim',
+  squarepack: 'torso/backpack/backpack_squarepack',
+  bicorne: 'headwear/hats/athwart/hat_bicorne_athwart_basic',
+  shako: 'headwear/hats/formal/hat_formal_tophat',
 };
 
 const p = (key, opt = {}) => ({ def: D[key], ...opt });
@@ -281,6 +294,24 @@ function generals() {
   };
 }
 
+/**
+ * Soldados de las eras Industrial y Moderna (iguales para todos los pueblos): delgados, con
+ * uniforme del color del jugador y el fusil largo encima (`gun`), como en Total War: Napoleon.
+ */
+function riflemen() {
+  const W = (extra) => person('romans', extra, { dress: false });
+  return {
+    // Infantería de línea: casaca, bicornio, correajes, pantalón blanco y botas; mosquete.
+    rifleman: { attack: 'thrust', gun: 'rifle', parts: W([T('frock', { variant: 'gray' }), p('frockCollar'), p('frockButtons'), p('epaulets'), p('cravat'), p('pantsFormal', { color: 'white' }), p('bootsRim', { color: 'black' }), p('squarepack'), p('bicorne', { color: 'black' })]) },
+    // Ametralladora (fines del siglo XIX): chaqueta, casco de acero, arma pesada.
+    machine_gun: { attack: 'thrust', gun: 'heavy', parts: W([T('collared', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('squarepack'), p('helmKettle', { color: 'iron' })]) },
+    // Antitanque: capote de trinchera, casco y lanzacohetes al hombro.
+    antitank: { attack: 'thrust', gun: 'bazooka', parts: W([T('trench', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('helmKettle', { color: 'iron' })]) },
+    // Infantería mecanizada: chaqueta, mochila, casco y fusil.
+    mech_infantry: { attack: 'thrust', gun: 'rifle', parts: W([T('collared', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('squarepack'), p('helmKettle', { color: 'steel' })]) },
+  };
+}
+
 /** Todas las unidades de personaje: [{ faction, type, kind, attack, parts, bodyType?, horse }]. */
 export function characterRecipes() {
   const out = [];
@@ -290,6 +321,7 @@ export function characterRecipes() {
     for (const [type, r] of Object.entries(uniques[f] ?? {})) out.push({ faction: f, type, kind: 'foot', horse: PEOPLE[f].horse, ...r });
     out.push({ faction: f, type: 'general', ...generals()[f] });
   }
+  for (const [type, r] of Object.entries(riflemen())) out.push({ faction: 'any', type, kind: 'foot', horse: PEOPLE.romans.horse, ...r });
   return out;
 }
 

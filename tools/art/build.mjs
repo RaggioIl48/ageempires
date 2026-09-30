@@ -23,7 +23,7 @@ import { UH_COMMIT, UH_CREDITS, UH_REPO, buildBuildings } from './buildings.mjs'
 import { buildForts } from './forts.mjs';
 import { ZEROAD_COMMIT, ZEROAD_CREDIT, ZEROAD_REPO, ZeroAD } from './zeroad.mjs';
 import { cropRender, render } from './raster.mjs';
-import { PIXVOXEL_CREDIT, PIXVOXEL_UNITS, buildPixVoxel } from './pixvoxel.mjs';
+import { MODEL_CREDITS, ensureModel, loadFbx, loadObj } from './models.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -76,6 +76,7 @@ async function main() {
       anims.attack = { ...atk, fps: ATTACK_FPS[r.attack] * (af ? 0.6 : 1) };
     } else {
       const walk = await comp.anim(r.parts, 'walk', opts);
+      if (r.gun) addGun(walk, 'walk', r.gun);
       const anchor = footAnchor(walk);
       const pick = (a, frames) => ({ ...a, n: frames.length, base: a.base.map((row) => frames.map((i) => row[i])), mask: a.mask.map((row) => frames.map((i) => row[i])) });
       const walkFrames = walk.custom ? [...Array(walk.n).keys()].slice(1) : [1, 2, 3, 4, 5, 6, 7, 8];
@@ -88,6 +89,7 @@ async function main() {
         }
       } else {
         const a = await comp.anim(r.parts, r.attack, opts);
+        if (r.gun) addGun(a, r.attack, r.gun);
         anims.attack = { ...a, ...anchor(a), fps: ATTACK_FPS[r.attack] };
       }
       const hurt = await comp.anim(r.parts, 'hurt', opts);
@@ -99,16 +101,18 @@ async function main() {
       addCredit(`lpc:${f}`, { pack: 'lpc', title: c.title, authors: c.authors, licenses: c.licenses, urls: c.urls, notes: c.notes });
     }
     if (usedRide) ids.push('oga:lpc-horses', 'oga:lpc-horse-riding');
+    if (r.gun) ids.push('oga:lpc-shotgun');
     const packed = packSheet(anims);
     const license = sheetLicense(ids.map((i) => (i.startsWith('lpc:') ? credits.get(i).licenses : OGA_PACKS[i.slice(4)].licenses)));
-    save(id, [`${r.faction}/${r.type}`], packed, { scale: SCALE[r.type === 'worker' ? 'worker' : r.kind], o: 'lpc4', credits: ids, license });
+    save(id, [r.faction === 'any' ? `*/${r.type}` : `${r.faction}/${r.type}`], packed, { scale: SCALE[r.type === 'worker' ? 'worker' : r.kind], o: 'lpc4', credits: ids, license });
     console.log(`  ${id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
   // ---------- Asedio ([LPC] Siege Weapons) ----------
   const siege = [
     { id: 'any-scorpion', unit: '*/scorpion', build: ballista },
-    { id: 'any-artillery', unit: '*/artillery', build: cannon },
+    // El cañón de campaña sirve a la artillería y a la artillería pesada (como en Napoleon).
+    { id: 'any-artillery', unit: '*/artillery', also: ['*/heavy_artillery'], build: cannon },
   ];
   for (const s of siege) {
     if (only && only !== s.id) continue;
@@ -116,7 +120,7 @@ async function main() {
     const packed = packSheet(anims);
     const ids = ['oga:lpc-siege-weapons'];
     const license = sheetLicense(ids.map((i) => OGA_PACKS[i.slice(4)].licenses));
-    save(s.id, [s.unit], packed, { scale: SCALE.siege, o, credits: ids, license });
+    save(s.id, [s.unit, ...(s.also ?? [])], packed, { scale: SCALE.siege, o, credits: ids, license });
     console.log(`  ${s.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
@@ -130,25 +134,25 @@ async function main() {
     { id: 'any-siege_tower', unit: '*/siege_tower', actor: 'structures/hellenes/siege_tower.xml', tiles: 1.3, main: true, fs: 320, skip: /decals|particle|props\/units/ },
     // Trebuchet de tracción Han (lo usaron los mongoles de la dinastía Yuan), con sus tiradores.
     { id: 'mongols-trebuchet', unit: 'mongols/trebuchet', actor: 'units/han/siege_mangonel.xml', tiles: 1.5, main: true, fs: 320, recoil: true, skip: /decals|particle|packed/ },
+    // Eras Industrial y Moderna: modelos CC0 de OpenGameArt; la pintura (camuflaje, caqui) lleva el color del jugador.
+    { id: 'any-light_vehicle', unit: '*/light_vehicle', credit: 'model:gaz67', tiles: 1.7, turn: 180,
+      load: async () => teamPaint(loadFbx(path.join(await ensureModel(CACHE, 'gaz-67_lowpoly_1.zip', 'gaz'), 'GAZ 67.fbx')), /khaki/i) },
+    { id: 'any-tank', unit: '*/tank', credit: 'model:t12', tiles: 2.4, turn: 180,
+      load: async () => teamPaint(loadFbx(path.join(await ensureModel(CACHE, 't-12.zip', 't12'), 'T-12 soviet tank.fbx')), /camo/i) },
+    { id: 'any-airplane', unit: '*/airplane', credit: 'model:biplane', tiles: 1.9, turn: 90,
+      load: async () => {
+        const dir = await ensureModel(CACHE, 'biplane.zip', 'biplane');
+        return teamPaint(loadObj(path.join(dir, 'biplane.obj'), path.join(dir, 'diffuse_512.png')), /./);
+      } },
   ];
   for (const v of vehicles) {
-    if (only && only !== v.id) continue;
+    if (only && only !== v.id && only !== 'vehicles') continue;
     const anims = await zeroadVehicle(new ZeroAD(CACHE), v);
     const packed = packSheet(anims);
-    const license = sheetLicense([normalizeLicenses(ZEROAD_CREDIT.licenses)]);
-    save(v.id, [v.unit], packed, { scale: 0.5, o: 'oga8', credits: ['0ad:structures'], license });
+    const credit = v.credit ?? '0ad:structures';
+    const license = sheetLicense([normalizeLicenses(credit === '0ad:structures' ? ZEROAD_CREDIT.licenses : MODEL_CREDITS[credit].licenses)]);
+    save(v.id, [v.unit], packed, { scale: 0.5, o: 'oga8', credits: [credit], license });
     console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
-  }
-
-  // ---------- Eras Industrial y Moderna: PixVoxel (CC0), con el color de cada jugador ----------
-  if (!only || only === 'pixvoxel' || PIXVOXEL_UNITS.some((u) => u.id === only)) {
-    for (const v of await buildPixVoxel(CACHE)) {
-      if (only && only !== 'pixvoxel' && only !== v.id) continue;
-      const packed = packSheet(v.anims);
-      const license = sheetLicense([normalizeLicenses(PIXVOXEL_CREDIT.licenses)]);
-      save(v.id, [v.unit], packed, { scale: v.scale, o: 'oga8', credits: ['pixvoxel'], license });
-      console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  scale ${v.scale}  ${license}`);
-    }
   }
 
   // ---------- Edificios (Unknown Horizons) y fuertes, torres y murallas (0 A.D.) ----------
@@ -171,7 +175,7 @@ async function main() {
   }
   for (const [id, c] of Object.entries(UH_CREDITS)) addCredit(id, { ...c, licenses: normalizeLicenses(c.licenses) });
   addCredit('0ad:structures', { ...ZEROAD_CREDIT, licenses: normalizeLicenses(ZEROAD_CREDIT.licenses) });
-  addCredit('pixvoxel', { ...PIXVOXEL_CREDIT, licenses: normalizeLicenses(PIXVOXEL_CREDIT.licenses) });
+  for (const [id, c] of Object.entries(MODEL_CREDITS)) addCredit(id, { ...c, licenses: normalizeLicenses(c.licenses) });
 
   for (const [key, pack] of Object.entries(OGA_PACKS))
     addCredit(`oga:${key}`, { pack: key, title: pack.title, authors: pack.authors, licenses: normalizeLicenses(pack.licenses), urls: [pack.url], notes: pack.notes ?? '' });
@@ -191,7 +195,7 @@ async function main() {
       lpc: { title: 'Universal LPC Spritesheet Character Generator', url: LPC_REPO, version: LPC_COMMIT },
       ...Object.fromEntries(Object.entries(OGA_PACKS).map(([k, v]) => [k, { title: v.title, url: v.url }])),
       uh: { title: 'Unknown Horizons (buildings)', url: UH_REPO, version: UH_COMMIT },
-      pixvoxel: { title: PIXVOXEL_CREDIT.title, url: PIXVOXEL_CREDIT.urls[0] },
+      model: { title: 'Low-poly vehicle models (OpenGameArt, CC0)', url: 'https://opengameart.org' },
       '0ad': { title: '0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
     },
     items,
@@ -253,8 +257,8 @@ function cannon(dir) {
  * `tiles` es el largo de la pieza principal (`main`) o de todo. Andar: un leve vaivén;
  * atacar: embiste hacia adelante y vuelve (o retrocede, si es `recoil`).
  */
-async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224, recoil = false }) {
-  const parts = await z.actor(actor, undefined, (a) => skip.test(a));
+async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224, recoil = false, load, turn = 0 }) {
+  const parts = load ? await load() : await z.actor(actor, undefined, (a) => skip.test(a));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of main ? parts.slice(0, 1) : parts) for (const t of p.tris) for (const c of t) {
     x0 = Math.min(x0, c.p[0]); x1 = Math.max(x1, c.p[0]);
@@ -265,7 +269,7 @@ async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224
   const views = [];
   for (let r = 0; r < 8; r++) {
     // El frente del modelo es −y; con el giro a = (r+1)·45° mira a S, SE, E, …
-    const a = (((r + 1) % 8) * Math.PI) / 4, ca = Math.cos(a), sa = Math.sin(a);
+    const a = (((r + 1) % 8) * Math.PI) / 4 + (turn * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
     const rot = (x, y) => [x * ca - y * sa, -(x * sa + y * ca)];
     const tp = parts.map((p) => ({
       ...p,
@@ -301,6 +305,49 @@ async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224
     walk: anim(4, 8, (r, k) => frame(r, 0, k % 2)),
     attack: anim(PUSH.length, 8, (r, k) => frame(r, PUSH[k])),
   };
+}
+
+/** Las piezas cuyo nombre coincide con `re` se pintan con el color del jugador. */
+function teamPaint(parts, re) {
+  for (const p of parts) if (re.test(p.name)) p.mode = 'team';
+  return parts;
+}
+
+/**
+ * Fusil largo (LPC Shotgun, CC0) encima del personaje, en las filas de caminar y de apuntar
+ * (thrust). 'heavy' lo engrosa (ametralladora) y 'bazooka' lo vuelve un tubo verde oliva.
+ */
+let gunSheet = null;
+function addGun(anim, kind, style) {
+  gunSheet ??= Img.read(path.join(CACHE, 'oga/shotgun/gunanimation.png'));
+  const row0 = kind === 'walk' ? 8 : 4; // filas del paquete: apuntar 4–7, caminar 8–11 (N, O, S, E)
+  const off = (anim.fs - 64) / 2;
+  const grow = style === 'heavy' ? 1 : style === 'bazooka' ? 2 : 0;
+  for (let d = 0; d < anim.dirs; d++)
+    for (let k = 0; k < anim.n; k++) {
+      const frame = anim.base[d][k];
+      for (let y = 0; y < 64; y++)
+        for (let x = 0; x < 64; x++) {
+          const si = (((row0 + d) * 64 + y) * gunSheet.w + k * 64 + x) * 4;
+          if (gunSheet.data[si + 3] < 128) continue;
+          let [r, g, b] = [gunSheet.data[si], gunSheet.data[si + 1], gunSheet.data[si + 2]];
+          if (style === 'heavy') [r, g, b] = [r * 0.45, g * 0.45, b * 0.45];
+          if (style === 'bazooka') [r, g, b] = [74, 84, 44];
+          for (let dy = 0; dy <= grow; dy++)
+            for (let dx = 0; dx <= grow; dx++) {
+              const tx = off + x + dx, ty = off + y + dy;
+              if (tx < 0 || ty < 0 || tx >= frame.w || ty >= frame.h) continue;
+              const di = (ty * frame.w + tx) * 4;
+              const edge = grow && (dx === grow || dy === grow);
+              frame.data[di] = edge ? r * 0.6 : r;
+              frame.data[di + 1] = edge ? g * 0.6 : g;
+              frame.data[di + 2] = edge ? b * 0.6 : b;
+              frame.data[di + 3] = 255;
+              // El arma tapa el color de equipo que hubiera debajo.
+              anim.mask[d][k].data[di + 3] = 0;
+            }
+        }
+    }
 }
 
 function siegeAnims(dirs, attackFrames, frame, walkFrames = 6) {

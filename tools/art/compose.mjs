@@ -33,7 +33,8 @@ export class Composer {
   fileFor(def, layer, part, anim, custom, bodyType) {
     const p = layer[bodyType] ?? layer.male;
     if (!p) return null;
-    const variant = part.variant ?? def.variants?.[0];
+    // Los nombres de variante traen espacios ("dark gray"); los archivos, guiones bajos ("dark_gray").
+    const variant = (part.variant ?? def.variants?.[0])?.replace(/ /g, '_');
     let candidates;
     if (layer.custom_animation) {
       if (layer.custom_animation !== custom) return null;

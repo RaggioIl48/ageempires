@@ -38,9 +38,11 @@ function sample(img, s, t) {
 }
 
 /**
- * Dibuja objetos: [{ tris, tex, ao?, mode, clip? }]
+ * Dibuja objetos: [{ tris, tex, color?, ao?, mode, clip? }]
  *   tris: triángulos ya en espacio de casilla [{p:[u,v,h], n:[..], t0:[s,t], t1:[s,t]} ×3]
- *   mode: 'player' (alfa = color del jugador), 'trans' (alfa = transparencia), 'opaque'
+ *   color: [r, g, b] si no hay textura (materiales de color plano)
+ *   mode: 'player' (alfa = color del jugador), 'team' (toda la pieza lleva el color del jugador),
+ *         'trans' (alfa = transparencia), 'opaque'
  *   clip(u, v, h): false = no dibujar ese punto (para recortar tramos de muralla)
  * Devuelve { img, mask, ox, oy }: (ox, oy) = píxel donde cae u = v = h = 0.
  */
@@ -98,7 +100,8 @@ export function render(objects, { ss = 3, ambient = 0.52, diffuse = 0.62 } = {})
           }
           const lerp2 = (k) => (tri[0][k] ? [tri[0][k][0] * w0 + tri[1][k][0] * w1 + tri[2][k][0] * w2, tri[0][k][1] * w0 + tri[1][k][1] * w1 + tri[2][k][1] * w2] : null);
           const uv0 = lerp2('t0');
-          const tex = o.tex && uv0 ? sample(o.tex, uv0[0], uv0[1]) : [180, 180, 180, 255];
+          // Sin textura: el color plano de la pieza (materiales de FBX y OBJ), o gris.
+          const tex = o.tex && uv0 ? sample(o.tex, uv0[0], uv0[1]) : o.color ? [o.color[0], o.color[1], o.color[2], 255] : [180, 180, 180, 255];
           if (o.mode === 'trans' && tex[3] < 128) continue;
           let n = tri[0].n ? norm([0, 1, 2].map((k) => tri[0].n[k] * w0 + tri[1].n[k] * w1 + tri[2].n[k] * w2)) : faceN;
           // Cara vista de atrás: en una pieza recortada es el interior que dejó el corte, y se
@@ -115,7 +118,8 @@ export function render(objects, { ss = 3, ambient = 0.52, diffuse = 0.62 } = {})
           const k = lit * ao;
           depth[bi] = z;
           cover[bi] = 1;
-          const w = o.mode === 'player' && !cap ? 1 - tex[3] / 255 : 0;
+          // 'team': toda la pieza es pintura del jugador (p. ej. el casco de un tanque).
+          const w = o.mode === 'team' ? 1 : o.mode === 'player' && !cap ? 1 - tex[3] / 255 : 0;
           const gray = 200;
           for (let c = 0; c < 3; c++) color[bi * 3 + c] = Math.min(255, (tex[c] * (1 - w) + gray * w) * k);
           team[bi * 2] = Math.min(255, 235 * k);

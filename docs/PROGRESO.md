@@ -567,6 +567,18 @@ OpenGameArt), `tools/art/pixvoxel.mjs`:
 
 Every unit of every people now has its own art.
 
+**Replaced (2026-09-30)**: the voxel sprites looked too chunky next to the rest. Now, in the style of
+Total War: Napoleon:
+- Soldiers are thin LPC figures: line infantry with frock coat (player color), bicorne, white trousers,
+  knapsack and musket; machine gunners, anti-tank and mechanized infantry with steel helmets, jackets or
+  trench coats. The long gun is the CC0 LPC Shotgun layer, drawn over the walk and aim animations
+  (thicker for machine guns, an olive tube for the bazooka).
+- Heavy artillery uses the LPC field cannon.
+- Tank, armored car and airplane are CC0 3D models (T-12, GAZ-67, biplane) rendered by our renderer, now
+  able to read binary FBX and OBJ () and to paint whole parts in the player color.
+- Bug fixed: LPC items whose default variant has a space ("kite gray", "dark gray") were silently
+  skipped, so the Gaul and Ostrogoth shields were missing. They are drawn now.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

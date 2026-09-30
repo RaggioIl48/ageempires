@@ -138,9 +138,10 @@ Units are drawn with sprite sheets built by `tools/art/build.mjs` from open proj
 - [0 A.D.](https://play0ad.com) by Wildfire Games (fortresses, towers and walls of each people, the battering
   ram, the Gaulish war chariot and the Mongol traction trebuchet: 3D models
   rendered to isometric pictures by our own renderer, `tools/art/raster.mjs`),
-- [PixVoxel Isometric Wargame Sprites](https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites)
-  by Tommy Ettinger, CC0 (Industrial and Modern Age units: riflemen, machine guns, anti-tank soldiers, mechanized
-  infantry, armored cars, tanks, heavy artillery and airplanes, repainted with each player's color),
+- Industrial and Modern Age (Total War: Napoleon style): LPC soldiers in frock coats, bicornes and steel helmets with
+  the CC0 [LPC Shotgun](https://opengameart.org/content/lpc-shotgun-animation-and-icon) long gun by blancaster45; the
+  LPC field cannon for artillery; and CC0 3D models rendered by our renderer: [T-12 tank](https://opengameart.org/content/t-12-soviet-light-tank-lowpoly)
+  and [GAZ-67 jeep](https://opengameart.org/content/lowpoly-soviet-jeep) by artie31, [biplane](https://opengameart.org/content/low-poly-biplane) by mfep,
 - [Unknown Horizons](https://unknown-horizons.org) (buildings and trees: each people has its own building
   style in each age — e.g. the Romans go from timber-framed to stone, the Mongols live in tents until
   the Industrial Age — so buildings change look when you advance, as in Age of Empires).

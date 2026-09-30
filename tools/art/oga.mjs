@@ -18,6 +18,13 @@ export const OGA_PACKS = {
     url: 'https://opengameart.org/content/lpc-horse-riding-updated-091',
     notes: 'Horse cut-outs (front and back) and rider offsets, based on [LPC] Horses by bluecarrot16.',
   },
+  'lpc-shotgun': {
+    title: 'LPC Shotgun Animation and Icon',
+    authors: ['blancaster45'],
+    licenses: ['CC0'],
+    url: 'https://opengameart.org/content/lpc-shotgun-animation-and-icon',
+    notes: 'Long gun layer for LPC characters (walk and aim): the muskets and rifles of the Industrial and Modern Age soldiers.',
+  },
   'lpc-siege-weapons': {
     title: '[LPC] Siege Weapons',
     authors: ['bluecarrot16', 'Herodom'],
@@ -44,6 +51,8 @@ async function download(url, file) {
 }
 
 export async function ensureOgaFiles(cache) {
+  const gun = path.join(cache, 'oga/shotgun/gunanimation.png');
+  if (!fs.existsSync(gun)) await download(FILES + 'gunanimation.png', gun);
   const siege = path.join(cache, 'oga/siege');
   for (const [name, remote] of Object.entries(SIEGE)) {
     const file = path.join(siege, name);
