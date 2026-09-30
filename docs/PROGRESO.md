@@ -575,7 +575,7 @@ Total War: Napoleon:
   (thicker for machine guns, an olive tube for the bazooka).
 - Heavy artillery uses the LPC field cannon.
 - Tank, armored car and airplane are CC0 3D models (T-12, GAZ-67, biplane) rendered by our renderer, now
-  able to read binary FBX and OBJ () and to paint whole parts in the player color.
+  able to read binary FBX and OBJ (`tools/art/models.mjs`) and to paint whole parts in the player color.
 - Bug fixed: LPC items whose default variant has a space ("kite gray", "dark gray") were silently
   skipped, so the Gaul and Ostrogoth shields were missing. They are drawn now.
 
