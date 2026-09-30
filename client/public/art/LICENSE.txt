@@ -11,6 +11,12 @@ The images in this folder (units/*.png and buildings/*.png) come from open-licen
     https://opengameart.org/content/lpc-horse-riding-updated-091
   - [LPC] Siege Weapons, by bluecarrot16 and Herodom
     https://opengameart.org/content/lpc-siege-weapons
+  - 0 A.D., by Wildfire Games (fortresses, towers, walls, battering ram, war chariot, trebuchet,
+    siege tower: 3D models rendered by tools/art/raster.mjs), CC-BY-SA 3.0: https://play0ad.com
+  - PixVoxel Very Diverse Isometric Wargame Sprites, by Tommy Ettinger (Industrial and Modern Age
+    units: riflemen, machine guns, anti-tank, mechanized infantry, armored cars, tanks, artillery,
+    airplanes; repainted with the player color), CC0:
+    https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites
   - Unknown Horizons (buildings, buildings/*.png), by the Unknown Horizons team,
     CC-BY-SA 3.0: https://unknown-horizons.org
 

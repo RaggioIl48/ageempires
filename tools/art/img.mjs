@@ -13,7 +13,11 @@ export class Img {
   }
 
   static read(file) {
-    const png = PNG.sync.read(fs.readFileSync(file));
+    let buf = fs.readFileSync(file);
+    // Algunos PNG traen basura después del final (IEND): se corta ahí.
+    const end = buf.lastIndexOf('IEND');
+    if (end > 0 && end + 8 < buf.length) buf = buf.subarray(0, end + 8);
+    const png = PNG.sync.read(buf);
     return new Img(png.width, png.height, new Uint8Array(png.data));
   }
 

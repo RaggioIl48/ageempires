@@ -552,6 +552,21 @@ infantry crosses onto that section with no delay and no penalty. Ladders now tak
 
 **Tests**: 295.
 
+## Art for the Industrial and Modern Ages (2026-09-29)
+
+The last 8 units without art (rifleman, machine gun, armored car, anti-tank, mechanized infantry, tank,
+heavy artillery, airplane) now use the **PixVoxel Isometric Wargame Sprites** by Tommy Ettinger (CC0,
+OpenGameArt), `tools/art/pixvoxel.mjs`:
+- The "Blank" version stores a palette index per pixel: the paint indices (those that change between
+  the pack's paint palettes) become the team mask, so every vehicle and uniform takes the player's color.
+- 4 isometric facings spread over the game's 8 directions; idle, move (4 frames), attack with muzzle
+  flashes and death (vehicles blow up and flip over). Half of the attack/death frames and effects cut
+  near the unit: the 8 sheets weigh 0.85 MB.
+- Own PNG reader for these indexed files (the usual library rejected some of them).
+- Airplanes are drawn in the air with their shadow on the ground.
+
+Every unit of every people now has its own art.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

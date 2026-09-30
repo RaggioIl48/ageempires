@@ -23,6 +23,10 @@
    "url": "https://github.com/unknown-horizons/unknown-horizons",
    "version": "af9c8ef5c7f6cf9ec0b8c9e7d172c555f2793615"
   },
+  "pixvoxel": {
+   "title": "PixVoxel Very Diverse Isometric Wargame Sprites",
+   "url": "https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites"
+  },
   "0ad": {
    "title": "0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)",
    "url": "https://github.com/0ad/0ad",
@@ -1431,6 +1435,20 @@
     "https://opengameart.org/content/lpc-siege-weapons"
    ],
    "notes": ""
+  },
+  "pixvoxel": {
+   "pack": "pixvoxel",
+   "title": "PixVoxel Very Diverse Isometric Wargame Sprites",
+   "authors": [
+    "Tommy Ettinger"
+   ],
+   "licenses": [
+    "CC0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/pixvoxel-very-diverse-isometric-wargame-sprites"
+   ],
+   "notes": "Industrial and Modern Age units (riflemen, machine guns, anti-tank, mechanized infantry, armored cars, tanks, artillery, airplanes), repainted with each player's color."
   },
   "uh:barracks-props": {
    "pack": "uh",

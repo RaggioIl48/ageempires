@@ -23,6 +23,7 @@ import { UH_COMMIT, UH_CREDITS, UH_REPO, buildBuildings } from './buildings.mjs'
 import { buildForts } from './forts.mjs';
 import { ZEROAD_COMMIT, ZEROAD_CREDIT, ZEROAD_REPO, ZeroAD } from './zeroad.mjs';
 import { cropRender, render } from './raster.mjs';
+import { PIXVOXEL_CREDIT, PIXVOXEL_UNITS, buildPixVoxel } from './pixvoxel.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -139,6 +140,17 @@ async function main() {
     console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
+  // ---------- Eras Industrial y Moderna: PixVoxel (CC0), con el color de cada jugador ----------
+  if (!only || only === 'pixvoxel' || PIXVOXEL_UNITS.some((u) => u.id === only)) {
+    for (const v of await buildPixVoxel(CACHE)) {
+      if (only && only !== 'pixvoxel' && only !== v.id) continue;
+      const packed = packSheet(v.anims);
+      const license = sheetLicense([normalizeLicenses(PIXVOXEL_CREDIT.licenses)]);
+      save(v.id, [v.unit], packed, { scale: v.scale, o: 'oga8', credits: ['pixvoxel'], license });
+      console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  scale ${v.scale}  ${license}`);
+    }
+  }
+
   // ---------- Edificios (Unknown Horizons) y fuertes, torres y murallas (0 A.D.) ----------
   let buildingCredits = [];
   if (!only || only === 'buildings') {
@@ -159,6 +171,7 @@ async function main() {
   }
   for (const [id, c] of Object.entries(UH_CREDITS)) addCredit(id, { ...c, licenses: normalizeLicenses(c.licenses) });
   addCredit('0ad:structures', { ...ZEROAD_CREDIT, licenses: normalizeLicenses(ZEROAD_CREDIT.licenses) });
+  addCredit('pixvoxel', { ...PIXVOXEL_CREDIT, licenses: normalizeLicenses(PIXVOXEL_CREDIT.licenses) });
 
   for (const [key, pack] of Object.entries(OGA_PACKS))
     addCredit(`oga:${key}`, { pack: key, title: pack.title, authors: pack.authors, licenses: normalizeLicenses(pack.licenses), urls: [pack.url], notes: pack.notes ?? '' });
@@ -178,6 +191,7 @@ async function main() {
       lpc: { title: 'Universal LPC Spritesheet Character Generator', url: LPC_REPO, version: LPC_COMMIT },
       ...Object.fromEntries(Object.entries(OGA_PACKS).map(([k, v]) => [k, { title: v.title, url: v.url }])),
       uh: { title: 'Unknown Horizons (buildings)', url: UH_REPO, version: UH_COMMIT },
+      pixvoxel: { title: PIXVOXEL_CREDIT.title, url: PIXVOXEL_CREDIT.urls[0] },
       '0ad': { title: '0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
     },
     items,

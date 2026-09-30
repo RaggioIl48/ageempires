@@ -1146,7 +1146,9 @@ export const FLY_HEIGHT = 40;
 
 /** Altura de la figura sobre los pies (px del mundo): la del sprite si tiene. */
 export function unitTop(type: UnitType, faction: FactionId): number {
-  return Math.max(UNIT_LOOK[type].top, spriteTop(faction, type) ?? 0);
+  const sprite = spriteTop(faction, type);
+  if (type === 'airplane' && sprite) return FLY_HEIGHT + sprite; // vuela: la barra va sobre el avión
+  return Math.max(UNIT_LOOK[type].top, sprite ?? 0);
 }
 
 /**
@@ -1165,7 +1167,16 @@ export function drawUnit(
   face = Math.PI / 2,
 ): void {
   // Primero el arte de sprites (proyectos abiertos); si no hay, las formas de abajo.
-  const art = faction && u.type !== 'airplane' ? drawSpriteUnit(ctx, u, x, y, color, now, faction, face, UNIT_LOOK[u.type].half) : null;
+  // El avión vuela: su sombra queda en el suelo y la figura, arriba (con un leve vaivén).
+  const flying = u.type === 'airplane';
+  if (flying && faction) {
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 14, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const bob = flying ? Math.sin(now / 500 + u.id) * 2 : 0;
+  const art = faction ? drawSpriteUnit(ctx, u, x, flying ? y - FLY_HEIGHT + bob : y, color, now, faction, face, flying ? 0 : UNIT_LOOK[u.type].half) : null;
   if (art) {
     if (u.carryType && u.carryAmount) {
       ctx.fillStyle = RESOURCE_COLORS[u.carryType];
