@@ -46,15 +46,20 @@ export class UnitGrid {
   private key(cx: number, cy: number): number {
     return cy * 10_000 + cx;
   }
-  /** Unidades a distancia ≤ r de (x, y). */
-  *near(x: number, y: number, r: number): Generator<Unit> {
-    const c = UnitGrid.CELL;
-    for (let cy = Math.floor((y - r) / c); cy <= Math.floor((y + r) / c); cy++)
-      for (let cx = Math.floor((x - r) / c); cx <= Math.floor((x + r) / c); cx++) {
+  /** Unidades vivas a distancia ≤ r de (x, y). (Un arreglo: mucho más rápido que un generador.) */
+  near(x: number, y: number, r: number): Unit[] {
+    const c = UnitGrid.CELL, r2 = r * r, out: Unit[] = [];
+    const cx1 = Math.floor((x + r) / c), cy1 = Math.floor((y + r) / c);
+    for (let cy = Math.floor((y - r) / c); cy <= cy1; cy++)
+      for (let cx = Math.floor((x - r) / c); cx <= cx1; cx++) {
         const list = this.cells.get(this.key(cx, cy));
         if (!list) continue;
-        for (const u of list) if (u.hp > 0 && Math.hypot(u.x - x, u.y - y) <= r) yield u;
+        for (let i = 0; i < list.length; i++) {
+          const u = list[i], dx = u.x - x, dy = u.y - y;
+          if (u.hp > 0 && dx * dx + dy * dy <= r2) out.push(u);
+        }
       }
+    return out;
   }
 }
 

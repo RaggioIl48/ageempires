@@ -143,13 +143,25 @@ function nearestEnemy(world: World, u: Unit, r: number, grid?: UnitGrid): Unit |
   return best;
 }
 
+/** Último "¿hay enemigos cerca?" de cada unidad (por partida). */
+const dangerByWorld = new WeakMap<World, Map<number, boolean>>();
+const DANGER_EVERY = 3;
+
 /** Recuperación de moral y reagrupamiento (una vez por paso). */
 export function updateMorale(world: World, dt: number): void {
+  let dangerSeen = dangerByWorld.get(world);
+  if (!dangerSeen) dangerByWorld.set(world, (dangerSeen = new Map()));
+  if (dangerSeen.size > world.units.size * 2 + 100) for (const id of dangerSeen.keys()) if (!world.units.has(id)) dangerSeen.delete(id);
   let grid: UnitGrid | null = null;
   for (const u of world.units.values()) {
     if (!hasMorale(u) || (u.morale >= MORALE_MAX && u.routing === 0)) continue;
-    grid ??= new UnitGrid(world);
-    const danger = nearestEnemy(world, u, DANGER_RADIUS, grid) !== null;
+    // ¿Hay enemigos cerca? Se mira cada DANGER_EVERY pasos (escalonado por unidad): la moral cambia despacio.
+    let danger = dangerSeen.get(u.id);
+    if (danger === undefined || (world.tick + u.id) % DANGER_EVERY === 0) {
+      grid ??= new UnitGrid(world);
+      danger = nearestEnemy(world, u, DANGER_RADIUS, grid) !== null;
+      dangerSeen.set(u.id, danger);
+    }
     if (u.routing > 0) {
       u.morale = Math.min(MORALE_MAX, u.morale + (danger ? MORALE_REGEN_COMBAT * 2 : MORALE_REGEN_ROUT) * dt);
       if (u.routing > 1) u.routing--;

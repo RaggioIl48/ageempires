@@ -94,6 +94,8 @@ export function buildTerrainTexture(state: ClientState): HTMLCanvasElement {
 
 /** Escala del terreno horneado (px del lienzo por px del mundo). */
 const BAKE = 0.5;
+/** Escala de la imagen de niebla (es suave: alcanza con poca resolución). */
+const FOG_BAKE = 0.25;
 /** Margen de arriba (px del mundo) para lo que las colinas levantan. */
 const BAKE_TOP = MAX_LEVEL * ELEV_PX + 8;
 
@@ -207,6 +209,9 @@ const WALL_LIFT = 30;
 export class Renderer {
   private terrain: HTMLCanvasElement | null = null;
   private baked: HTMLCanvasElement | null = null;
+  /** Niebla ya pintada (y de qué versión de lo visible). */
+  private fog: HTMLCanvasElement | null = null;
+  private fogDrawn = -1;
   private mountains: { tx: number; ty: number }[] = [];
 
   /** Llamar al recibir un mapa nuevo. */
@@ -218,35 +223,54 @@ export class Renderer {
       for (let tx = 0; tx < state.size; tx++) if (state.tile(tx, ty) === TILE_MOUNTAIN) this.mountains.push({ tx, ty });
   }
 
-  /** Velo de niebla casilla por casilla, siguiendo el relieve (esquinas a su altura). */
-  private drawFog(ctx: CanvasRenderingContext2D, state: ClientState, vis: { x0: number; y0: number; x1: number; y1: number }): void {
+  /**
+   * Velo de niebla casilla por casilla, siguiendo el relieve (esquinas a su altura).
+   * Se pinta en una imagen chica solo cuando cambia lo que se ve (unas 6 veces por segundo)
+   * y en cada cuadro se dibuja esa imagen estirada: mucho más liviano y con bordes suaves.
+   */
+  private drawFog(ctx: CanvasRenderingContext2D, state: ClientState): void {
     const n = state.size;
-    const steps = 8;
-    const paths: Path2D[] = Array.from({ length: steps + 1 }, () => new Path2D());
-    const used = new Array<boolean>(steps + 1).fill(false);
-    for (let ty = 0; ty < n; ty++)
-      for (let tx = 0; tx < n; tx++) {
-        const f = state.fogLevel[ty * n + tx];
-        if (f <= 0.01) continue;
-        const c = worldToPx(tx + 0.5, ty + 0.5);
-        if (c.px < vis.x0 - 64 || c.px > vis.x1 + 64 || c.py < vis.y0 - 64 || c.py > vis.y1 + 96) continue;
-        const k = Math.round(f * steps);
-        const a = worldToPx(tx, ty), b = worldToPx(tx + 1, ty), d = worldToPx(tx + 1, ty + 1), e = worldToPx(tx, ty + 1);
-        const p = paths[k];
-        p.moveTo(a.px, a.py - 0.5);
-        p.lineTo(b.px + 0.5, b.py);
-        p.lineTo(d.px, d.py + 0.5);
-        p.lineTo(e.px - 0.5, e.py);
-        p.closePath();
-        used[k] = true;
-      }
-    for (let k = 1; k <= steps; k++) {
-      if (!used[k]) continue;
-      const f = k / steps;
-      // Lo que no se ve ahora: un velo oscuro (todo el mapa está a la vista, más apagado).
-      ctx.fillStyle = `rgba(8,10,16,${Math.min(0.62, f * 1.25)})`;
-      ctx.fill(paths[k]);
+    const W = Math.ceil(n * TILE_W * FOG_BAKE), H = Math.ceil((n * TILE_H + BAKE_TOP + 8) * FOG_BAKE);
+    if (!this.fog || this.fog.width !== W || this.fog.height !== H) {
+      this.fog = document.createElement('canvas');
+      this.fog.width = W;
+      this.fog.height = H;
+      this.fogDrawn = -1;
     }
+    if (this.fogDrawn !== state.fogVersion) {
+      this.fogDrawn = state.fogVersion;
+      const fc = this.fog.getContext('2d')!;
+      fc.setTransform(1, 0, 0, 1, 0, 0);
+      fc.clearRect(0, 0, W, H);
+      fc.setTransform(FOG_BAKE, 0, 0, FOG_BAKE, (n * TILE_W * FOG_BAKE) / 2, BAKE_TOP * FOG_BAKE);
+      const steps = 8;
+      const paths: Path2D[] = Array.from({ length: steps + 1 }, () => new Path2D());
+      const used = new Array<boolean>(steps + 1).fill(false);
+      for (let ty = 0; ty < n; ty++)
+        for (let tx = 0; tx < n; tx++) {
+          const f = state.fogLevel[ty * n + tx];
+          if (f <= 0.01) continue;
+          const k = Math.round(f * steps);
+          const a = worldToPx(tx, ty), b = worldToPx(tx + 1, ty), d = worldToPx(tx + 1, ty + 1), e = worldToPx(tx, ty + 1);
+          const p = paths[k];
+          p.moveTo(a.px, a.py - 2);
+          p.lineTo(b.px + 2, b.py);
+          p.lineTo(d.px, d.py + 2);
+          p.lineTo(e.px - 2, e.py);
+          p.closePath();
+          used[k] = true;
+        }
+      for (let k = 1; k <= steps; k++) {
+        if (!used[k]) continue;
+        // Lo que no se ve ahora: un velo oscuro (todo el mapa está a la vista, más apagado).
+        fc.fillStyle = `rgba(8,10,16,${Math.min(0.62, (k / steps) * 1.25)})`;
+        fc.fill(paths[k]);
+      }
+    }
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.fog, -(n * TILE_W) / 2, -BAKE_TOP, W / FOG_BAKE, H / FOG_BAKE);
+    ctx.restore();
   }
 
   get terrainTexture(): HTMLCanvasElement | null {
@@ -336,7 +360,7 @@ export class Renderer {
     }
 
     // Niebla de guerra: negro donde nunca se estuvo, velo gris donde no se ve ahora.
-    if (state.fog) this.drawFog(ctx, state, vis);
+    if (state.fog) this.drawFog(ctx, state);
 
     // Frente de formación que se está arrastrando: la línea, los puestos y una flecha hacia adelante.
     if (front) {

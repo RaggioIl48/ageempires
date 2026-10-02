@@ -588,8 +588,16 @@ export class World {
     return this.height.at(x, y);
   }
 
+  /** Estadísticas por jugador y tipo, guardadas mientras no cambien sus tecnologías (se piden miles de veces por paso). */
+  private statsMemo = new Map<number, { techs: TechMask; faction: FactionId; byType: Map<UnitType, UnitStats> }>();
+
   statsOf(u: Unit): UnitStats {
-    return unitStats(this.factionOf(u.owner), u.type, this.techsOf(u.owner));
+    const techs = this.techsOf(u.owner), faction = this.factionOf(u.owner);
+    let m = this.statsMemo.get(u.owner);
+    if (!m || m.techs !== techs || m.faction !== faction) this.statsMemo.set(u.owner, (m = { techs, faction, byType: new Map() }));
+    let s = m.byType.get(u.type);
+    if (!s) m.byType.set(u.type, (s = unitStats(faction, u.type, techs)));
+    return s;
   }
 
   /** Tecnologías investigadas por un jugador (máscara). */
