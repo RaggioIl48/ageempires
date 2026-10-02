@@ -77,10 +77,10 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
     cancelWars(world, from, target);
     if (kind === 'alliance') {
       world.setRelation(from, target, 'ally');
-      world.announce(`📜 ${me.name} and ${other.name} are now allies`);
+      world.announce(`📜 ${me.name} and ${other.name} are now allies`, 'alliance');
     } else {
       world.setRelation(from, target, 'peace');
-      world.announce(`🕊 ${me.name} and ${other.name} made peace`);
+      world.announce(`🕊 ${me.name} and ${other.name} made peace`, 'peace');
     }
   };
 
@@ -101,7 +101,7 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
     case 'breakAlliance':
       if (rel !== 'ally') return;
       world.setRelation(from, target, 'peace');
-      world.announce(`💔 ${me.name} broke their alliance with ${other.name}`);
+      world.announce(`💔 ${me.name} broke their alliance with ${other.name}`, 'break');
       return;
     case 'declareWar': {
       if (rel === 'war' || world.pendingWars.some((w) => pair(w.from, w.to) === pair(from, target))) return;
@@ -109,7 +109,9 @@ export function diplo(world: World, from: number, action: DiploAction, target: n
       for (const p of world.proposals.filter((q) => pair(q.from, q.to) === pair(from, target))) remove(p);
       world.pendingWars.push({ from, to: target, at: world.tick + WAR_DELAY_SEC * TICK_RATE });
       world.diploVersion++;
-      world.announce(`⚔ ${me.name} declared war on ${other.name}: it starts in ${WAR_DELAY_SEC} seconds`);
+      // Declarar la guerra a un aliado es una traición (para la crónica de la partida).
+      if (rel === 'ally') world.announce(`🗡 ${me.name} betrayed their ally ${other.name} and declared war: it starts in ${WAR_DELAY_SEC} seconds`, 'betrayal');
+      else world.announce(`⚔ ${me.name} declared war on ${other.name}: it starts in ${WAR_DELAY_SEC} seconds`, 'war');
       return;
     }
     case 'proposePeace':
@@ -148,7 +150,7 @@ export function updateDiplomacy(world: World): void {
       for (const w of starting) {
         world.setRelation(w.from, w.to, 'war');
         const a = world.players.get(w.from)?.name, b = world.players.get(w.to)?.name;
-        world.announce(`⚔ War has started between ${a} and ${b}`);
+        world.announce(`⚔ War has started between ${a} and ${b}`, 'warStart');
       }
     }
   }

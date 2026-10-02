@@ -3,7 +3,8 @@
 // volver a entrar solo si se corta la conexión o se recarga la página.
 
 import { ERAS, FACTIONS } from '../../shared/data.ts';
-import type { PlayerSummary, ServerMessage } from '../../shared/protocol.ts';
+import type { ChronicleEntry, HistorySample, PlayerSummary, ServerMessage } from '../../shared/protocol.ts';
+import { reportHtml } from './report.ts';
 import { loadArt } from './art.ts';
 import { setupCredits } from './credits.ts';
 import { GameView } from './game.ts';
@@ -239,7 +240,7 @@ function onMessage(msg: ServerMessage): void {
       game.hud.update();
       return;
     case 'ended':
-      showEnd(msg.reason, msg.summary, msg.winners ?? []);
+      showEnd(msg.reason, msg.summary, msg.winners ?? [], msg.history ?? [], msg.chronicle ?? []);
       return;
   }
 }
@@ -267,23 +268,39 @@ function showPause(on: boolean, secs?: number, battle = false): void {
 }
 
 /** Resultados al terminar la partida. */
-function showEnd(reason: string, summary: PlayerSummary[], winners: number[]): void {
+function showEnd(reason: string, summary: PlayerSummary[], winners: number[], history: HistorySample[], chronicle: ChronicleEntry[]): void {
   el('paused').classList.add('hidden');
   const sorted = [...summary].sort((a, b) => Number(winners.includes(b.id)) - Number(winners.includes(a.id)) || (b.glory ?? 0) - (a.glory ?? 0));
   const you = game.state.you;
   const rows = sorted
     .map(
       (p) => `<tr class="${p.id === game.state.you ? 'me' : ''}"><td>${winners.includes(p.id) ? '🏆 ' : p.defeated ? '💀 ' : ''}<i style="background:${p.color}"></i>${esc(p.name)}</td>
-        <td>${esc(FACTIONS[p.faction].name)}</td><td><b>${p.glory ?? 0}</b></td><td>${p.conquered ?? 0}</td><td>${p.gathered}</td><td>${p.units}</td><td>${p.buildings}</td><td>${p.kills}</td><td>${ERAS[(p.era ?? 1) - 1].short}</td></tr>`,
+        <td>${esc(FACTIONS[p.faction].name)}</td><td><b>${p.glory ?? 0}</b></td><td>${p.conquered ?? 0}</td><td>${p.gathered}</td><td>${p.units}</td><td>${p.buildings}</td><td>${p.kills}</td><td>${p.lost ?? 0}</td><td>${ERAS[(p.era ?? 1) - 1].short}</td></tr>`,
     )
     .join('');
   const box = el('ended');
   const title = you > 0 ? (winners.includes(you) ? '🏆 Victory!' : '💀 Defeat') : 'Game over';
+  const report = reportHtml(history, chronicle, sorted);
   box.innerHTML = `<h2>${title}</h2><p>${esc(reason)}</p>
-    <table class="eco"><tr><th>Player</th><th>Faction</th><th>Glory</th><th>Cities taken</th><th>Gathered</th><th>Units</th><th>Buildings</th><th>Kills</th><th>Age</th></tr>${rows}</table>
-    <p class="muted">Glory: 3 per kill, 250 per city taken, 1 per second on the Sacred Hill, 50 per age, +1 per 50 resources gathered, +100 if your empire still stands.</p>
+    <div class="end-tabs" role="tablist">
+      <button class="on" data-tab="results" role="tab">🏆 Results</button>
+      <button data-tab="charts" role="tab">📈 Charts</button>
+      <button data-tab="chronicle" role="tab">📜 Chronicle</button>
+    </div>
+    <section data-pane="results">
+      <table class="eco"><tr><th>Player</th><th>Faction</th><th>Glory</th><th>Cities taken</th><th>Gathered</th><th>Units</th><th>Buildings</th><th>Kills</th><th>Lost</th><th>Age</th></tr>${rows}</table>
+      <p class="muted">Glory: 3 per kill, 250 per city taken, 1 per second on the Sacred Hill, 50 per age, +1 per 50 resources gathered, +100 if your empire still stands.</p>
+    </section>
+    <section data-pane="charts" class="hidden">${report.charts}</section>
+    <section data-pane="chronicle" class="hidden">${report.chronicle}</section>
     <button id="btn-end-close">${isTeacherPage ? 'Back to the panel' : 'Exit'}</button>`;
   box.classList.remove('hidden');
+  box.querySelector('.end-tabs')!.addEventListener('click', (e) => {
+    const tab = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset.tab;
+    if (!tab) return;
+    box.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+    box.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => p.classList.toggle('hidden', p.dataset.pane !== tab));
+  });
   el('btn-end-close').addEventListener('click', () => {
     if (isTeacherPage) backToPanel();
     else leaveToStart('');

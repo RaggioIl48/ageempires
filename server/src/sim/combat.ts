@@ -426,6 +426,8 @@ export function removeDead(world: World): void {
   for (const u of world.units.values()) {
     if (u.hp > 0) continue;
     deathMorale(world, u);
+    const owner = world.players.get(u.owner);
+    if (owner) owner.lost++;
     world.units.delete(u.id);
     world.events.push({ k: 'death', x: u.x, y: u.y });
   }

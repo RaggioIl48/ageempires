@@ -224,6 +224,33 @@ export interface PlayerSummary {
   buildings: number;
   kills: number;
   era: number;
+  /** Unidades perdidas en toda la partida. */
+  lost?: number;
+}
+
+/** Foto de un imperio en un momento de la partida (para los gráficos del final). */
+export interface HistoryPoint {
+  /** Recursos juntados en total. */
+  eco: number;
+  /** Valor del ejército vivo (suma de lo que costaron sus soldados). */
+  army: number;
+  workers: number;
+  kills: number;
+  /** Soldados y trabajadores perdidos en total. */
+  lost: number;
+  era: number;
+}
+export interface HistorySample {
+  /** Segundos de partida. */
+  t: number;
+  p: Record<number, HistoryPoint>;
+}
+/** Qué tipo de suceso es (para marcarlo en los gráficos y la crónica). */
+export type ChronicleKind = 'alliance' | 'peace' | 'break' | 'betrayal' | 'war' | 'warStart' | 'battle' | 'battleEnd' | 'conquest' | 'era' | 'fall' | 'other';
+export interface ChronicleEntry {
+  t: number;
+  k: ChronicleKind;
+  text: string;
 }
 
 // ---------- Cliente -> Servidor ----------
@@ -428,7 +455,7 @@ export type ServerMessage =
   | { t: 'players'; players: PlayerView[] }
   | DeltaMessage
   | { t: 'paused'; paused: boolean; /** Pausa táctica automática: segundos que dura. */ secs?: number; /** 1 si la causó una batalla que empieza. */ battle?: 1 }
-  | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[] }
+  | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[]; history?: HistorySample[]; chronicle?: ChronicleEntry[] }
   | { t: 'chat'; from: number; name: string; color: string; text: string; to: 'all' | 'allies' };
 
 /**

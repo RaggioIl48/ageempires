@@ -15,6 +15,7 @@ import { buildingCost, canHitAir, scaleCost } from '../../../shared/stats.ts';
 import { wallLine } from '../../../shared/wall.ts';
 import { assignBuild, needsWork, updateBuilders } from './build.ts';
 import { assignAttack, removeDead, spreadAttack, targetOf, updateCombat } from './combat.ts';
+import { recordHistory } from './history.ts';
 import { diplo, isEnemy, updateDiplomacy } from './diplomacy.ts';
 import { assignField, assignGather, fieldFull, isOwnField, stopWork, updateGatherers } from './gather.ts';
 import { generateWorld, type MapOptions } from './mapgen.ts';
@@ -73,6 +74,7 @@ export class Game {
     updateGatherers(w, dt);
     updateBuilders(w, dt);
     removeDead(w);
+    recordHistory(w);
     updateWar(w);
     updateVictory(w);
     updateSiege(w);
@@ -359,6 +361,7 @@ export class Game {
       units: [...w.units.values()].filter((u) => u.owner === p.id).length,
       buildings: [...w.buildings.values()].filter((b) => b.owner === p.id && b.progress >= 1).length,
       kills: p.kills,
+      lost: p.lost,
       era: p.era,
       glory: gloryOf(w, p.id),
       conquered: p.conquered,

@@ -25,7 +25,7 @@ import {
   MARKET_START,
   WALL_LEVELS,
 } from '../../../shared/data.ts';
-import type { BattleResultView, GameEvent, UnitState } from '../../../shared/protocol.ts';
+import type { BattleResultView, ChronicleEntry, ChronicleKind, GameEvent, HistorySample, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
 import { HeightField } from '../../../shared/terrain.ts';
 import { NO_TECHS, buildingMaxHp, canAfford, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
@@ -203,6 +203,8 @@ export interface Player {
   hillTicks: number;
   capitalHitBy: number;
   hadCapital: boolean;
+  /** Unidades perdidas (para la historia de la partida). */
+  lost: number;
   /** Era actual (1 = Tribal … 4 = Moderna). */
   era: number;
   /** Tecnologías investigadas (máscara en hexadecimal, ver stats.ts). */
@@ -332,6 +334,7 @@ export class World {
       hillTicks: 0,
       capitalHitBy: 0,
       hadCapital: false,
+      lost: 0,
       era: 1,
       techs: NO_TECHS,
     };
@@ -349,12 +352,17 @@ export class World {
   }
 
   /** Aviso para todos los jugadores (noticias diplomáticas). */
-  announce(text: string): void {
+  announce(text: string, kind: ChronicleKind = 'other'): void {
     for (const id of this.players.keys()) this.notify(id, text);
+    this.chronicle.push({ t: Math.round(this.tick / TICK_RATE), k: kind, text });
+    if (this.chronicle.length > 400) this.chronicle.shift();
     this.news.push(text);
     if (this.news.length > 30) this.news.shift();
     this.newsCount++;
   }
+  /** Historia de la partida: fotos cada 30 s y crónica de sucesos (para conversarla en clase). */
+  history: HistorySample[] = [];
+  chronicle: ChronicleEntry[] = [];
   /** Últimas noticias (para el profesor que mira) y cuántas hubo en total. */
   news: string[] = [];
   newsCount = 0;

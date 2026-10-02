@@ -202,7 +202,7 @@ function openBattle(world: World, attacker: number, defender: number, city: Poin
   world.battles.push(b);
   world.battlesOpened++;
   world.warVersion++;
-  world.announce(`⚔ Battle! ${nameOf(world, attacker)} attacks ${nameOf(world, defender)}'s city`);
+  world.announce(`⚔ Battle! ${nameOf(world, attacker)} attacks ${nameOf(world, defender)}'s city`, 'battle');
   const mins = Math.round((b.endTick - b.startTick) / TICK_RATE / 60);
   if (b.siege) {
     world.notify(attacker, `🏰 Siege of ${nameOf(world, defender)}'s city! Your infantry can climb the walls with ladders, or break the gate with rams. ${mins} minutes`);
@@ -293,7 +293,7 @@ function endBattle(world: World, b: Battle, end: BattleEnd): void {
     time: `${nameOf(world, b.defender)} held the city: ${nameOf(world, b.attacker)} ran out of time`,
     retreat: `${nameOf(world, b.attacker)} retreated from ${nameOf(world, b.defender)}'s city`,
   };
-  world.announce(`⚔ ${text[end]}`);
+  world.announce(`⚔ ${text[end]}`, end === 'fallen' ? 'conquest' : 'battleEnd');
   world.battleResults.push({ id: b.id, a: b.attacker, d: b.defender, winner, end, al, dl, buildings, loot });
 }
 

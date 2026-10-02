@@ -6,6 +6,8 @@ import { randomBytes } from 'node:crypto';
 import { FACTION_ORDER, PLAYER_COLORS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
 import type {
   BotLevel,
+  ChronicleEntry,
+  HistorySample,
   Command,
   MemberView,
   PlayerSummary,
@@ -18,6 +20,7 @@ import type {
 import { buildFrame, ClientSync, welcomeMessage } from '../net/sync.ts';
 import { initRelations } from '../sim/diplomacy.ts';
 import { AiPlayer } from '../sim/ai.ts';
+import { snapshot } from '../sim/history.ts';
 import { Game } from '../sim/game.ts';
 import { decideByGlory } from '../sim/victory.ts';
 import type { Conn } from './conn.ts';
@@ -59,7 +62,7 @@ export class Room {
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
   private nextMemberId = 1;
-  private ended: { reason: string; summary: PlayerSummary[]; winners: number[] } | null = null;
+  private ended: { reason: string; summary: PlayerSummary[]; winners: number[]; history?: HistorySample[]; chronicle?: ChronicleEntry[] } | null = null;
 
   constructor(
     readonly code: string,
@@ -300,7 +303,9 @@ export class Room {
     }
     this.phase = 'ended';
     this.paused = false;
-    this.ended = { reason, summary: this.game.summary(), winners };
+    const w = this.game.world;
+    w.history.push(snapshot(w)); // la foto final
+    this.ended = { reason, summary: this.game.summary(), winners, history: w.history, chronicle: w.chronicle };
     this.broadcast({ t: 'ended', ...this.ended });
     this.changed();
   }

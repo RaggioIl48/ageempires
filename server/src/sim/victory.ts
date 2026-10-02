@@ -56,7 +56,7 @@ export function defeat(world: World, playerId: number, by: number): void {
   world.warVersion++;
   world.victoryVersion++;
   const text = conqueror ? `${p.name}'s capital was taken by ${conqueror.name}: their empire has fallen!` : `${p.name}'s empire has fallen!`;
-  world.announce(text);
+  world.announce(text, 'fall');
   world.notify(playerId, 'Your capital has fallen: your empire is defeated. You can keep watching the game.');
 }
 

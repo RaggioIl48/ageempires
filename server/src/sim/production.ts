@@ -146,7 +146,7 @@ export function completeTech(world: World, playerId: number, tech: TechId): void
   const def = TECH_DEFS[tech];
   if (def.advancesTo !== undefined) {
     p.era = Math.max(p.era, def.advancesTo);
-    world.announce(`${p.name} advanced to the ${eraLabel(p.era)}`);
+    world.announce(`${p.name} advanced to the ${eraLabel(p.era)}`, 'era');
   } else world.notify(playerId, `Research complete: ${def.label}`);
 
   for (const u of world.units.values()) {
