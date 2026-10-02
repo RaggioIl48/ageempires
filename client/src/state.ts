@@ -31,6 +31,9 @@ export interface ClientUnit {
   prevY: number;
   /** Hacia dónde mira (ángulo en pantalla, y hacia abajo; π/2 = hacia la cámara). */
   face: number;
+  /** Velocidad real suavizada (casillas/s) y si de verdad está caminando (para animar). */
+  speed?: number;
+  moving?: boolean;
 }
 
 /** Unidad recién caída (para animar su muerte unos segundos). */
@@ -191,7 +194,9 @@ export class ClientState {
         this.fog = msg.settings.fog !== false && msg.you > 0;
         const n2 = msg.map.size ** 2;
         this.visible = new Uint8Array(n2).fill(this.fog ? 0 : 1);
-        this.explored = msg.map.exploredRle ? decodeTiles(msg.map.exploredRle, msg.map.size) : new Uint8Array(n2).fill(this.fog ? 0 : 1);
+        // Todo el mapa se ve desde el principio (terreno y recursos); la niebla solo oscurece
+        // lo que las tropas no ven ahora, y ahí no aparecen las tropas enemigas.
+        this.explored = new Uint8Array(n2).fill(1);
         this.fogLevel = new Float32Array(n2);
         this.lastVisionAt = -Infinity;
         this.settings = msg.settings;
@@ -341,7 +346,19 @@ export class ClientState {
   private updateFace(cu: ClientUnit): void {
     const v = cu.v;
     let dx = v.x - cu.prevX, dy = v.y - cu.prevY;
-    if (!v.walk) {
+    // Velocidad real (casillas por segundo, suavizada): los empujoncitos al separarse no cuentan
+    // como caminar, y el paso se anima a la velocidad con que de verdad avanza.
+    const step = Math.hypot(dx, dy) / (TICK_MS / 1000);
+    cu.speed = (cu.speed ?? 0) * 0.5 + step * 0.5;
+    const moving = (v.walk === 1 && cu.speed > 0.35) || cu.speed > 1.2;
+    cu.moving = moving;
+    if (!moving) [dx, dy] = [0, 0];
+    if (!moving) {
+      // Quieto: mira adonde dice el servidor (p. ej. el frente de la formación).
+      if (v.fc !== undefined) {
+        const a = (v.fc * Math.PI) / 4;
+        [dx, dy] = [Math.cos(a), Math.sin(a)];
+      }
       let t: { x: number; y: number } | null = null;
       if (v.targetId !== undefined && (v.state === 'attacking' || v.state === 'building')) t = this.targetPos(v.targetId);
       else if (v.state === 'gathering') t = this.nodeNear(v.x, v.y);

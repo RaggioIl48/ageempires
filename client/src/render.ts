@@ -243,8 +243,8 @@ export class Renderer {
     for (let k = 1; k <= steps; k++) {
       if (!used[k]) continue;
       const f = k / steps;
-      // 0.5 (explorado) → velo del 50 %; 1 (sin explorar) → negro.
-      ctx.fillStyle = `rgba(10,13,18,${Math.min(1, f <= 0.5 ? f : 0.5 + (f - 0.5) * 1.9)})`;
+      // Lo que no se ve ahora: un velo oscuro (todo el mapa está a la vista, más apagado).
+      ctx.fillStyle = `rgba(8,10,16,${Math.min(0.62, f * 1.25)})`;
       ctx.fill(paths[k]);
     }
   }
@@ -311,7 +311,7 @@ export class Renderer {
       // Sobre una muralla: el defensor arriba del todo; el que trepa, a media altura de la escala.
       const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: cu.v, x: p.x, y: p.y, face: cu.face, lift });
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed }, x: p.x, y: p.y, face: cu.face, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 

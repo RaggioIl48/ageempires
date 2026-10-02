@@ -79,7 +79,7 @@ export class Minimap {
     const img = ctx.createImageData(n, n);
     for (let i = 0; i < n * n; i++) {
       const f = this.state.fogLevel[i];
-      img.data[i * 4 + 3] = Math.round(255 * Math.min(1, f <= 0.5 ? f * 1.2 : 0.6 + (f - 0.5) * 0.8));
+      img.data[i * 4 + 3] = Math.round(255 * Math.min(0.6, f * 1.2));
     }
     ctx.putImageData(img, 0, 0);
   }

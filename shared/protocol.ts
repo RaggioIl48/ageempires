@@ -71,6 +71,10 @@ export interface UnitView {
   /** Trepando una muralla con escalas; torre de asedio acoplada. */
   cl?: 1;
   dk?: 1;
+  /** Hacia dónde mira según el servidor: 0–7 (octantes, 0 = +x, en sentido de +y). */
+  fc?: number;
+  /** Solo en el cliente: velocidad real (casillas/s), para animar el paso. */
+  sp?: number;
 }
 
 export interface NodeView {

@@ -90,6 +90,7 @@ const D = {
   pickaxe: 'tools/tool_pickaxe',
   hammer: 'tools/tool_hammer',
   hoe: 'tools/tool_hoe',
+  heaterCross: 'weapons/shields/heater/revised_pattern/shield_heater_revised_pattern_cross',
   // uniformes de las eras Industrial y Moderna (estilo Napoleón / Gran Guerra)
   frock: 'torso/jacket/torso_jacket_frock',
   frockCollar: 'torso/jacket/accessory/torso_jacket_frock_collar',
@@ -107,8 +108,8 @@ const D = {
 
 const p = (key, opt = {}) => ({ def: D[key], ...opt });
 const T = (key, opt = {}) => p(key, { team: true, ...opt });
-const heater = () => [p('heaterWood', { color: 'walnut' }), T('heaterPaint'), p('heaterTrim', { color: 'iron' })];
-const scutum = () => [T('scutum'), p('scutumTrim')];
+const heater = () => [p('heaterWood', { color: 'walnut' }), p('heaterPaint', { color: 'navy' }), T('heaterCross'), p('heaterTrim', { color: 'gold' })];
+const scutum = () => [p('scutum', { tint: '#a51c1c' }), p('scutumTrim')]; // rojo con borde dorado, como el de la legión
 
 // ---------- Pueblos ----------
 /**
@@ -188,53 +189,53 @@ function baseUnits(f) {
   u.worker = { kind: 'worker', parts: person(f, []) };
   switch (f) {
     case 'romans':
-      u.warrior = { attack: 'slash', parts: person(f, [p('leather', { colors: { color_1: 'brown' } }), p('helmLegion', { color: 'bronze' }), p('sword', { variant: 'iron' }), ...scutum()], { hair: false }) };
-      u.spearman = { attack: 'thrust', parts: person(f, [p('chainmail', { color: 'iron' }), p('helmLegion', { color: 'bronze' }), p('spear', { variant: 'iron' }), ...scutum()], { hair: false }) };
+      u.warrior = { attack: 'slash', parts: person(f, [p('leather', { colors: { color_1: 'brown' } }), p('helmLegion', { color: 'bronze' }), p('plumeLegion', { color: 'red' }), p('sword', { variant: 'iron' }), ...scutum()], { hair: false }) };
+      u.spearman = { attack: 'thrust', parts: person(f, [p('chainmail', { color: 'iron' }), p('helmLegion', { color: 'bronze' }), p('plumeLegion', { color: 'red' }), p('spear', { variant: 'iron' }), ...scutum()], { hair: false }) };
       u.archer = { attack: 'shoot', parts: person(f, [p('capLeather'), p('bow', { variant: 'medium' }), p('arrow')], { hair: false }) };
-      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('helmLegion', { color: 'bronze' }), p('spear', { variant: 'iron' })], { hair: false }) };
-      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('legion', { color: 'steel' }), T('cape'), p('helmLegion', { color: 'steel' }), p('plumeLegion', { color: 'red' }), p('spear', { variant: 'steel' })], { hair: false }) };
+      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('round', { variant: 'silver' }), p('helmLegion', { color: 'bronze' }), p('spear', { variant: 'iron' })], { hair: false }) };
+      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('round', { variant: 'silver' }), p('legion', { color: 'steel' }), T('cape'), p('helmLegion', { color: 'steel' }), p('plumeLegion', { color: 'red' }), p('spear', { variant: 'steel' })], { hair: false }) };
       break;
     case 'mongols':
       u.warrior = { attack: 'slash', parts: person(f, [p('leather', { colors: { color_1: 'walnut' } }), p('helmPointed', { color: 'steel' }), p('saber')], { hair: false }) };
       u.spearman = { attack: 'thrust', parts: person(f, [p('leather', { colors: { color_1: 'walnut' } }), p('helmPointed', { color: 'steel' }), p('spear', { variant: 'iron' })], { hair: false }) };
       u.archer = { attack: 'shoot', parts: person(f, [p('helmPointed', { color: 'bronze' }), p('recurve', { variant: 'medium' }), p('arrow')], { hair: false }) };
       u.scout = { kind: 'horse', attack: 'shoot', parts: person(f, [p('helmPointed', { color: 'bronze' }), p('recurve', { variant: 'medium' }), p('arrow')], { hair: false }) };
-      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('leather', { colors: { color_1: 'walnut' } }), p('helmPointed', { color: 'steel' }), p('spear', { variant: 'steel' })], { hair: false }) };
+      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('legionShoulders', { color: 'bronze' }), T('cape'), p('leather', { colors: { color_1: 'walnut' } }), p('helmPointed', { color: 'steel' }), p('spear', { variant: 'steel' })], { hair: false }) };
       break;
     case 'gauls':
-      u.warrior = { attack: 'slash', parts: person(f, [p('longsword'), T('kite', { variant: 'kite gray' })]) };
-      u.spearman = { attack: 'thrust', parts: person(f, [p('helmBarbarian', { colors: { color_1: 'bronze', color_2: 'red' } }), p('spear', { variant: 'bronze' }), T('kite', { variant: 'kite gray' })], { hair: false }) };
+      u.warrior = { attack: 'slash', parts: person(f, [p('longsword'), p('kite', { variant: 'kite gray green' })]) };
+      u.spearman = { attack: 'thrust', parts: person(f, [p('helmBarbarian', { colors: { color_1: 'bronze', color_2: 'red' } }), p('spear', { variant: 'bronze' }), p('kite', { variant: 'kite gray green' })], { hair: false }) };
       u.archer = { attack: 'shoot', parts: person(f, [p('bow', { variant: 'light' }), p('arrow')]) };
-      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('spear', { variant: 'bronze' })]) };
-      u.knight = { kind: 'horse', attack: 'slash', parts: person(f, [p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarian', { colors: { color_1: 'bronze', color_2: 'red' } }), p('longsword')], { hair: false }) };
+      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('kite', { variant: 'kite gray green' }), p('spear', { variant: 'bronze' })]) };
+      u.knight = { kind: 'horse', attack: 'slash', parts: person(f, [p('kite', { variant: 'kite gray green' }), p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarian', { colors: { color_1: 'bronze', color_2: 'red' } }), p('longsword')], { hair: false }) };
       break;
     case 'germans':
-      u.warrior = { attack: 'slash', parts: person(f, [p('mace'), T('round', { variant: 'brown' })]) };
-      u.spearman = { attack: 'thrust', parts: person(f, [p('spear', { variant: 'iron' }), T('round', { variant: 'brown' })]) };
+      u.warrior = { attack: 'slash', parts: person(f, [p('mace'), p('round', { variant: 'brown' }), p('capeTattered', { color: 'brown' })]) };
+      u.spearman = { attack: 'thrust', parts: person(f, [p('spear', { variant: 'iron' }), p('round', { variant: 'brown' }), p('capeTattered', { color: 'brown' })]) };
       u.archer = { attack: 'shoot', parts: person(f, [p('bow', { variant: 'dark' }), p('arrow')]) };
-      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('spear', { variant: 'iron' })]) };
-      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarianNasal', { colors: { color_1: 'steel', color_2: 'brown' } }), p('spear', { variant: 'steel' })], { hair: false }) };
+      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('round', { variant: 'brown' }), p('capeTattered', { color: 'brown' }), p('spear', { variant: 'iron' })]) };
+      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('round', { variant: 'brown' }), p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarianNasal', { colors: { color_1: 'steel', color_2: 'brown' } }), p('spear', { variant: 'steel' })], { hair: false }) };
       break;
     case 'visigoths':
       u.warrior = { attack: 'slash', parts: person(f, [p('chainmail', { color: 'iron' }), p('helmSpangen', { color: 'steel' }), p('sword', { variant: 'iron' }), ...heater()], { hair: false }) };
       u.spearman = { attack: 'thrust', parts: person(f, [p('helmSpangen', { color: 'steel' }), p('spear', { variant: 'iron' }), ...heater()], { hair: false }) };
       u.archer = { attack: 'shoot', parts: person(f, [p('hood', { color: 'brown' }), p('bow', { variant: 'medium' }), p('arrow')], { hair: false }) };
-      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('leather', { colors: { color_1: 'brown' } }), p('spear', { variant: 'iron' })]) };
-      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('chainmail', { color: 'steel' }), T('cape'), p('helmSpangen', { color: 'steel' }), p('longspear', { variant: 'steel' })], { hair: false }) };
+      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [...heater(), p('leather', { colors: { color_1: 'brown' } }), p('spear', { variant: 'iron' })]) };
+      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [...heater(), p('chainmail', { color: 'steel' }), T('cape'), p('helmSpangen', { color: 'steel' }), p('longspear', { variant: 'steel' })], { hair: false }) };
       break;
     case 'ostrogoths':
-      u.warrior = { attack: 'slash', parts: person(f, [p('helmNasal', { color: 'steel' }), p('sword', { variant: 'iron' }), T('round', { variant: 'brown' })], { hair: false }) };
-      u.spearman = { attack: 'thrust', parts: person(f, [p('helmNasal', { color: 'steel' }), p('spear', { variant: 'iron' }), T('kite', { variant: 'kite gray' })], { hair: false }) };
+      u.warrior = { attack: 'slash', parts: person(f, [p('helmNasal', { color: 'steel' }), p('sword', { variant: 'iron' }), p('round', { variant: 'gold' })], { hair: false }) };
+      u.spearman = { attack: 'thrust', parts: person(f, [p('helmNasal', { color: 'steel' }), p('spear', { variant: 'iron' }), p('kite', { variant: 'kite red gray' })], { hair: false }) };
       u.archer = { attack: 'shoot', parts: person(f, [p('bow', { variant: 'medium' }), p('arrow')]) };
-      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('spear', { variant: 'iron' })]) };
-      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('chainmail', { color: 'steel' }), p('helmSpangen', { color: 'gold' }), p('longspear', { variant: 'steel' })], { hair: false }) };
+      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('kite', { variant: 'kite red gray' }), p('spear', { variant: 'iron' })]) };
+      u.knight = { kind: 'horse', attack: 'thrust', parts: person(f, [p('kite', { variant: 'kite red gray' }), T('cape'), p('chainmail', { color: 'steel' }), p('helmSpangen', { color: 'gold' }), p('longspear', { variant: 'steel' })], { hair: false }) };
       break;
     case 'vikings':
-      u.warrior = { attack: 'slash', parts: person(f, [p('helmSpangenViking', { color: 'steel' }), p('waraxe'), T('round', { variant: 'brown' })], { hair: false }) };
-      u.spearman = { attack: 'thrust', parts: person(f, [p('helmSpangenViking', { color: 'steel' }), p('spear', { variant: 'iron' }), T('round', { variant: 'brown' })], { hair: false }) };
+      u.warrior = { attack: 'slash', parts: person(f, [p('helmSpangenViking', { color: 'steel' }), p('waraxe'), p('round', { variant: 'yellow' })], { hair: false }) };
+      u.spearman = { attack: 'thrust', parts: person(f, [p('helmSpangenViking', { color: 'steel' }), p('spear', { variant: 'iron' }), p('round', { variant: 'black' })], { hair: false }) };
       u.archer = { attack: 'shoot', parts: person(f, [p('bow', { variant: 'dark' }), p('arrow')]) };
-      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('spear', { variant: 'iron' })]) };
-      u.knight = { kind: 'horse', attack: 'slash', parts: person(f, [p('chainmail', { color: 'iron' }), T('cape'), p('helmSpangenViking', { color: 'steel' }), p('waraxe')], { hair: false }) };
+      u.scout = { kind: 'horse', attack: 'thrust', parts: person(f, [p('round', { variant: 'yellow' }), p('spear', { variant: 'iron' })]) };
+      u.knight = { kind: 'horse', attack: 'slash', parts: person(f, [p('round', { variant: 'black' }), p('chainmail', { color: 'iron' }), T('cape'), p('helmSpangenViking', { color: 'steel' }), p('waraxe')], { hair: false }) };
       break;
   }
   for (const v of Object.values(u)) v.horse = L.horse;
@@ -255,12 +256,12 @@ function uniqueUnits() {
     },
     gauls: {
       fanatic: { attack: 'slash', bodyType: 'muscular', parts: [p('body', { color: r.gauls.skin }), p('head', { colors: { color_1: r.gauls.skin } }), p('hairLong', { color: 'carrot' }), p('bigstache', { color: 'carrot' }), T('pants'), p('longsword')] },
-      chosen_swordsman: { attack: 'slash', parts: person('gauls', [p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarian', { colors: { color_1: 'bronze', color_2: 'red' } }), p('longsword'), T('kite', { variant: 'kite gray' })], { hair: false }) },
+      chosen_swordsman: { attack: 'slash', parts: person('gauls', [p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarian', { colors: { color_1: 'bronze', color_2: 'red' } }), p('longsword'), p('kite', { variant: 'kite gray green' })], { hair: false }) },
     },
     germans: {
-      chosen_spearman: { attack: 'thrust', parts: person('germans', [p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarianNasal', { colors: { color_1: 'steel', color_2: 'brown' } }), p('spear', { variant: 'steel' }), T('round', { variant: 'brown' })], { hair: false }) },
+      chosen_spearman: { attack: 'thrust', parts: person('germans', [p('chainmail', { color: 'iron' }), T('cape'), p('helmBarbarianNasal', { colors: { color_1: 'steel', color_2: 'brown' } }), p('spear', { variant: 'steel' }), p('round', { variant: 'brown' })], { hair: false }) },
       axe_thrower: { attack: 'slash', parts: person('germans', [p('leather', { colors: { color_1: 'brown' } }), p('waraxe')]) },
-      chosen_axeman: { attack: 'slash', parts: person('germans', [p('chainmail', { color: 'steel' }), p('helmBarbarianNasal', { colors: { color_1: 'steel', color_2: 'brown' } }), p('waraxe'), T('round', { variant: 'brown' })], { hair: false }) },
+      chosen_axeman: { attack: 'slash', parts: person('germans', [p('chainmail', { color: 'steel' }), p('helmBarbarianNasal', { colors: { color_1: 'steel', color_2: 'brown' } }), p('waraxe'), p('round', { variant: 'brown' })], { hair: false }) },
     },
     visigoths: {
       gothic_knight: { kind: 'horse', attack: 'slash', horse: 'black', parts: person('visigoths', [p('plate', { color: 'steel' }), p('plateArms', { color: 'steel' }), T('cape'), p('helmNorman', { color: 'steel' }), p('longsword')], { hair: false }) },
@@ -269,12 +270,12 @@ function uniqueUnits() {
     },
     ostrogoths: {
       gothic_lancer: { kind: 'horse', attack: 'thrust', horse: 'gray', parts: person('ostrogoths', [p('chainmail', { color: 'steel' }), p('plateArms', { color: 'steel' }), T('cape'), p('helmSpangen', { color: 'gold' }), p('longspear', { variant: 'steel' })], { hair: false }) },
-      heavy_spearman: { attack: 'thrust', parts: person('ostrogoths', [p('chainmail', { color: 'steel' }), p('plateArms', { color: 'iron' }), p('helmNasal', { color: 'steel' }), p('longspear', { variant: 'steel' }), T('kite', { variant: 'kite gray' })], { hair: false }) },
-      gothic_warband: { attack: 'slash', parts: person('ostrogoths', [p('helmSpangen', { color: 'steel' }), p('sword', { variant: 'iron' }), T('round', { variant: 'brown' })], { hair: false }) },
+      heavy_spearman: { attack: 'thrust', parts: person('ostrogoths', [p('chainmail', { color: 'steel' }), p('plateArms', { color: 'iron' }), p('helmNasal', { color: 'steel' }), p('longspear', { variant: 'steel' }), p('kite', { variant: 'kite red gray' })], { hair: false }) },
+      gothic_warband: { attack: 'slash', parts: person('ostrogoths', [p('helmSpangen', { color: 'steel' }), p('sword', { variant: 'iron' }), p('round', { variant: 'gold' })], { hair: false }) },
     },
     vikings: {
       berserker: { attack: 'slash', bodyType: 'muscular', parts: [p('body', { color: r.vikings.skin }), p('head', { colors: { color_1: r.vikings.skin } }), p('hairLong', { color: 'sandy' }), p('beardWinter', { color: 'sandy' }), p('capeTattered', { color: 'brown' }), T('pants'), p('waraxe')] },
-      huscarl: { attack: 'slash', parts: person('vikings', [p('chainmail', { color: 'steel' }), T('cape'), p('helmSpangenViking', { color: 'steel' }), p('waraxe'), T('round', { variant: 'brown' })], { hair: false }) },
+      huscarl: { attack: 'slash', parts: person('vikings', [p('chainmail', { color: 'steel' }), T('cape'), p('helmSpangenViking', { color: 'steel' }), p('waraxe'), p('round', { variant: 'black' })], { hair: false }) },
       ulfhednar: { attack: 'slash', bodyType: 'muscular', parts: [p('body', { color: r.vikings.skin }), p('head', { colors: { color_1: r.vikings.skin } }), p('beardWinter', { color: 'dark_gray' }), p('hood', { color: 'gray' }), p('capeTattered', { color: 'gray' }), T('pants'), p('waraxe')] },
     },
   };

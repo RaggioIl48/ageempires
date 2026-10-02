@@ -953,6 +953,23 @@
    ],
    "notes": "original by ElizaWy, extended to all animation frames and v3 character base by bluecarrot16, adjusted postioning by JaidynReiman"
   },
+  "lpc:shield/heater/revised/pattern": {
+   "pack": "lpc",
+   "title": "revised_cross",
+   "authors": [
+    "bluecarrot16",
+    "Sander Frenken (castelonia)",
+    "ElizaWy",
+    "JaidynReiman"
+   ],
+   "licenses": [
+    "OGA-BY 3.0"
+   ],
+   "urls": [
+    "https://opengameart.org/content/lpc-shields"
+   ],
+   "notes": ""
+  },
   "lpc:shield/heater/revised/trim": {
    "pack": "lpc",
    "title": "Revised Heater Shield Trim",

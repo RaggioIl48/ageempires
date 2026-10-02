@@ -6,6 +6,7 @@
 //   variant archivo de color ya pintado (para piezas con "variants")
 //   color   color de paleta (p. ej. 'bronze'); colors = { color_1, color_2 } si tiene varias
 //   team    true = la pieza lleva el color del jugador (se guarda aparte, en gris, para teñirla)
+//   tint    '#rrggbb' = color fijo para piezas blancas (p. ej. el scutum rojo)
 //
 // Además de la imagen normal se arma una "máscara de equipo": los píxeles de las piezas
 // con team=true que quedan visibles.
@@ -70,7 +71,7 @@ export class Composer {
 
   /** Imagen de una capa ya recoloreada (y en gris si es de equipo). */
   async prep(l) {
-    const key = `${l.rel}|${l.part.variant ?? ''}|${JSON.stringify(l.part.color ?? l.part.colors ?? '')}|${l.part.team ? 1 : 0}`;
+    const key = `${l.rel}|${l.part.variant ?? ''}|${JSON.stringify(l.part.color ?? l.part.colors ?? '')}|${l.part.team ? 1 : 0}|${l.part.tint ?? ''}`;
     if (this.prepared.has(key)) return this.prepared.get(key);
     const img = (await this.lpc.img(l.rel)).clone();
     const rc = l.def.recolors;
@@ -83,6 +84,11 @@ export class Composer {
         const to = this.lpc.palette(spec.material, want[slot]);
         img.recolor(from, to);
       }
+    }
+    // Tinte fijo (piezas blancas pensadas para pintarse, como el scutum): multiplica por el color.
+    if (l.part.tint) {
+      const t = l.part.tint.match(/[0-9a-f]{2}/gi).map((h) => parseInt(h, 16) / 255);
+      for (let i = 0; i < img.data.length; i += 4) for (let k = 0; k < 3; k++) img.data[i + k] = Math.round(img.data[i + k] * t[k]);
     }
     if (l.part.team) img.toTeamGray();
     this.prepared.set(key, img);

@@ -283,9 +283,12 @@ export function drawSpriteUnit(
   const sheet = manifest!.sheets[id];
   const img = imageOf(id, sheet);
   if (!img) return null;
-  const a = sheet.anims[animName(u)] ?? sheet.anims.idle;
+  const name = animName(u);
+  const a = sheet.anims[name] ?? sheet.anims.idle;
   const t = now / 1000 + u.id * 0.37;
-  const f = Math.floor(t * a.fps) % a.n;
+  // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
+  const pace = name === 'walk' && u.sp ? Math.min(1.5, Math.max(0.45, u.sp / 1.4)) : 1;
+  const f = Math.floor(t * a.fps * pace) % a.n;
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
   ctx.ellipse(x, y, shadow * 0.8, shadow * 0.4, 0, 0, Math.PI * 2);

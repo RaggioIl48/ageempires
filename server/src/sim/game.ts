@@ -435,6 +435,7 @@ function unitView(u: Unit, tick: number): UnitView {
   if (tires(u) && u.stamina < 100) v.st = Math.floor(u.stamina / 5) * 5;
   if (u.climb > 0) v.cl = 1;
   if (u.docked) v.dk = 1;
+  v.fc = (Math.round(Math.atan2(u.fy, u.fx) / (Math.PI / 4)) + 8) % 8;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }
