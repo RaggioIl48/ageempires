@@ -27,7 +27,7 @@ describe('modo guardia', () => {
     const guard = w.addUnit('spearman', 1, 15.5, 15.5);
     g.enqueue(1, { kind: 'stance', unitIds: [guard.id], guard: true });
     g.step();
-    const foe = w.addUnit('scout', 2, 16.8, 15.5);
+    const foe = w.addUnit('warrior', 2, 16.8, 15.5);
     run(g, 1);
     expect(guard.task?.kind).toBe('attack');
     // El enemigo se va corriendo lejos: el de guardia vuelve a su puesto.

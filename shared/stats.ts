@@ -9,8 +9,13 @@
 
 import {
   BUILDING_DEFS,
+  BLADE_VS_CAVALRY,
+  BLADE_VS_SPEAR,
+  CAVALRY_VS_BLADE,
+  CAVALRY_VS_SPEAR,
   CHARGE_BONUS,
   DAMAGE_BONUS,
+  SPEAR_VS_CAVALRY,
   FACTIONS,
   FARM_GATHER_RATE,
   RESOURCE_TYPES,
@@ -28,6 +33,7 @@ import {
   type Resources,
   type StatMods,
   type TechId,
+  type Weapon,
   type UnitType,
 } from './data.ts';
 
@@ -79,6 +85,8 @@ export interface UnitStats {
   category: Category;
   /** Ventaja propia de esta unidad (además de la de su tipo). */
   bonus?: Partial<Record<Category, number>>;
+  /** Arma de la infantería (lanza o espada). */
+  weapon?: Weapon;
   flies: boolean;
   /** Vida que recupera por segundo (0 = no se cura sola). */
   regen: number;
@@ -127,6 +135,7 @@ export function unitStats(faction: FactionId, type: UnitType, mask: TechMask = N
       armor: { melee: def.armor.melee + m.armor, ranged: def.armor.ranged + m.armor },
       category: def.category,
       bonus: def.bonus,
+      weapon: def.weapon,
       flies: def.flies === true,
       regen: (def.regen ?? 0) + m.regen,
     };
@@ -191,9 +200,25 @@ export function carryCapacity(mask: TechMask = NO_TECHS): number {
 }
 
 /**
+ * Ventaja por el arma (Edad Media): lanza > caballería > espada > lanza.
+ * Devuelve undefined si no aplica ninguna regla.
+ */
+export function weaponMult(attack: AttackDef, attacker: Category, aw: Weapon | undefined, target: Category, tw: Weapon | undefined): number | undefined {
+  if (attack.type !== 'melee') return undefined;
+  if (aw === 'spear' && target === 'cavalry') return SPEAR_VS_CAVALRY;
+  if (aw === 'blade' && target === 'cavalry') return BLADE_VS_CAVALRY;
+  if (aw === 'blade' && tw === 'spear') return BLADE_VS_SPEAR;
+  if (attacker === 'cavalry' && tw === 'spear') return CAVALRY_VS_SPEAR;
+  if (attacker === 'cavalry' && tw === 'blade') return CAVALRY_VS_BLADE;
+  return undefined;
+}
+
+/**
  * Daño de un golpe: ataque × ventaja − armadura del objetivo (mínimo 1).
  * La ventaja propia de la unidad (p. ej. antitanque contra blindados)
  * reemplaza a la de su tipo. Ej.: guerrero (6) contra explorador: 6 × 1,5 − 0 = 9.
+ * El arma (lanza o espada) agrega piedra, papel o tijera: una debilidad del arma
+ * siempre manda; una fortaleza se suma a la ventaja propia (se queda la mayor).
  */
 export function damage(
   attack: AttackDef,
@@ -201,8 +226,12 @@ export function damage(
   target: Category,
   armor: Armor,
   bonus?: Partial<Record<Category, number>>,
+  aw?: Weapon,
+  tw?: Weapon,
 ): number {
-  const mult = bonus?.[target] ?? DAMAGE_BONUS[attacker]?.[target] ?? 1;
+  let mult = bonus?.[target] ?? DAMAGE_BONUS[attacker]?.[target] ?? 1;
+  const w = weaponMult(attack, attacker, aw, target, tw);
+  if (w !== undefined) mult = w < 1 ? Math.min(mult, w) : Math.max(mult, w);
   return Math.max(1, Math.round(attack.damage * mult - armor[attack.type]));
 }
 

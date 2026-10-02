@@ -188,8 +188,8 @@ describe('technologies', () => {
 describe('advanced units', () => {
   it('spearmen beat knights; knights beat archers', () => {
     const spear = unitStats('germans', 'spearman'), knight = unitStats('germans', 'knight'), archer = unitStats('germans', 'archer');
-    const spearHitsKnight = damage(spear.attack, 'infantry', 'cavalry', knight.armor, spear.bonus);
-    expect(spearHitsKnight).toBe(Math.round(6 * 2 - 2));
+    const spearHitsKnight = damage(spear.attack, 'infantry', 'cavalry', knight.armor, spear.bonus, spear.weapon);
+    expect(spearHitsKnight).toBe(Math.round(6 * 3.5 - 2));
     // Time to kill (in hits × cooldown): a spearman kills a knight faster than it dies... in pairs of 2 vs 1 cost-wise
     const knightHitsArcher = damage(knight.attack, 'cavalry', 'ranged', archer.armor, knight.bonus);
     expect(knightHitsArcher).toBeGreaterThanOrEqual(13);

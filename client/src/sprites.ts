@@ -1104,6 +1104,7 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   worker: { half: 9, top: 28, ring: 10 },
   warrior: { half: 9, top: 28, ring: 10 },
   spearman: { half: 9, top: 32, ring: 10 },
+  swordsman: { half: 9, top: 28, ring: 10 },
   archer: { half: 9, top: 28, ring: 10 },
   rifleman: { half: 9, top: 28, ring: 10 },
   machine_gun: { half: 13, top: 26, ring: 13 },
@@ -1234,7 +1235,8 @@ function drawUnitBody(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: 
   switch (u.type) {
     case 'worker':
       return drawWorker(ctx, u, x, y, color, t, walking, look);
-    case 'warrior': {
+    case 'warrior':
+    case 'swordsman': {
       const bob = soldier(ctx, x, y, color, t, walking, look.tunic, look.helmet);
       shieldOf(ctx, x - 6, y - 12 - bob, look.shield === 'none' ? { ...look, shield: 'round' } : look, color);
       const a = attacking ? Math.sin(t * 8) * 1.1 - 0.4 : -1.2;

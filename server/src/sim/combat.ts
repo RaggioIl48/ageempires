@@ -6,7 +6,7 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { elevationDamage } from '../../../shared/terrain.ts';
 import { isEnemy } from './diplomacy.ts';
@@ -141,8 +141,13 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
     const extra = buffArmor(t.unit) + Math.max(0, rankOf(t.unit.kills) - 1) + cover;
     if (extra) armor = { melee: armor.melee + extra, ranged: armor.ranged + extra };
   }
-  const bonus = attacker ? world.statsOf(attacker).bonus : undefined;
-  let dmg = damage(attack, cat, categoryOf(t, world), armor, bonus);
+  const as = attacker ? world.statsOf(attacker) : undefined;
+  const tw = t.kind === 'unit' ? world.statsOf(t.unit).weapon : undefined;
+  // De qué lado llega el golpe: de frente (0), de costado (1) o por la espalda (2).
+  const side: 0 | 1 | 2 = t.kind === 'unit' && attacker ? flankSide(t.unit, attacker.x, attacker.y) : 0;
+  // El muro de lanzas solo protege de frente: por el costado o la espalda, la caballería entra igual.
+  const twHit = tw === 'spear' && cat === 'cavalry' && side !== 0 ? undefined : tw;
+  let dmg = damage(attack, cat, categoryOf(t, world), armor, as?.bonus, as?.weapon, twHit);
   if (attacker && attacker.buff === 1) dmg = Math.round(dmg * buffDamage(attacker));
   // Veteranía: cada rango pega un poco más y el veterano de rango 2+ tiene más armadura.
   if (attacker && attacker.kills) dmg = Math.round(dmg * (1 + RANK_DAMAGE * rankOf(attacker.kills)));
@@ -162,9 +167,7 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   if (attacker && world.onWall(attacker) === 2) dmg = Math.max(1, Math.round(dmg * CLIMB_DAMAGE_DEALT));
   if (t.kind === 'unit' && world.onWall(t.unit) === 2) dmg = Math.round(dmg * CLIMB_DAMAGE_TAKEN);
   // Flancos (Attila): cuerpo a cuerpo de costado o por la espalda hace más daño; el que huye recibe más.
-  let side: 0 | 1 | 2 = 0;
   if (t.kind === 'unit') {
-    if (attacker) side = flankSide(t.unit, attacker.x, attacker.y);
     if (attack.type === 'melee') dmg = Math.round(dmg * (side === 2 ? REAR_DAMAGE : side === 1 ? FLANK_DAMAGE : 1));
     if (isRouting(t.unit)) dmg = Math.round(dmg * ROUTING_DAMAGE);
   }
@@ -176,9 +179,15 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   // Carga: la caballería cuerpo a cuerpo que lleva un rato sin pelear golpea más fuerte la primera vez.
   let charge = false;
   if (attacker && cat === 'cavalry' && attack.type === 'melee' && world.tick - attacker.lastStrike >= CHARGE_READY_SEC * TICK_RATE) {
-    dmg = Math.round(dmg * chargeOf(world.factionOf(owner)));
-    charge = true;
-    if (attacker) spend(attacker, FATIGUE_CHARGE);
+    spend(attacker, FATIGUE_CHARGE);
+    if (tw === 'spear' && side === 0) {
+      // De frente contra las lanzas: la carga se clava. Sin bonificación, y el jinete sale herido.
+      attacker.hp -= SPEAR_BRACE_DAMAGE;
+      world.events.push({ k: 'hit', x: attacker.x, y: attacker.y });
+    } else {
+      dmg = Math.round(dmg * chargeOf(world.factionOf(owner)));
+      charge = true;
+    }
   }
   if (attacker) attacker.lastStrike = world.tick;
   const at = centerOf(t);

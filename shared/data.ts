@@ -99,7 +99,7 @@ export const MELEE_REACH = 0.9;
 // ---------- Unidades ----------
 export type UnitType =
   | 'worker' | 'scout' | 'warrior'
-  | 'spearman' | 'archer' | 'knight'
+  | 'spearman' | 'swordsman' | 'archer' | 'knight'
   | 'rifleman' | 'machine_gun' | 'light_vehicle' | 'artillery'
   | 'tank' | 'mech_infantry' | 'antitank' | 'heavy_artillery' | 'airplane'
   // Unidades únicas de cada pueblo (Edad Media)
@@ -117,6 +117,12 @@ export type UnitType =
   // General (héroe): uno por jugador
   | 'general';
 
+/**
+ * Arma de la infantería de la Edad Media (piedra, papel o tijera, como en Total War):
+ * la lanza aplasta a la caballería, la espada aplasta a la lanza y la caballería aplasta a la espada.
+ */
+export type Weapon = 'spear' | 'blade';
+
 export interface UnitDef {
   label: string;
   hp: number;
@@ -133,6 +139,8 @@ export interface UnitDef {
   untilEra: number;
   /** Ventaja propia además de la de su tipo (p. ej. el antitanque contra blindados). */
   bonus?: Partial<Record<Category, number>>;
+  /** Arma de la infantería: lanza (contra caballería) o espada/hacha (contra infantería). */
+  weapon?: Weapon;
   /** Vuela: no la frenan el terreno ni los edificios, y solo la alcanzan ataques a distancia. */
   flies?: boolean;
   /** Cómo se dibuja su disparo: flecha (por defecto), bala o proyectil de cañón. */
@@ -175,8 +183,13 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   // Era 2 — Medieval
   spearman: {
     label: 'Spearman', hp: 55, speed: 1.3, sight: 4, pop: 1, cost: { food: 50, wood: 25 }, trainTime: 15,
-    attack: melee(6), armor: { melee: 1, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, bonus: { cavalry: 2 },
-    strong: 'Cheap. Very good against cavalry', weak: 'Loses to archers',
+    attack: melee(6), armor: { melee: 1, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, weapon: 'spear',
+    strong: 'Cheap spear wall: crushes cavalry and stops their charge', weak: 'Swordsmen and archers cut them down',
+  },
+  swordsman: {
+    label: 'Swordsman', hp: 70, speed: 1.3, sight: 4, pop: 1, cost: { food: 60, metal: 35 }, trainTime: 18,
+    attack: melee(9), armor: { melee: 2, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, weapon: 'blade',
+    strong: 'Line infantry: breaks spearmen and other foot soldiers', weak: 'Cavalry rides them down',
   },
   archer: {
     label: 'Archer', hp: 35, speed: 1.4, sight: 6, pop: 1, cost: { wood: 45, metal: 20 }, trainTime: 16,
@@ -186,7 +199,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   knight: {
     label: 'Knight', hp: 110, speed: 2.3, sight: 5, pop: 1, cost: { food: 70, metal: 70 }, trainTime: 24,
     attack: melee(9, 1.8), armor: { melee: 2, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2,
-    strong: 'Strong and fast. Good against archers', weak: 'Expensive; loses to spearmen',
+    strong: 'Strong and fast. Rides down swordsmen and archers', weak: 'Expensive; spearmen destroy it'
   },
   // Era 3 — Industrial
   rifleman: {
@@ -241,7 +254,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   // Romans
   legionary: {
     label: 'Legionary', hp: 85, speed: 1.3, sight: 4, pop: 1, cost: { food: 70, metal: 40 }, trainTime: 22,
-    attack: melee(9), armor: { melee: 3, ranged: 4 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans',
+    attack: melee(9), armor: { melee: 3, ranged: 4 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans', weapon: 'blade',
     strong: 'Heavy shield wall: holds any line', weak: 'Slow and costly',
   },
   general: {
@@ -279,20 +292,20 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   // Gauls
   fanatic: {
     label: 'Naked Fanatic', hp: 55, speed: 1.8, sight: 4, pop: 1, cost: { food: 60, wood: 20 }, trainTime: 14,
-    attack: melee(12, 1.3), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'gauls',
+    attack: melee(12, 1.3), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'gauls', weapon: 'blade',
     strong: 'Huge attack and fast', weak: 'No armor: arrows cut them down',
   },
   chosen_swordsman: {
     label: 'Chosen Swordsman', hp: 80, speed: 1.4, sight: 4, pop: 1, cost: { food: 70, metal: 40 }, trainTime: 20,
     attack: melee(10), armor: { melee: 2, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'gauls',
-    bonus: { infantry: 1.5, building: 2 },
+    bonus: { infantry: 1.5, building: 2 }, weapon: 'blade',
     strong: 'Elite swordsman: beats other infantry', weak: 'Loses to archers',
   },
   // Germans
   chosen_spearman: {
     label: 'Chosen Spearman', hp: 70, speed: 1.3, sight: 4, pop: 1, cost: { food: 60, wood: 30, metal: 10 }, trainTime: 18,
     attack: melee(8), armor: { melee: 2, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'germans',
-    bonus: { cavalry: 2.5 },
+    bonus: { cavalry: 4 }, weapon: 'spear',
     strong: 'Wall of spears: stops any cavalry', weak: 'Loses to archers',
   },
   axe_thrower: {
@@ -322,20 +335,20 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   heavy_spearman: {
     label: 'Heavy Spearman', hp: 80, speed: 1.2, sight: 4, pop: 1, cost: { food: 60, metal: 30 }, trainTime: 18,
     attack: melee(7), armor: { melee: 3, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'ostrogoths',
-    bonus: { cavalry: 2 },
+    bonus: { cavalry: 4 }, weapon: 'spear',
     strong: 'Armored spear wall against cavalry', weak: 'Slow',
   },
   // Vikings
   berserker: {
     label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 70, wood: 30 }, trainTime: 18,
     attack: melee(14, 1.4), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
-    bonus: { infantry: 1.3 }, regen: 1.5,
+    bonus: { infantry: 1.3 }, regen: 1.5, weapon: 'blade',
     strong: 'Battle fury: the strongest attack on foot', weak: 'No armor',
   },
   huscarl: {
     label: 'Huscarl', hp: 90, speed: 1.3, sight: 4, pop: 1, cost: { food: 80, metal: 50 }, trainTime: 22,
     attack: melee(11), armor: { melee: 3, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
-    bonus: { infantry: 1.4, building: 2 },
+    bonus: { infantry: 1.4, building: 2 }, weapon: 'blade',
     strong: 'Elite guard with a great axe', weak: 'Expensive',
   },
 
@@ -343,7 +356,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   triarius: {
     label: 'Triarius', hp: 95, speed: 1.1, sight: 4, pop: 1, cost: { food: 70, metal: 50 }, trainTime: 24,
     attack: melee(8, 1.6), armor: { melee: 3, ranged: 3 }, category: 'infantry', era: 2, untilEra: 2, faction: 'romans',
-    bonus: { cavalry: 2.5 },
+    bonus: { cavalry: 4 }, weapon: 'spear',
     strong: 'Veteran spear line: stops any charge', weak: 'Very slow',
   },
   trebuchet: {
@@ -361,7 +374,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   chosen_axeman: {
     label: 'Chosen Axeman', hp: 75, speed: 1.35, sight: 4, pop: 1, cost: { food: 65, metal: 35 }, trainTime: 20,
     attack: melee(11), armor: { melee: 1, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'germans',
-    bonus: { infantry: 1.4, building: 2 },
+    bonus: { infantry: 1.4, building: 2 }, weapon: 'blade',
     strong: 'Axes break shields and gates', weak: 'Loses to archers',
   },
   javelin_rider: {
@@ -372,13 +385,13 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   gothic_warband: {
     label: 'Gothic Warband', hp: 60, speed: 1.45, sight: 4, pop: 1, cost: { food: 45, wood: 15 }, trainTime: 11,
-    attack: melee(8), armor: { melee: 1, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, faction: 'ostrogoths',
+    attack: melee(8), armor: { melee: 1, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, faction: 'ostrogoths', weapon: 'blade',
     strong: 'Cheap and quick to train: fills the ranks', weak: 'Light armor',
   },
   ulfhednar: {
     label: 'Ulfhednar', hp: 60, speed: 1.9, sight: 5, pop: 1, cost: { food: 60, wood: 25 }, trainTime: 15,
     attack: melee(10, 1.3), armor: { melee: 0, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
-    bonus: { ranged: 1.6, worker: 2, siege: 1.6 },
+    bonus: { ranged: 1.6, worker: 2, siege: 1.6 }, weapon: 'blade',
     strong: 'Wolf warriors: raid archers, workers and siege', weak: 'No armor; loses to cavalry',
   },
 };
@@ -508,7 +521,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   barracks: {
     label: 'Barracks', description: 'Trains the infantry of each age.',
     size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['warrior', 'scout', 'spearman', 'ram', 'siege_tower', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
+    trains: ['warrior', 'scout', 'spearman', 'swordsman', 'ram', 'siege_tower', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 1,
   },
   archery_range: {
@@ -1179,6 +1192,20 @@ export const ABILITY_IDS = Object.keys(ABILITIES) as AbilityId[];
 /** Carga de caballería: tras unos segundos sin pelear, el primer golpe cuerpo a cuerpo hace más daño. */
 export const CHARGE_BONUS = 1.5;
 export const CHARGE_READY_SEC = 4;
+
+// ---------- Armas de la Edad Media (lanza > caballería > espada > lanza) ----------
+/** La lanza contra la caballería: mínimo ×3,5 (las lanzas de élite, más). */
+export const SPEAR_VS_CAVALRY = 3.5;
+/** La espada contra la caballería: pega poco. */
+export const BLADE_VS_CAVALRY = 0.6;
+/** La espada contra los lanceros: los desarma en el cuerpo a cuerpo. */
+export const BLADE_VS_SPEAR = 1.6;
+/** La caballería cuerpo a cuerpo contra los lanceros: casi no les hace daño. */
+export const CAVALRY_VS_SPEAR = 0.4;
+/** La caballería cuerpo a cuerpo contra la espada: los arrolla. */
+export const CAVALRY_VS_BLADE = 1.6;
+/** Carga de frente contra lanzas: no hay bonificación de carga y el jinete se clava (daño que recibe). */
+export const SPEAR_BRACE_DAMAGE = 14;
 
 // ---------- Diplomacia ----------
 /** Relación entre dos jugadores: en guerra, en paz (no se atacan) o aliados. */
