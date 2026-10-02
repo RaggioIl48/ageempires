@@ -106,6 +106,17 @@
                 <option value="0">Off (the whole map is visible)</option>
               </select>
             </label>
+            <label>Questions to advance an age
+              <select id="in-quiz">
+                <option value="history" selected>History questions (built in)</option>
+                <option value="custom">My own questions</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+            <label id="quiz-custom" class="wide hidden">Your questions — one per line: <code>Question | right answer | wrong answer | wrong answer</code>
+              <textarea id="in-questions" rows="4" placeholder="What is the capital of France? | Paris | Rome | Madrid"></textarea>
+              <span class="muted" id="quiz-count"></span>
+            </label>
             <button type="submit" class="big">Create game</button>
           </form>
           <div id="teacher-rooms"></div>
@@ -155,6 +166,8 @@
     <div id="overlay" class="hidden"></div>
     <div id="paused" class="hidden">⏸ The teacher paused the game</div>
     <div id="ended" class="hidden"></div>
+    <!-- Question to advance an age -->
+    <div id="quiz" class="overlay hidden"><div class="quiz-box panel"></div></div>
     <script type="module" src="/src/main.ts"></script>
     <!-- Art credits (open-licensed unit art) -->
     <div id="credits-panel" class="overlay hidden"><div class="credits-box panel"></div></div>

@@ -3,7 +3,8 @@
 // "token" secreto: si se le cae la conexión, vuelve a su mismo puesto.
 
 import { randomBytes } from 'node:crypto';
-import { FACTION_ORDER, PLAYER_COLORS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
+import { FACTION_ORDER, PLAYER_COLORS, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
+import { QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
 import type {
   BotLevel,
   ChronicleEntry,
@@ -16,6 +17,7 @@ import type {
   RoomSummary,
   RoomView,
   ServerMessage,
+  QuizMode,
 } from '../../../shared/protocol.ts';
 import { buildFrame, ClientSync, welcomeMessage } from '../net/sync.ts';
 import { initRelations } from '../sim/diplomacy.ts';
@@ -45,6 +47,18 @@ export interface Member {
 /** Segundos mínimos entre dos mensajes de chat de un mismo estudiante. */
 const CHAT_COOLDOWN_MS = 1500;
 
+/** Segundos de espera después de contestar mal la pregunta de la era. */
+export const QUIZ_RETRY_SEC = 20;
+
+/** Pregunta pendiente de un jugador. */
+interface PendingQuiz {
+  id: number;
+  correct: number;
+  question: QuizQuestion;
+  options: string[];
+  cmd: Command;
+}
+
 /** Órdenes que se guardan como mucho durante una pausa (protege al servidor). */
 const MAX_PAUSED_ORDERS = 3000;
 
@@ -58,6 +72,11 @@ export class Room {
   game: Game | null = null;
   /** Rivales de la computadora de la partida en curso. */
   private ais: AiPlayer[] = [];
+  /** Preguntas para avanzar de era: la pendiente de cada jugador, cuándo puede reintentar y cuáles ya vio. */
+  private quizzes = new Map<number, PendingQuiz>();
+  private quizWait = new Map<number, number>();
+  private quizSeen = new Map<number, Set<string>>();
+  private nextQuizId = 1;
   /** Profesores mirando la partida. */
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
@@ -197,7 +216,52 @@ export class Room {
     if (!member || member.kicked || !this.game || this.phase !== 'playing') return;
     // En pausa (táctica) se pueden dar órdenes: se aplican todas juntas al reanudar.
     if (this.paused && this.game.queued() >= MAX_PAUSED_ORDERS) return;
+    // Avanzar de era: antes hay que contestar una pregunta (si la sala las tiene).
+    if (cmd.kind === 'research' && TECH_DEFS[cmd.tech].advancesTo && this.quizMode() !== 'off') return this.askQuiz(member, cmd);
     this.game.enqueue(member.id, cmd);
+  }
+
+  private quizMode(): QuizMode {
+    const mode = this.settings.quiz ?? 'off';
+    return mode === 'custom' && !this.settings.questions?.length ? 'history' : mode;
+  }
+
+  /** Manda una pregunta (una que todavía no vio, si hay) para la era que quiere alcanzar. */
+  private askQuiz(member: Member, cmd: Extract<Command, { kind: 'research' }>): void {
+    const conn = member.conn;
+    if (!conn) return;
+    const wait = Math.ceil(((this.quizWait.get(member.id) ?? 0) - Date.now()) / 1000);
+    if (wait > 0) return conn.send({ t: 'error', message: `Think about it for a moment: you can try again in ${wait} s.` });
+    const era = TECH_DEFS[cmd.tech].advancesTo!;
+    const bank = this.quizMode() === 'custom' ? this.settings.questions! : (QUIZ_BANK[era] ?? QUIZ_BANK[2]);
+    const seen = this.quizSeen.get(member.id) ?? new Set<string>();
+    this.quizSeen.set(member.id, seen);
+    let pool = bank.filter((q) => !seen.has(q.q));
+    if (pool.length === 0) {
+      for (const q of bank) seen.delete(q.q);
+      pool = bank;
+    }
+    const question = pool[Math.floor(Math.random() * pool.length)];
+    seen.add(question.q);
+    // Mezcla las respuestas (la primera del banco es la correcta).
+    const order = question.a.map((_, i) => i).sort(() => Math.random() - 0.5);
+    const pending: PendingQuiz = { id: this.nextQuizId++, correct: order.indexOf(0), question, options: order.map((i) => question.a[i]), cmd };
+    this.quizzes.set(member.id, pending);
+    conn.send({ t: 'quiz', id: pending.id, era, q: question.q, options: pending.options });
+  }
+
+  /** Respuesta a la pregunta: si acierta, empieza el avance; si no, espera un poco y aprende la respuesta. */
+  answerQuiz(conn: Conn, id: number, choice: number): void {
+    const member = this.memberOf(conn);
+    const pending = member && this.quizzes.get(member.id);
+    if (!member || !pending || pending.id !== id || !this.game || this.phase !== 'playing') return;
+    this.quizzes.delete(member.id);
+    const ok = choice === pending.correct;
+    const answer = pending.options[pending.correct];
+    const fact = pending.question.fact;
+    if (ok) this.game.enqueue(member.id, pending.cmd);
+    else this.quizWait.set(member.id, Date.now() + QUIZ_RETRY_SEC * 1000);
+    conn.send({ t: 'quizResult', ok, answer, ...(fact ? { fact } : {}), ...(ok ? {} : { wait: QUIZ_RETRY_SEC }) });
   }
 
   // ---------- Profesor ----------

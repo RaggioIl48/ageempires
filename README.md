@@ -53,7 +53,17 @@ again: **they come back to their same player** automatically.
 
 **Testing alone (without students):** in the panel press **"🧪 Try as a student"**, type
 a name and pick a faction. Since you are on the server computer, the waiting lobby shows the
-**"▶ Start game"** button: pressing it starts the game.
+**"▶ Start game"** button: pressing it starts the game. To have a rival, press **"🤖 + Computer"**
+(Easy or Normal) before starting: the computer plays a full empire with the same rules as a student.
+
+**Questions to advance an age:** when creating the game, choose the built-in **history questions**, write
+**your own** (one per line: `Question | right answer | wrong answer | wrong answer`) or turn them off.
+Students must answer correctly to start advancing; a wrong answer shows the right one and they can try
+again in 20 seconds.
+
+**After the game:** the end screen has **📈 Charts** (economy, army, workers and losses over time, with
+alliances, betrayals and conquests marked, plus talking points for the class) and a **📜 Chronicle** of
+everything that happened.
 
 ### How students connect
 

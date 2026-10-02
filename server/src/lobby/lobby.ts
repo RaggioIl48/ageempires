@@ -53,6 +53,9 @@ export class Lobby {
       case 'cmd':
         if (conn.role === 'student') conn.room?.command(conn, msg.cmd);
         return;
+      case 'quizAnswer':
+        if (conn.role === 'student') conn.room?.answerQuiz(conn, msg.id, msg.choice);
+        return;
       case 'chat': {
         if (conn.role !== 'student' || !conn.room) return;
         const error = conn.room.chat(conn, msg.text, msg.to);

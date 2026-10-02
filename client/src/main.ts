@@ -239,10 +239,54 @@ function onMessage(msg: ServerMessage): void {
       if (game.hud.spectator) game.hud.spectator.paused = paused;
       game.hud.update();
       return;
+    case 'quiz':
+      showQuiz(msg.id, msg.era, msg.q, msg.options);
+      return;
+    case 'quizResult':
+      showQuizResult(msg.ok, msg.answer, msg.fact, msg.wait);
+      return;
     case 'ended':
       showEnd(msg.reason, msg.summary, msg.winners ?? [], msg.history ?? [], msg.chronicle ?? []);
       return;
   }
+}
+
+/** Pregunta para avanzar de era: hay que contestarla bien para que empiece el avance. */
+function showQuiz(id: number, era: number, q: string, options: string[]): void {
+  const box = el('quiz');
+  const inner = box.querySelector<HTMLElement>('.quiz-box')!;
+  inner.innerHTML = `<h3>🏛 To advance to the ${esc(ERAS[era - 1]?.label ?? 'next age')}, answer this question</h3>
+    <p class="quiz-q">${esc(q)}</p>
+    <div class="quiz-options">${options.map((o, i) => `<button data-choice="${i}">${'ABCD'[i]}. ${esc(o)}</button>`).join('')}</div>
+    <button class="tiny" data-quiz-close>Not now</button>`;
+  box.classList.remove('hidden');
+  inner.onclick = (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('[data-quiz-close]')) return box.classList.add('hidden');
+    const b = t.closest<HTMLElement>('[data-choice]');
+    if (!b) return;
+    inner.querySelectorAll('button').forEach((x) => (x.disabled = true));
+    b.classList.add('picked');
+    net.send({ t: 'quizAnswer', id, choice: Number(b.dataset.choice) });
+  };
+}
+
+function showQuizResult(ok: boolean, answer: string, fact?: string, wait?: number): void {
+  const box = el('quiz');
+  const inner = box.querySelector<HTMLElement>('.quiz-box')!;
+  inner.querySelectorAll<HTMLElement>('[data-choice]').forEach((b) => {
+    if (b.textContent?.slice(3) === answer) b.classList.add('right');
+    else if (b.classList.contains('picked')) b.classList.add('wrong');
+  });
+  inner.insertAdjacentHTML(
+    'beforeend',
+    `<div class="quiz-result ${ok ? 'ok' : 'no'}">${ok ? '✅ Correct! Your people starts advancing to the next age.' : `❌ Not quite. The answer is: <b>${esc(answer)}</b>. You can try again in ${wait ?? 20} s.`}
+      ${fact ? `<p>💡 ${esc(fact)}</p>` : ''}<button data-quiz-close>OK</button></div>`,
+  );
+  inner.querySelector<HTMLElement>('[data-quiz-close]')?.remove();
+  inner.onclick = (e) => {
+    if ((e.target as HTMLElement).closest('[data-quiz-close]')) box.classList.add('hidden');
+  };
 }
 
 let pauseTimer = 0;
@@ -270,6 +314,8 @@ function showPause(on: boolean, secs?: number, battle = false): void {
 /** Resultados al terminar la partida. */
 function showEnd(reason: string, summary: PlayerSummary[], winners: number[], history: HistorySample[], chronicle: ChronicleEntry[]): void {
   el('paused').classList.add('hidden');
+  // Se cierran los paneles de la partida: el informe queda solo, al frente.
+  for (const id of ['guide-panel', 'diplo-panel', 'quiz', 'war-panel', 'march-menu']) document.getElementById(id)?.classList.add('hidden');
   const sorted = [...summary].sort((a, b) => Number(winners.includes(b.id)) - Number(winners.includes(a.id)) || (b.glory ?? 0) - (a.glory ?? 0));
   const you = game.state.you;
   const rows = sorted

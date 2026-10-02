@@ -4,7 +4,8 @@
 import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
 import { artVersion, unitPortrait } from './art.ts';
 import { flagSvg } from './flags.ts';
-import { CODE_LENGTH, type BotLevel, type ClientMessage, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
+import { PEOPLE_HISTORY, parseQuizText } from '../../shared/lessons.ts';
+import { CODE_LENGTH, type BotLevel, type ClientMessage, type QuizMode, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
 
 export function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -31,7 +32,19 @@ export function settingsText(s: RoomSettings): string {
     s.chat ? 'chat on' : 'no chat',
     s.fog === false ? 'no fog of war' : 'fog of war',
     s.battlePause ? `${s.battlePause} s tactical pause per battle` : 'no battle pause',
+    s.quiz === 'off' ? 'no questions' : s.quiz === 'custom' && s.questions?.length ? `${s.questions.length} teacher questions to advance` : 'history questions to advance',
   ].join(' · ');
+}
+
+/** Tarjeta "¿Quiénes fueron?" de un pueblo (historia para estudiantes). */
+export function peopleCardHtml(id: FactionId): string {
+  const h = PEOPLE_HISTORY[id];
+  return `<span class="hist"><b>🕰 When:</b> ${esc(h.when)}</span>
+    <span class="hist"><b>🗺 Where:</b> ${esc(h.where)}</span>
+    <span class="hist"><b>👑 Famous figure:</b> ${esc(h.leader)}</span>
+    <span class="hist"><b>⚔ How they fought:</b> ${esc(h.war)}</span>
+    <span class="hist"><b>💡 Did you know?</b> ${esc(h.fact)}</span>
+    <span class="hist"><b>🏛 What they left us:</b> ${esc(h.legacy)}</span>`;
 }
 
 export function teamText(team: number): string {
@@ -151,7 +164,8 @@ export class LobbyScreen {
   private renderFactions(chosen: FactionId | undefined, color: string): void {
     const box = el('lobby-factions');
     // Los detalles abiertos siguen abiertos al redibujar.
-    const open = new Set([...box.querySelectorAll<HTMLElement>('details[open]')].map((d) => d.closest<HTMLElement>('[data-faction]')?.dataset.faction));
+    const open = new Set([...box.querySelectorAll<HTMLElement>('details.fx-more:not(.fx-hist)[open]')].map((d) => d.closest<HTMLElement>('[data-faction]')?.dataset.faction));
+    const openHist = new Set([...box.querySelectorAll<HTMLElement>('details.fx-hist[open]')].map((d) => d.closest<HTMLElement>('[data-faction]')?.dataset.faction));
     let missing = false;
     const html = FACTION_ORDER.map((id) => {
       const f = FACTIONS[id];
@@ -166,7 +180,8 @@ export class LobbyScreen {
           <span class="down">▼ ${f.weaknesses.map(esc).join('<br>▼ ')}</span>
           <span class="abil">✦ ${f.abilities.map(esc).join('<br>✦ ')}</span>
           <span class="uniq">⚜ Medieval Age: <b>${esc(BUILDING_DEFS[u.building!].label)}</b> · ${u.units.map((x) => esc(UNIT_DEFS[x].label)).join(', ')}</span>
-        </details></div>`;
+        </details>
+        <details class="fx-more fx-hist"${openHist.has(id) ? ' open' : ''}><summary>📜 Who were they?</summary>${peopleCardHtml(id)}</details></div>`;
     }).join('');
     const key = html;
     if (key !== this.factionsKey) {
@@ -242,9 +257,22 @@ export class TeacherScreen {
           chat: el<HTMLSelectElement>('in-chat').value === '1',
           fog: el<HTMLSelectElement>('in-fog').value === '1',
           battlePause: Number(el<HTMLSelectElement>('in-bpause').value),
+          quiz: el<HTMLSelectElement>('in-quiz').value as QuizMode,
+          ...(el<HTMLSelectElement>('in-quiz').value === 'custom' ? { questions: parseQuizText(el<HTMLTextAreaElement>('in-questions').value) } : {}),
         },
       });
     });
+    // Preguntas propias: se muestran solo si se eligen, y se cuentan las que se entienden.
+    const quizSel = el<HTMLSelectElement>('in-quiz');
+    const countQuestions = () => {
+      const n = parseQuizText(el<HTMLTextAreaElement>('in-questions').value).length;
+      el('quiz-count').textContent = n ? `${n} question${n > 1 ? 's' : ''} ready` : 'No questions yet: the built-in history questions will be used.';
+    };
+    quizSel.addEventListener('change', () => {
+      el('quiz-custom').classList.toggle('hidden', quizSel.value !== 'custom');
+      countQuestions();
+    });
+    el('in-questions').addEventListener('input', countQuestions);
     el('form-pin').addEventListener('submit', (e) => {
       e.preventDefault();
       const pin = el<HTMLInputElement>('in-pin').value.trim();

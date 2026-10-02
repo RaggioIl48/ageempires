@@ -796,6 +796,8 @@ table.eco tr.me {
 }
 #ended {
   position: fixed;
+  /* Encima de todo lo de la partida (paneles, guía, banderas de la colina). */
+  z-index: 60;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -807,6 +809,69 @@ table.eco tr.me {
   border: 2px solid var(--accent);
   border-radius: 10px;
   text-align: center;
+}
+#quiz .quiz-box {
+  width: min(560px, 92vw);
+  padding: 18px 22px;
+  text-align: center;
+}
+#quiz h3 {
+  margin: 0 0 8px;
+  color: var(--accent);
+}
+.quiz-q {
+  font-size: 18px;
+  margin: 6px 0 12px;
+}
+.quiz-options {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.quiz-options button {
+  text-align: left;
+  font-size: 15px;
+  padding: 10px 12px;
+}
+.quiz-options button.right {
+  background: #2f7d3a;
+  color: #fff;
+}
+.quiz-options button.wrong {
+  background: #8e2f2a;
+  color: #fff;
+}
+.quiz-result {
+  margin-top: 8px;
+}
+.quiz-result.ok {
+  color: #9be59f;
+}
+.quiz-result.no {
+  color: #ffb3a7;
+}
+.quiz-result p {
+  color: var(--text, #f1e6d0);
+}
+.faction .hist,
+.hist-card .hist {
+  display: block;
+  margin: 3px 0;
+  text-align: left;
+}
+.g-hist {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #d9c9a8;
+  font-style: italic;
+}
+.new-room .wide {
+  flex-basis: 100%;
+}
+.new-room textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
 }
 #ended h2 {
   margin: 0 0 6px;

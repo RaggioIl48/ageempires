@@ -23,6 +23,8 @@ import {
   type UnitType,
 } from '../../shared/data.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
+import { UNIT_HISTORY } from '../../shared/lessons.ts';
+import { peopleCardHtml } from './screens.ts';
 import { chargeOf, hasTech, unitCost } from '../../shared/stats.ts';
 import { artVersion } from './art.ts';
 import { el, esc } from './screens.ts';
@@ -109,6 +111,7 @@ export class GuidePanel {
           <div>${esc(d.strong)}. <span class="muted">${esc(d.weak)}.</span></div>
           ${goodAgainst(type).length ? `<div class="counter good">⚔ Good against: ${esc(goodAgainst(type).join(', '))}</div>` : ''}
           ${weakAgainst(type).length ? `<div class="counter bad">⚠ Weak against: ${esc(weakAgainst(type).join(', '))}</div>` : ''}
+          ${UNIT_HISTORY[type] ? `<div class="g-hist">📜 ${esc(UNIT_HISTORY[type]!)}</div>` : ''}
           ${upText ? `<div class="g-ups">${upText}</div>` : ''}
         </div>`;
       })
@@ -120,9 +123,13 @@ export class GuidePanel {
         <div class="down">▼ ${f.weaknesses.map(esc).join(' · ')}</div>
         <div class="g-abil">✦ ${f.abilities.map(esc).join('<br>✦ ')}</div>
       </div>
+      <details class="g-rules g-hist-box"><summary>📜 Who were the ${esc(f.name)}?</summary><div class="hist-card">${peopleCardHtml(faction)}</div></details>
       <details class="g-rules"><summary>How combat works</summary>
-        <p>Damage = attack × advantage − armor (at least 1). Each type has advantages: infantry beats cavalry,
-        cavalry beats ranged units and artillery, ranged units beat infantry, siege destroys buildings.</p>
+        <p>Damage = attack × advantage − armor (at least 1). Each type has advantages: cavalry beats ranged units and artillery,
+        ranged units beat infantry, siege destroys buildings.</p>
+        <p><b>Rock, paper, scissors of the Medieval Age:</b> <b>spears</b> crush <b>cavalry</b> (×3.5, and a charge into their spear
+        points hurts the riders), <b>cavalry</b> rides down <b>swordsmen</b> and archers, and <b>swords</b> break <b>spearmen</b>.
+        A spear wall only protects from the front: hit spearmen from the side or the back with your cavalry!</p>
         <p><b>Cavalry charge:</b> a mounted melee unit that has not fought for ${CHARGE_READY_SEC} s hits ×${CHARGE_BONUS} on its first strike
         (${esc(f.name)}: ×${charge}). Attack, pull back, and charge again!</p>
         <p><b>Morale:</b> soldiers lose morale when hit and when allies fall nearby. At 0 they <b>rout</b> 🏳: they run home,

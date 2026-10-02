@@ -24,6 +24,7 @@ import {
   type UnitType,
 } from './data.ts';
 import type { BuildingTuple, EventTuple, UnitTuple } from './codec.ts';
+import { QUIZ_LIMITS, type QuizQuestion } from './lessons.ts';
 
 // ---------- Vistas (lo que el cliente puede saber) ----------
 
@@ -171,7 +172,15 @@ export interface RoomSettings {
   fog: boolean;
   /** Pausa táctica automática al empezar cada batalla (segundos; 0 = no). */
   battlePause: number;
+  /**
+   * Preguntas para avanzar de era: 'off' = no hay; 'history' = las del juego (historia);
+   * 'custom' = las que escribió el profesor (`questions`).
+   */
+  quiz?: QuizMode;
+  questions?: QuizQuestion[];
 }
+
+export type QuizMode = 'off' | 'history' | 'custom';
 
 /** Nivel del rival de la computadora. */
 export type BotLevel = 'easy' | 'normal';
@@ -371,7 +380,9 @@ export type ClientMessage =
   | { t: 'setTeam'; code: string; memberId: number; team: number }
   /** Agregar un rival de la computadora en la sala de espera (profesor, o quien está en el computador del servidor). */
   | { t: 'addBot'; code: string; level: BotLevel; pin?: string }
-  | { t: 'chat'; text: string; to: 'all' | 'allies' };
+  | { t: 'chat'; text: string; to: 'all' | 'allies' }
+  /** Respuesta a la pregunta para avanzar de era. */
+  | { t: 'quizAnswer'; id: number; choice: number };
 
 // ---------- Servidor -> Cliente ----------
 
@@ -455,6 +466,10 @@ export type ServerMessage =
   | { t: 'players'; players: PlayerView[] }
   | DeltaMessage
   | { t: 'paused'; paused: boolean; /** Pausa táctica automática: segundos que dura. */ secs?: number; /** 1 si la causó una batalla que empieza. */ battle?: 1 }
+  /** Pregunta para avanzar de era (las opciones ya vienen mezcladas). */
+  | { t: 'quiz'; id: number; era: number; q: string; options: string[] }
+  /** Resultado: si acertó, el avance empieza; si no, puede volver a intentar en `wait` segundos. */
+  | { t: 'quizResult'; ok: boolean; answer: string; fact?: string; wait?: number }
   | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[]; history?: HistorySample[]; chronicle?: ChronicleEntry[] }
   | { t: 'chat'; from: number; name: string; color: string; text: string; to: 'all' | 'allies' };
 
@@ -525,6 +540,20 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (s.chat !== undefined && typeof s.chat !== 'boolean') return null;
   if (s.fog !== undefined && typeof s.fog !== 'boolean') return null;
   if (s.battlePause !== undefined && (!Number.isInteger(s.battlePause) || (s.battlePause as number) < 0 || (s.battlePause as number) > 60)) return null;
+  if (s.quiz !== undefined && s.quiz !== 'off' && s.quiz !== 'history' && s.quiz !== 'custom') return null;
+  let questions: QuizQuestion[] | undefined;
+  if (s.questions !== undefined) {
+    if (!Array.isArray(s.questions) || s.questions.length > QUIZ_LIMITS.questions) return null;
+    questions = [];
+    for (const q of s.questions as unknown[]) {
+      const o = q as { q?: unknown; a?: unknown };
+      if (typeof o !== 'object' || o === null || typeof o.q !== 'string' || !Array.isArray(o.a)) return null;
+      const a = (o.a as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.trim().slice(0, QUIZ_LIMITS.a)).filter(Boolean);
+      const text = o.q.trim().slice(0, QUIZ_LIMITS.q);
+      if (!text || a.length < 2 || a.length > 4) return null;
+      questions.push({ q: text, a });
+    }
+  }
   return {
     maxPlayers: s.maxPlayers as number,
     mapSize: s.mapSize,
@@ -533,6 +562,8 @@ function parseSettings(v: unknown): RoomSettings | null {
     chat: (s.chat as boolean | undefined) ?? true,
     fog: (s.fog as boolean | undefined) ?? true,
     battlePause: (s.battlePause as number | undefined) ?? 15,
+    quiz: (s.quiz as QuizMode | undefined) ?? 'history',
+    ...(questions?.length ? { questions } : {}),
   };
 }
 
@@ -569,6 +600,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'setTeam':
       return isCode(m.code) && isId(m.memberId) && Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) <= 8
         ? { t: 'setTeam', code: m.code, memberId: m.memberId, team: m.team as number }
+        : null;
+    case 'quizAnswer':
+      return isId(m.id) && Number.isInteger(m.choice) && (m.choice as number) >= 0 && (m.choice as number) < 4
+        ? { t: 'quizAnswer', id: m.id, choice: m.choice as number }
         : null;
     case 'chat': {
       const text = cleanText(m.text, CHAT_MAX);

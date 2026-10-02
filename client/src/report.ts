@@ -21,7 +21,7 @@ const CHARTS: { key: keyof HistoryPoint; title: string; hint: string }[] = [
 function chart(key: keyof HistoryPoint, title: string, hint: string, history: HistorySample[], players: PlayerSummary[], marks: ChronicleEntry[]): string {
   const W = 300, H = 150, L = 34, B = 18, T = 14;
   const tMax = Math.max(60, history[history.length - 1]?.t ?? 60);
-  let vMax = 1;
+  let vMax = 4; // mínimo: así las marcas del eje no se repiten con números chicos
   for (const s of history) for (const p of players) vMax = Math.max(vMax, s.p[p.id]?.[key] ?? 0);
   const x = (t: number) => L + (t / tMax) * (W - L - 6);
   const y = (v: number) => T + (1 - v / vMax) * (H - T - B);

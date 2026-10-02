@@ -596,6 +596,42 @@ Total War: Napoleon:
   built in code (`tools/art/guns.mjs`: spoked wheels, carriages in the player colour) with two LPC gunners each;
   firing makes the piece recoil, with a muzzle flash and a cloud of smoke.
 
+## Medieval rock-paper-scissors, computer rival, game report, history and questions (2026-10-02)
+
+- **Weapons of the Medieval Age** (`weapon: 'spear' | 'blade'` in `shared/data.ts`, `weaponMult` in
+  `shared/stats.ts`): spears ×3.5 against cavalry (elite spears ×4), cavalry ×0.4 against spears; swords ×0.6
+  against cavalry and ×1.6 against spearmen; melee cavalry ×1.6 against swords and axes. A weakness of the weapon
+  always wins over a unit's own bonus. The spear wall only protects **from the front**: a flank or rear attack
+  ignores it. A cavalry **charge into the front of spears is braced**: no charge bonus and the rider takes 14
+  damage. New **Swordsman** for every people (Barracks, Medieval Age) with its own look per people. The army
+  guide lists the real counters (e.g. "Sword and axe infantry ×1.6").
+- **Performance**: the unit grid returns arrays (no generators) with squared distances, unit stats are remembered
+  per player until their technologies change, and the morale "enemy nearby?" check runs every 3 steps per unit
+  (staggered). Server step with 800 fighting units: 14 ms → 6.4 ms. The client paints the fog veil into a small
+  image only when vision changes (≈6 times/s) instead of 24,000 tiles every frame, and unit gliding stretches
+  when network states arrive late (no freeze-and-jump on slow wifi).
+- **Computer rival** (`server/src/sim/ai.ts`, Easy / Normal): it plays with the same commands as a student
+  (no free resources): trains workers, sends idle ones to the scarcest resource (and moves workers away from a
+  resource it has too much of), builds houses, barracks, stable, archery range, farms and (Normal) its people's
+  unique building, advances to the Medieval Age, picks troops that counter what it sees of the enemy (spears
+  against cavalry, swords against spears, cavalry against swords and archers), defends its city and attacks in
+  growing waves by **marching on the nearest enemy city**. When rich (Normal) it builds more production buildings
+  and researches upgrades. The teacher adds it in the waiting room ("🤖 + Computer"), or the student on the server
+  computer. A Normal rival beats an Easy one in about 12–15 minutes.
+- **Game report** (end screen tabs): **📈 Charts** of economy, army strength, workers and losses over time (a point
+  every 30 s, `server/src/sim/history.ts`), with alliances 📜, betrayals 🗡, broken alliances 💔, wars ⚔, cities
+  taken 🏰 and fallen empires 💀 marked; **talking points** (who gathered most, the strongest army, who invested in
+  economy vs army, first to advance, every betrayal with "Why? Did it pay off?", the turning point = biggest army
+  loss); and **📜 Chronicle** with the time of each event. Declaring war on an ally is now announced as a betrayal.
+- **History for students** (`shared/lessons.ts`): a **"📜 Who were they?"** card per people (when, where, a
+  famous figure, how they fought, a fun fact, what they left us) in the waiting room and the army guide, and a
+  history note on every unique unit and the basic Medieval units.
+- **Questions to advance an age**: advancing asks a multiple-choice question first (history bank per age, or the
+  teacher's own questions: one per line `Question | right | wrong | wrong`). Right → the advance starts and a
+  "Did you know?" fact is shown; wrong → the right answer and the fact are shown, and the student can try again
+  in 20 s. The server checks the answer; computer rivals skip the questions. Option in the teacher panel
+  ("Questions to advance an age": history / my own / off).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).
