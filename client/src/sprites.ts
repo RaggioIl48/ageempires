@@ -1110,7 +1110,7 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   antitank: { half: 10, top: 28, ring: 10 },
   scout: { half: 13, top: 32, ring: 13 },
   knight: { half: 14, top: 36, ring: 14 },
-  light_vehicle: { half: 14, top: 24, ring: 14 },
+  light_vehicle: { half: 14, top: 36, ring: 14 },
   mech_infantry: { half: 16, top: 28, ring: 16 },
   artillery: { half: 15, top: 24, ring: 15 },
   heavy_artillery: { half: 19, top: 30, ring: 19 },

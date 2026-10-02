@@ -1618,20 +1618,6 @@
    ],
    "notes": "Airplane (Modern Age)."
   },
-  "model:gaz67": {
-   "pack": "model",
-   "title": "Lowpoly soviet jeep (GAZ-67)",
-   "authors": [
-    "artie31"
-   ],
-   "licenses": [
-    "CC0"
-   ],
-   "urls": [
-    "https://opengameart.org/content/lowpoly-soviet-jeep"
-   ],
-   "notes": "Armored car (Industrial Age), painted in the player color."
-  },
   "model:t12": {
    "pack": "model",
    "title": "T-12 soviet light tank lowpoly",

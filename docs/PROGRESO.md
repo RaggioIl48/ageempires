@@ -579,6 +579,23 @@ Total War: Napoleon:
 - Bug fixed: LPC items whose default variant has a space ("kite gray", "dark gray") were silently
   skipped, so the Gaul and Ostrogoth shields were missing. They are drawn now.
 
+## Map under a veil, peoples that look different, smoother movement, new Industrial Age (2026-10-01)
+
+- **Fog of war**: the whole map (terrain, forests, resources) is visible from the start; what your troops do not
+  see now is only darker. Enemy troops there stay hidden; enemy buildings appear once seen.
+- **Each people looks different, not only by color**: shields keep each people's colors and designs (red Roman
+  scutum with gold rim, grey-green Gaulish kite, brown Germanic round shield with a fur cloak, navy Visigothic
+  heater with a cross in the player color, gold and red Ostrogothic shields, yellow and black Viking shields);
+  the player color stays on tunics and capes. Cavalry carries its people's shield too; Mongol heavy cavalry has
+  bronze pauldrons and a cape; Roman infantry wears red crests.
+- **Movement**: units only turn when they really move (separation nudges no longer spin them), stand facing
+  where the server says (the front of their formation), and the walk animation follows the real speed (no
+  running on the spot, no skating when walking).
+- **Industrial Age**: the jeep is replaced by **Hussars** (Napoleonic light cavalry with sabre, melee, strong
+  against riflemen and artillery). The **field gun**, the **Maxim gun** and the Modern **howitzer** are 3D models
+  built in code (: spoked wheels, carriages in the player colour) with two LPC gunners each;
+  firing makes the piece recoil, with a muzzle flash and a cloud of smoke.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

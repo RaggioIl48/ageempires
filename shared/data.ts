@@ -200,9 +200,9 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     strong: 'Stops infantry', weak: 'Slow; loses to artillery and vehicles',
   },
   light_vehicle: {
-    label: 'Light vehicle', shot: 'bullet', hp: 120, speed: 3.0, sight: 7, pop: 1, cost: { wood: 40, metal: 120 }, trainTime: 25,
-    attack: ranged(8, 4, 1), armor: { melee: 2, ranged: 3 }, category: 'cavalry', era: 3, untilEra: 4,
-    strong: 'The fastest. Scouts and hunts artillery', weak: 'Loses to anti-tank teams',
+    label: 'Hussars', hp: 120, speed: 3.0, sight: 7, pop: 1, cost: { food: 80, metal: 100 }, trainTime: 25,
+    attack: melee(11, 1.4), armor: { melee: 2, ranged: 2 }, category: 'cavalry', era: 3, untilEra: 4, bonus: { ranged: 1.6, siege: 1.8 },
+    strong: 'Napoleonic light cavalry: the fastest; charges riflemen and overruns artillery crews', weak: 'Loses to massed infantry with bayonets and to machine guns',
   },
   artillery: {
     label: 'Artillery', shot: 'shell', hp: 80, speed: 0.9, sight: 7, pop: 1, cost: { wood: 150, metal: 150 }, trainTime: 35,

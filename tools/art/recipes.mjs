@@ -304,12 +304,23 @@ function riflemen() {
   return {
     // Infantería de línea: casaca, bicornio, correajes, pantalón blanco y botas; mosquete.
     rifleman: { attack: 'thrust', gun: 'rifle', parts: W([T('frock', { variant: 'gray' }), p('frockCollar'), p('frockButtons'), p('epaulets'), p('cravat'), p('pantsFormal', { color: 'white' }), p('bootsRim', { color: 'black' }), p('squarepack'), p('bicorne', { color: 'black' })]) },
-    // Ametralladora (fines del siglo XIX): chaqueta, casco de acero, arma pesada.
-    machine_gun: { attack: 'thrust', gun: 'heavy', parts: W([T('collared', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('squarepack'), p('helmKettle', { color: 'iron' })]) },
     // Antitanque: capote de trinchera, casco y lanzacohetes al hombro.
     antitank: { attack: 'thrust', gun: 'bazooka', parts: W([T('trench', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('helmKettle', { color: 'iron' })]) },
     // Infantería mecanizada: chaqueta, mochila, casco y fusil.
     mech_infantry: { attack: 'thrust', gun: 'rifle', parts: W([T('collared', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('squarepack'), p('helmKettle', { color: 'steel' })]) },
+  };
+}
+
+/** Sirvientes de las piezas de artillería (de pie junto a la cureña). */
+export function gunCrews() {
+  const W = (extra) => person('romans', extra, { dress: false });
+  return {
+    // Artilleros napoleónicos: casaca, bicornio y atacador.
+    field: { attack: 'thrust', parts: W([T('frock', { variant: 'gray' }), p('epaulets'), p('pantsFormal', { color: 'white' }), p('bootsRim', { color: 'black' }), p('bicorne', { color: 'black' }), p('spear', { variant: 'iron' })]) },
+    // Ametralladoristas: chaqueta y casco.
+    maxim: { attack: 'walk', parts: W([T('collared', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('helmKettle', { color: 'iron' })]) },
+    // Artilleros modernos: chaqueta, casco y cargan el proyectil.
+    howitzer: { attack: 'thrust', parts: W([T('collared', { variant: 'gray' }), p('pants', { color: 'charcoal' }), p('boots', { color: 'black' }), p('helmKettle', { color: 'steel' })]) },
   };
 }
 
@@ -323,6 +334,8 @@ export function characterRecipes() {
     out.push({ faction: f, type: 'general', ...generals()[f] });
   }
   for (const [type, r] of Object.entries(riflemen())) out.push({ faction: 'any', type, kind: 'foot', horse: PEOPLE.romans.horse, ...r });
+  // Húsares (Edad Industrial): casaca, bicornio y sable, a la carga.
+  out.push({ faction: 'any', type: 'light_vehicle', kind: 'horse', attack: 'slash', horse: 'black', parts: person('romans', [T('frock', { variant: 'gray' }), p('epaulets'), p('pantsFormal', { color: 'white' }), p('bootsRim', { color: 'black' }), p('bicorne', { color: 'black' }), p('saber')], { dress: false, hair: false }) });
   return out;
 }
 

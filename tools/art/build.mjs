@@ -24,6 +24,8 @@ import { buildForts } from './forts.mjs';
 import { ZEROAD_COMMIT, ZEROAD_CREDIT, ZEROAD_REPO, ZeroAD } from './zeroad.mjs';
 import { cropRender, render } from './raster.mjs';
 import { MODEL_CREDITS, ensureModel, loadFbx, loadObj } from './models.mjs';
+import { GUN_LAYOUT, fieldGun, howitzer, maximGun } from './guns.mjs';
+import { gunCrews } from './recipes.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -111,8 +113,6 @@ async function main() {
   // ---------- Asedio ([LPC] Siege Weapons) ----------
   const siege = [
     { id: 'any-scorpion', unit: '*/scorpion', build: ballista },
-    // El cañón de campaña sirve a la artillería y a la artillería pesada (como en Napoleon).
-    { id: 'any-artillery', unit: '*/artillery', also: ['*/heavy_artillery'], build: cannon },
   ];
   for (const s of siege) {
     if (only && only !== s.id) continue;
@@ -135,8 +135,6 @@ async function main() {
     // Trebuchet de tracción Han (lo usaron los mongoles de la dinastía Yuan), con sus tiradores.
     { id: 'mongols-trebuchet', unit: 'mongols/trebuchet', actor: 'units/han/siege_mangonel.xml', tiles: 1.5, main: true, fs: 320, recoil: true, skip: /decals|particle|packed/ },
     // Eras Industrial y Moderna: modelos CC0 de OpenGameArt; la pintura (camuflaje, caqui) lleva el color del jugador.
-    { id: 'any-light_vehicle', unit: '*/light_vehicle', credit: 'model:gaz67', tiles: 1.7, turn: 180,
-      load: async () => teamPaint(loadFbx(path.join(await ensureModel(CACHE, 'gaz-67_lowpoly_1.zip', 'gaz'), 'GAZ 67.fbx')), /khaki/i) },
     { id: 'any-tank', unit: '*/tank', credit: 'model:t12', tiles: 2.4, turn: 180,
       load: async () => teamPaint(loadFbx(path.join(await ensureModel(CACHE, 't-12.zip', 't12'), 'T-12 soviet tank.fbx')), /camo/i) },
     { id: 'any-airplane', unit: '*/airplane', credit: 'model:biplane', tiles: 1.9, turn: 90,
@@ -153,6 +151,28 @@ async function main() {
     const license = sheetLicense([normalizeLicenses(credit === '0ad:structures' ? ZEROAD_CREDIT.licenses : MODEL_CREDITS[credit].licenses)]);
     save(v.id, [v.unit], packed, { scale: 0.5, o: 'oga8', credits: [credit], license });
     console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
+  }
+
+  // ---------- Artillería con sus sirvientes (modelos armados a mano + personajes LPC) ----------
+  const crews = gunCrews();
+  const guns = [
+    { id: 'any-artillery', unit: '*/artillery', kind: 'field', model: fieldGun, crew: crews.field, push: [0, -10, -14, -10, -5, -2], flash: [1], smoke: 1 },
+    { id: 'any-machine_gun', unit: '*/machine_gun', kind: 'maxim', model: maximGun, crew: crews.maxim, push: [0, -1, 0, -1, 0, -1], flash: [0, 2, 4], smoke: 0.45 },
+    { id: 'any-heavy_artillery', unit: '*/heavy_artillery', kind: 'howitzer', model: howitzer, crew: crews.howitzer, push: [0, -12, -16, -12, -6, -2], flash: [1], smoke: 1.4 },
+  ];
+  for (const g of guns) {
+    if (only && only !== g.id && only !== 'guns') continue;
+    comp.lastCredits = new Set();
+    const anims = await crewedGun(comp, g);
+    const packed = packSheet(anims);
+    const ids = [...comp.lastCredits].map((f) => `lpc:${f}`);
+    for (const f of comp.lastCredits) {
+      const c = comp.credits.get(f);
+      addCredit(`lpc:${f}`, { pack: 'lpc', title: c.title, authors: c.authors, licenses: c.licenses, urls: c.urls, notes: c.notes });
+    }
+    const license = sheetLicense(ids.map((i) => credits.get(i).licenses));
+    save(g.id, [g.unit], packed, { scale: SCALE.foot, o: 'oga8', credits: ids, license });
+    console.log(`  ${g.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
   // ---------- Edificios (Unknown Horizons) y fuertes, torres y murallas (0 A.D.) ----------
@@ -237,19 +257,6 @@ function ballista(dir) {
   return { o: 'oga8', anims: siegeAnims(8, 6, frame) };
 }
 
-function cannon(dir) {
-  const L = (f) => Img.read(path.join(dir, f));
-  const gun = L('cannon.png'), wheels = L('cannon-wheels-fg.png');
-  // La hoja trae 4 direcciones en las filas 0, 2, 4, 6 (S, E, N, W); se reordenan a N, W, S, E.
-  const rows = [4, 6, 0, 2];
-  const frame = (d, _wk, bk) => {
-    const out = new Img(128, 128);
-    out.draw(gun, bk * 128, rows[d] * 128, 128, 128, 0, 0);
-    out.draw(wheels, bk * 128, rows[d] * 128, 128, 128, 0, 0);
-    return out;
-  };
-  return { o: 'lpc4', anims: siegeAnims(4, 5, frame, 1) };
-}
 
 /**
  * Vehículo de 0 A.D. (ariete, carro, trebuchet) en las 8 direcciones de las hojas de asedio
@@ -304,6 +311,108 @@ async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224
     idle: anim(1, 1, (r) => frame(r)),
     walk: anim(4, 8, (r, k) => frame(r, 0, k % 2)),
     attack: anim(PUSH.length, 8, (r, k) => frame(r, PUSH[k])),
+  };
+}
+
+/**
+ * Pieza de artillería en las 8 direcciones de las hojas de asedio, con dos sirvientes LPC parados
+ * junto a la cureña. Al disparar, la pieza retrocede (`push`), sale un fogonazo y una nube de humo.
+ */
+async function crewedGun(comp, g) {
+  const M = 1.45; // metros por casilla del juego
+  const unit = M * SCALE.foot; // se dibuja al tamaño de la hoja (escala de los soldados)
+  const FS = 320, AX = 160, AY = 205;
+  const parts = g.model();
+  const L = GUN_LAYOUT[g.kind];
+  // Sirvientes: quietos (primer cuadro de caminar), caminando y en su tarea.
+  const walk = await comp.anim(g.crew.parts, 'walk', { bodyType: 'male' });
+  const work = g.crew.attack === 'walk' ? walk : await comp.anim(g.crew.parts, g.crew.attack, { bodyType: 'male' });
+  const off = (walk.fs - 64) / 2;
+  const LPC_DIR = [2, 2, 3, 3, 0, 0, 1, 1]; // S, SE, E, NE, N, NO, O, SO → fila LPC (n, o, s, e)
+  const views = [];
+  for (let r = 0; r < 8; r++) {
+    const a = (((r + 1) % 8) * Math.PI) / 4, ca = Math.cos(a), sa = Math.sin(a);
+    const rot = (x, y) => [x * ca - y * sa, -(x * sa + y * ca)];
+    const tp = parts.map((p) => ({
+      ...p,
+      tris: p.tris.map((t) => t.map((c) => {
+        const [u, v] = rot(c.p[0], c.p[1]);
+        return { ...c, p: [u / unit, v / unit, c.p[2] / unit], n: c.n ? [...rot(c.n[0], c.n[1]), c.n[2]] : null };
+      })),
+    }));
+    const px = (x, y, z = 0) => {
+      const [u, v] = rot(x, y);
+      return [((u - v) / unit) * 32, ((u + v) / unit) * 16 - (z / unit) * 39.19];
+    };
+    const [fu, fv] = rot(0, -1);
+    views.push({
+      c: cropRender(render(tp)),
+      dir: [(fu - fv) * 0.7071, (fu + fv) * 0.3536],
+      muzzle: px(...L.muzzle),
+      crew: L.crew.map(([x, y]) => px(x, y)),
+      lpc: LPC_DIR[r],
+    });
+  }
+  // Pega una imagen y su máscara: lo que tapa borra la máscara de abajo.
+  const paste = (img, mask, src, smask, sx, sy, sw, sh, dx, dy) => {
+    img.draw(src, sx, sy, sw, sh, dx, dy);
+    mask.erase(src, sx, sy, sw, sh, dx, dy);
+    if (smask) mask.draw(smask, sx, sy, sw, sh, dx, dy);
+  };
+  const puff = (img, cx, cy, r, color, alpha) => {
+    for (let y = Math.floor(cy - r); y <= cy + r; y++)
+      for (let x = Math.floor(cx - r); x <= cx + r; x++) {
+        if (x < 0 || y < 0 || x >= img.w || y >= img.h) continue;
+        const d = Math.hypot(x - cx, y - cy) / r;
+        if (d > 1) continue;
+        const i = (y * img.w + x) * 4, k = alpha * (1 - d * d);
+        for (let c = 0; c < 3; c++) img.data[i + c] = img.data[i + c] * (1 - k) + color[c] * k;
+        img.data[i + 3] = Math.max(img.data[i + 3], Math.round(255 * Math.min(1, k + 0.15)));
+      }
+  };
+  const frame = (r, { push = 0, bob = 0, crewAnim = walk, crewFrame = 0, fx = null } = {}) => {
+    const v = views[r];
+    const img = new Img(FS, FS), mask = new Img(FS, FS);
+    const gx = Math.round(AX - v.c.ox + v.dir[0] * push), gy = Math.round(AY - v.c.oy + v.dir[1] * push + bob);
+    // Orden de dibujo: lo de atrás primero (los sirvientes detrás de la pieza, o delante).
+    const items = [{ y: 0, draw: () => paste(img, mask, v.c.img, v.c.mask, 0, 0, v.c.img.w, v.c.img.h, gx, gy) }];
+    v.crew.forEach(([cx, cy]) => {
+      const fr = crewAnim.base[v.lpc][crewFrame % crewAnim.n], fm = crewAnim.mask[v.lpc][crewFrame % crewAnim.n];
+      const dx = Math.round(AX + cx - crewAnim.fs / 2), dy = Math.round(AY + cy - (off + 60) + bob);
+      items.push({ y: cy, draw: () => paste(img, mask, fr, fm, 0, 0, fr.w, fr.h, dx, dy) });
+    });
+    items.sort((a, b) => a.y - b.y).forEach((it) => it.draw());
+    if (fx) fx(img, AX + v.muzzle[0] + v.dir[0] * push, AY + v.muzzle[1] + v.dir[1] * push);
+    return [img, mask];
+  };
+  const anim = (n, fps, f, loop = true) => {
+    const base = [], mask = [];
+    for (let r = 0; r < 8; r++) {
+      const fr = [...Array(n).keys()].map((k) => f(r, k));
+      base.push(fr.map((x) => x[0]));
+      mask.push(fr.map((x) => x[1]));
+    }
+    return { fs: FS, dirs: 8, n, base, mask, ax: AX, ay: AY, fps, loop };
+  };
+  const smoke = g.smoke;
+  return {
+    idle: anim(1, 1, (r) => frame(r)),
+    walk: anim(4, 8, (r, k) => frame(r, { bob: k % 2, crewFrame: 1 + k * 2 })),
+    attack: anim(g.push.length, 8, (r, k) =>
+      frame(r, {
+        push: g.push[k],
+        crewAnim: work,
+        crewFrame: g.crew.attack === 'walk' ? 0 : Math.min(work.n - 1, k),
+        fx: (img, mx, my) => {
+          if (g.flash.includes(k)) {
+            puff(img, mx, my, 7 * smoke, [255, 236, 150], 1);
+            puff(img, mx, my, 3.5 * smoke, [255, 255, 235], 1);
+          }
+          if (k >= 1 && smoke >= 0.9) puff(img, mx + k * 2, my - k * 3, (5 + k * 3) * smoke, [214, 210, 200], 0.75 - k * 0.1);
+          else if (k >= 1) puff(img, mx, my - k, 4 * smoke + k, [214, 210, 200], 0.5);
+        },
+      }),
+    ),
   };
 }
 
