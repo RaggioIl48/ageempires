@@ -593,7 +593,7 @@ Total War: Napoleon:
   running on the spot, no skating when walking).
 - **Industrial Age**: the jeep is replaced by **Hussars** (Napoleonic light cavalry with sabre, melee, strong
   against riflemen and artillery). The **field gun**, the **Maxim gun** and the Modern **howitzer** are 3D models
-  built in code (: spoked wheels, carriages in the player colour) with two LPC gunners each;
+  built in code (`tools/art/guns.mjs`: spoked wheels, carriages in the player colour) with two LPC gunners each;
   firing makes the piece recoil, with a muzzle flash and a cloud of smoke.
 
 ## Known limits
