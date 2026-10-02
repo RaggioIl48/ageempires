@@ -97,6 +97,8 @@ export class ClientState {
   clock: [number, number] = [0, 0];
   tick = 0;
   lastStateAt = 0;
+  /** Tiempo promedio entre estados del servidor (ms). */
+  stateGap = TICK_MS;
   /** Sube cada vez que cambian los nodos o edificios (para redibujar el minimapa). */
   nodesVersion = 0;
   effects: Effect[] = [];
@@ -336,6 +338,9 @@ export class ClientState {
       this.techVersion++;
     }
     this.tick = d.k;
+    // Cada cuánto llegan de verdad los estados (con el wifi a veces se atrasan): promedio suave.
+    const gap = now - this.lastStateAt;
+    if (this.lastStateAt > 0 && gap > 0 && gap < 1000) this.stateGap = this.stateGap * 0.9 + gap * 0.1;
     this.lastStateAt = now;
   }
 
@@ -390,9 +395,15 @@ export class ClientState {
     return best;
   }
 
-  /** Posición dibujada: interpola entre el estado anterior y el último. */
+  /**
+   * Posición dibujada: interpola entre el estado anterior y el último. El tramo dura lo que
+   * suelen tardar en llegar los estados (un poco más), así un paquete atrasado no deja a las
+   * tropas quietas y luego a los saltos: siguen deslizándose.
+   */
   unitPos(u: ClientUnit, now: number): { x: number; y: number } {
-    const t = Math.min(1, Math.max(0, (now - this.lastStateAt) / TICK_MS));
+    // Con la red estable, el tramo es un paso exacto; solo se estira si los estados se atrasan de verdad.
+    const span = this.stateGap > TICK_MS * 1.1 ? Math.min(250, this.stateGap * 1.1) : TICK_MS;
+    const t = Math.min(1, Math.max(0, (now - this.lastStateAt) / span));
     return { x: u.prevX + (u.v.x - u.prevX) * t, y: u.prevY + (u.v.y - u.prevY) * t };
   }
 

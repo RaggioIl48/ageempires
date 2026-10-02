@@ -4,7 +4,7 @@
 import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
 import { artVersion, unitPortrait } from './art.ts';
 import { flagSvg } from './flags.ts';
-import { CODE_LENGTH, type ClientMessage, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
+import { CODE_LENGTH, type BotLevel, type ClientMessage, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
 
 export function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -102,6 +102,13 @@ export class LobbyScreen {
       const pin = teacherPin();
       this.send(pin ? { t: 'start', code: this.room.code, pin } : { t: 'start', code: this.room.code });
     });
+    el('host-box').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-bot]');
+      if (!btn || !this.room) return;
+      const pin = teacherPin();
+      const level = btn.dataset.bot as BotLevel;
+      this.send(pin ? { t: 'addBot', code: this.room.code, level, pin } : { t: 'addBot', code: this.room.code, level });
+    });
     el('lobby-factions').addEventListener('click', (e) => {
       // Abrir o cerrar los detalles no elige el pueblo.
       if ((e.target as HTMLElement).closest('details')) return;
@@ -189,7 +196,7 @@ export class LobbyScreen {
     el('lobby-members').innerHTML = room.members
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i>
-          <b>${esc(m.name)}</b>${m.id === this.me ? ' (you)' : ''}<span class="muted"> · ${esc(FACTIONS[m.faction].name)}</span>${
+          <b>${m.bot ? '🤖 ' : ''}${esc(m.name)}</b>${m.id === this.me ? ' (you)' : ''}<span class="muted"> · ${esc(FACTIONS[m.faction].name)}</span>${
             m.team > 0 ? ` <span class="team-tag">${teamText(m.team)}</span>` : ''
           }</div>`,
       )
@@ -283,6 +290,8 @@ export class TeacherScreen {
           );
           return;
         }
+        case 'bot':
+          return this.send({ t: 'addBot', code, level: btn.dataset.level as BotLevel });
         case 'kick':
           if (confirm(`Remove ${btn.dataset.name} from the game?`)) this.send({ t: 'kick', code, memberId: Number(btn.dataset.id) });
           return;
@@ -353,7 +362,7 @@ export class TeacherScreen {
     const links = this.urls.map((u) => `<code>${esc(u)}/?c=${r.code}</code>`).join(' ');
     const members = r.members
       .map(
-        (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i><b>${esc(m.name)}</b>
+        (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i><b>${m.bot ? '🤖 ' : ''}${esc(m.name)}</b>
           <span class="muted">· ${esc(FACTIONS[m.faction].name)} ${m.connected ? '' : '· disconnected'}</span>
           ${
             r.phase === 'lobby'
@@ -373,6 +382,8 @@ export class TeacherScreen {
       actions =
         b('start', '▶ Start game', r.members.length === 0 ? 'disabled title="At least one player must join first"' : 'class="primary"') +
         b('try', '🧪 Try as a student', 'title="Opens a new tab as if you were a student"') +
+        b('bot', '🤖 + Computer (Easy)', 'data-level="easy" title="Adds a computer rival that plays slowly"') +
+        b('bot', '🤖 + Computer (Normal)', 'data-level="normal" title="Adds a computer rival that counters your army and attacks in waves"') +
         (r.members.length > 1 ? b('teams2', '⚖ Split into 2 teams') + b('ffa', 'Everyone for themselves') : '') +
         b('close', 'Close room');
     else if (r.phase === 'playing')

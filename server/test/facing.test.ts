@@ -42,3 +42,26 @@ describe('orientación y caídos (cliente)', () => {
     expect(s.effects.length).toBe(1);
   });
 });
+
+describe('smooth movement with a jittery network', () => {
+  it('if states arrive late, units keep gliding instead of stopping and jumping', () => {
+    const s = new ClientState();
+    s.size = 64;
+    s.apply(delta(1, { u: [encodeUnit(unit({}))] }), 0);
+    // Los estados llegan cada 160 ms (wifi lento) en vez de cada 100 ms.
+    for (let k = 2; k <= 30; k++) s.apply(delta(k, { p: [1, 1000 + k * 10, 1000] }), (k - 1) * 160);
+    const cu = s.units.get(1)!;
+    const last = 29 * 160;
+    // A los 100 ms del último estado todavía no llegó al final: sigue avanzando.
+    const mid = s.unitPos(cu, last + 100).x;
+    expect(mid).toBeLessThan(cu.v.x);
+    expect(mid).toBeGreaterThan(s.unitPos(cu, last + 20).x);
+    // Con la red estable (cada 100 ms) el tramo es exacto: llega justo a los 100 ms.
+    const t = new ClientState();
+    t.size = 64;
+    t.apply(delta(1, { u: [encodeUnit(unit({}))] }), 0);
+    for (let k = 2; k <= 30; k++) t.apply(delta(k, { p: [1, 1000 + k * 10, 1000] }), (k - 1) * 100);
+    const tu = t.units.get(1)!;
+    expect(t.unitPos(tu, 29 * 100 + 100).x).toBeCloseTo(tu.v.x);
+  });
+});

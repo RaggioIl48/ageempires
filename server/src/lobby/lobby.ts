@@ -76,6 +76,18 @@ export class Lobby {
         break; // si no, sigue abajo: solo el profesor
       }
 
+      case 'addBot': {
+        // Igual que iniciar: el profesor, o un estudiante en el computador del servidor (o con la clave).
+        if (conn.role === 'student') {
+          const byTeacher = conn.isLocal || (msg.pin !== undefined && msg.pin === this.opts.pin);
+          if (!byTeacher || conn.room?.code !== msg.code) return conn.send({ t: 'error', message: 'Only the teacher can add computer players.' });
+          const error = conn.room.addBot(msg.level);
+          if (error) conn.send({ t: 'error', message: error });
+          return;
+        }
+        break; // el profesor: sigue abajo
+      }
+
       // ---------- Profesor ----------
       case 'teacher': {
         if (conn.isLocal || msg.pin === this.opts.pin) {
@@ -118,6 +130,9 @@ export class Lobby {
         break;
       case 'setTeam':
         error = room.setTeam(msg.memberId, msg.team);
+        break;
+      case 'addBot':
+        error = room.addBot(msg.level);
         break;
       case 'start':
         error = room.start();

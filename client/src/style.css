@@ -691,6 +691,12 @@ tr.off {
 .host-box p {
   margin: 0 0 8px;
 }
+.bot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
 
 /* Panel del profesor */
 .new-room {

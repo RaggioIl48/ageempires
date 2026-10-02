@@ -5,6 +5,7 @@
 import { randomBytes } from 'node:crypto';
 import { FACTION_ORDER, PLAYER_COLORS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
 import type {
+  BotLevel,
   Command,
   MemberView,
   PlayerSummary,
@@ -16,6 +17,7 @@ import type {
 } from '../../../shared/protocol.ts';
 import { buildFrame, ClientSync, welcomeMessage } from '../net/sync.ts';
 import { initRelations } from '../sim/diplomacy.ts';
+import { AiPlayer } from '../sim/ai.ts';
 import { Game } from '../sim/game.ts';
 import { decideByGlory } from '../sim/victory.ts';
 import type { Conn } from './conn.ts';
@@ -33,6 +35,8 @@ export interface Member {
   team: number;
   /** Último mensaje de chat (para limitar el ritmo). */
   lastChat: number;
+  /** Rival de la computadora (su nivel). */
+  bot?: BotLevel;
 }
 
 /** Segundos mínimos entre dos mensajes de chat de un mismo estudiante. */
@@ -49,6 +53,8 @@ export class Room {
   private lastBattles = 0;
   members: Member[] = [];
   game: Game | null = null;
+  /** Rivales de la computadora de la partida en curso. */
+  private ais: AiPlayer[] = [];
   /** Profesores mirando la partida. */
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
@@ -95,6 +101,28 @@ export class Room {
     };
     this.members.push(member);
     this.attach(conn, member);
+    return null;
+  }
+
+  /** Agrega un rival de la computadora (en la sala de espera). */
+  addBot(level: BotLevel): string | null {
+    if (this.phase !== 'lobby') return 'Computer players are added before the game starts.';
+    if (this.members.length >= this.settings.maxPlayers) return 'The game is full: raise the number of players first.';
+    const n = this.members.filter((m) => m.bot).length + 1;
+    this.members.push({
+      id: this.nextMemberId++,
+      name: this.uniqueName(`Computer ${n} (${level === 'easy' ? 'Easy' : 'Normal'})`),
+      token: randomBytes(16).toString('hex'),
+      color: PLAYER_COLORS.find((c) => !this.members.some((m) => m.color === c)) ?? PLAYER_COLORS[0],
+      // Un pueblo al azar entre los que nadie eligió.
+      faction: FACTION_ORDER[(this.members.length * 3 + this.seed) % FACTION_ORDER.length],
+      conn: null,
+      kicked: false,
+      team: 0,
+      lastChat: 0,
+      bot: level,
+    });
+    this.changed();
     return null;
   }
 
@@ -213,6 +241,7 @@ export class Room {
     const member = this.members.find((m) => m.id === memberId);
     if (!member) return;
     member.kicked = true;
+    this.ais = this.ais.filter((ai) => ai.playerId !== memberId);
     if (member.conn) {
       const conn = member.conn;
       conn.send({ t: 'kicked', message: 'The teacher removed you from the game.' });
@@ -240,9 +269,10 @@ export class Room {
     // Los del mismo equipo empiezan aliados; el resto, en guerra.
     initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
     if (this.settings.fog !== false) this.game.enableFog();
+    this.ais = players.filter((m) => m.bot).map((m) => new AiPlayer(m.id, m.bot!));
     for (const m of players) {
       const p = this.game.world.players.get(m.id)!;
-      p.connected = m.conn !== null;
+      p.connected = m.conn !== null || !!m.bot;
       if (m.conn) this.startSync(m.conn, m.id);
     }
     for (const w of this.watchers) this.startSync(w, 0);
@@ -311,6 +341,7 @@ export class Room {
     if (this.paused && this.pauseUntil && Date.now() >= this.pauseUntil) this.setPaused(false);
     if (this.phase !== 'playing' || this.paused || !this.game) return;
     const game = this.game;
+    for (const ai of this.ais) ai.update(game);
     game.step();
     // Empezó una batalla: pausa táctica para que todos den sus órdenes.
     if (game.world.battlesOpened > this.lastBattles) {
@@ -350,7 +381,7 @@ export class Room {
       paused: this.paused,
       settings: this.settings,
       members: this.members.filter((m) => !m.kicked).map(
-        (m): MemberView => ({ id: m.id, name: m.name, color: m.color, faction: m.faction, connected: m.conn !== null, team: m.team }),
+        (m): MemberView => ({ id: m.id, name: m.name, color: m.color, faction: m.faction, connected: m.conn !== null || !!m.bot, team: m.team, ...(m.bot ? { bot: m.bot } : {}) }),
       ),
     };
   }
@@ -362,7 +393,7 @@ export class Room {
       phase: this.phase,
       paused: this.paused,
       players: active.length,
-      connected: active.filter((m) => m.conn).length,
+      connected: active.filter((m) => m.conn || m.bot).length,
       settings: this.settings,
     };
   }

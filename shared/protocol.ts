@@ -173,6 +173,10 @@ export interface RoomSettings {
   battlePause: number;
 }
 
+/** Nivel del rival de la computadora. */
+export type BotLevel = 'easy' | 'normal';
+export const BOT_LEVELS: readonly BotLevel[] = ['easy', 'normal'];
+
 export type RoomPhase = 'lobby' | 'playing' | 'ended';
 
 export interface MemberView {
@@ -183,6 +187,8 @@ export interface MemberView {
   connected: boolean;
   /** Equipo asignado por el profesor (0 = sin equipo). */
   team: number;
+  /** Rival de la computadora (y su nivel). */
+  bot?: BotLevel;
 }
 
 export interface RoomView {
@@ -336,6 +342,8 @@ export type ClientMessage =
   | { t: 'watch'; code: string }
   | { t: 'unwatch' }
   | { t: 'setTeam'; code: string; memberId: number; team: number }
+  /** Agregar un rival de la computadora en la sala de espera (profesor, o quien está en el computador del servidor). */
+  | { t: 'addBot'; code: string; level: BotLevel; pin?: string }
   | { t: 'chat'; text: string; to: 'all' | 'allies' };
 
 // ---------- Servidor -> Cliente ----------
@@ -569,6 +577,11 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'start':
       if (!isCode(m.code)) return null;
       return typeof m.pin === 'string' && m.pin.length <= 12 ? { t: 'start', code: m.code, pin: m.pin } : { t: 'start', code: m.code };
+    case 'addBot':
+      if (!isCode(m.code) || !(BOT_LEVELS as readonly unknown[]).includes(m.level)) return null;
+      return typeof m.pin === 'string' && m.pin.length <= 12
+        ? { t: 'addBot', code: m.code, level: m.level as BotLevel, pin: m.pin }
+        : { t: 'addBot', code: m.code, level: m.level as BotLevel };
     case 'end':
     case 'closeRoom':
     case 'watch':
