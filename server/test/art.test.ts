@@ -82,4 +82,13 @@ describe('arte de unidades', () => {
       for (const a of ['idle', 'walk', 'chop', 'mine', 'farm', 'build', 'die']) expect(s.anims[a], `${f} ${a}`).toBeDefined();
     }
   });
+
+  it('every soldier shows the player color in every animation (armor must not hide it)', () => {
+    // Las máquinas sin color de equipo llevan un estandarte aparte (a propósito).
+    const MACHINES = new Set(['any-scorpion']);
+    for (const [id, s] of Object.entries(units.sheets) as [string, { anims: Record<string, { m?: number[] }> }][]) {
+      if (MACHINES.has(id) || id.startsWith('bld-')) continue;
+      for (const [name, a] of Object.entries(s.anims)) expect(a.m?.length ?? 0, `${id} ${name}`).toBeGreaterThan(0);
+    }
+  });
 });

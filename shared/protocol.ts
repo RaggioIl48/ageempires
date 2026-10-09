@@ -382,7 +382,9 @@ export type ClientMessage =
   | { t: 'addBot'; code: string; level: BotLevel; pin?: string }
   | { t: 'chat'; text: string; to: 'all' | 'allies' }
   /** Respuesta a la pregunta para avanzar de era. */
-  | { t: 'quizAnswer'; id: number; choice: number };
+  | { t: 'quizAnswer'; id: number; choice: number }
+  /** Medir la conexión (el servidor contesta con un pong). */
+  | { t: 'ping'; n: number };
 
 // ---------- Servidor -> Cliente ----------
 
@@ -466,6 +468,8 @@ export type ServerMessage =
   | { t: 'players'; players: PlayerView[] }
   | DeltaMessage
   | { t: 'paused'; paused: boolean; /** Pausa táctica automática: segundos que dura. */ secs?: number; /** 1 si la causó una batalla que empieza. */ battle?: 1 }
+  /** Respuesta a un ping: `ms` = cuánto tarda el servidor en cada paso de esta partida (promedio). */
+  | { t: 'pong'; n: number; ms: number }
   /** Pregunta para avanzar de era (las opciones ya vienen mezcladas). */
   | { t: 'quiz'; id: number; era: number; q: string; options: string[] }
   /** Resultado: si acertó, el avance empieza; si no, puede volver a intentar en `wait` segundos. */
@@ -601,6 +605,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return isCode(m.code) && isId(m.memberId) && Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) <= 8
         ? { t: 'setTeam', code: m.code, memberId: m.memberId, team: m.team as number }
         : null;
+    case 'ping':
+      return isId(m.n) ? { t: 'ping', n: m.n } : null;
     case 'quizAnswer':
       return isId(m.id) && Number.isInteger(m.choice) && (m.choice as number) >= 0 && (m.choice as number) < 4
         ? { t: 'quizAnswer', id: m.id, choice: m.choice as number }

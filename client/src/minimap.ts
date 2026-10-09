@@ -153,10 +153,17 @@ export class Minimap {
       ctx.fillStyle = this.state.color(b.owner);
       ctx.fillRect(p.mx - 2.5, p.my - 2.5, 5, 5);
     }
+    // Tropas: un punto por píxel y por jugador (un ejército de 200 son pocos puntos), agrupados por color.
+    const dots = new Map<number, Set<number>>();
     for (const u of this.state.units.values()) {
       const p = this.toMini(u.v.x, u.v.y);
-      ctx.fillStyle = this.state.color(u.v.owner);
-      ctx.fillRect(p.mx - 1.25, p.my - 1.25, 2.5, 2.5);
+      let set = dots.get(u.v.owner);
+      if (!set) dots.set(u.v.owner, (set = new Set()));
+      set.add(Math.round(p.my * 2) * 4096 + Math.round(p.mx * 2));
+    }
+    for (const [owner, set] of dots) {
+      ctx.fillStyle = this.state.color(owner);
+      for (const k of set) ctx.fillRect((k % 4096) / 2 - 1.25, Math.floor(k / 4096) / 2 - 1.25, 2.5, 2.5);
     }
 
     // Batallas: círculo rojo que late.

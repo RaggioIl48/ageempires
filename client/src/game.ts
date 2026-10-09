@@ -12,6 +12,7 @@ import type { Net } from './net.ts';
 import { Renderer } from './render.ts';
 import { ClientState } from './state.ts';
 import { Camera } from './view.ts';
+import { PerfMeter, perfVerdict } from './perf.ts';
 
 export class GameView {
   readonly state = new ClientState();
@@ -29,9 +30,13 @@ export class GameView {
   private needCenter = false;
   private last = performance.now();
   private lastMini = 0;
+  private lastPing = 0;
+  private perfOpen = false;
+  private readonly perfBox = document.getElementById('perf')!;
+  readonly perf = new PerfMeter();
   active = false;
 
-  constructor(net: Net) {
+  constructor(private readonly net: Net) {
     this.input = new Input(this.canvas, this.cam, this.state, net);
     this.hud = new Hud(this.state, this.input);
     this.minimap = new Minimap(document.getElementById('minimap') as HTMLCanvasElement, this.cam, this.state, this.renderer, this.input);
@@ -42,8 +47,28 @@ export class GameView {
     this.hud.onMarch = () => this.war.toggleMenu();
     this.input.onSelectionChange = () => this.hud.update();
     window.addEventListener('resize', () => this.resize());
+    // F3 o clic en el indicador: mostrar u ocultar los detalles.
+    this.perfBox.addEventListener('click', () => (this.perfOpen = !this.perfOpen));
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'F3') {
+        e.preventDefault();
+        this.perfOpen = !this.perfOpen;
+      }
+    });
     this.resize();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** Indicador de fluidez (arriba): punto de color y ping; con F3, los detalles y el veredicto. */
+  private showPerf(): void {
+    const s = this.perf.sample();
+    const v = perfVerdict(s);
+    const box = this.perfBox;
+    box.classList.remove('hidden');
+    box.dataset.level = v.level;
+    box.innerHTML = this.perfOpen
+      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs`
+      : `● ${Math.round(s.ping)} ms`;
   }
 
   /** Mensajes de la partida (bienvenida, cambios, jugadores). */
@@ -97,7 +122,14 @@ export class GameView {
     this.state.updateVision(now);
     const dpr = window.devicePixelRatio || 1;
     const ctx = this.ctx;
+    const t0 = performance.now();
     this.renderer.draw(ctx, dpr, this.cam, this.state, this.input.sel, this.input.markers, this.input.ghost, now, this.input.frontDrag);
+    this.perf.frame(now, performance.now() - t0);
+    // Medir la conexión cada 2 s.
+    if (now - this.lastPing > 2000) {
+      this.lastPing = now;
+      this.net.send({ t: 'ping', n: this.perf.ping_(performance.now()) });
+    }
 
     // Rectángulo de selección (en coordenadas de pantalla).
     const box = this.input.dragBox;
@@ -116,6 +148,7 @@ export class GameView {
     while (this.input.markers.length > 0 && now - this.input.markers[0].t0 > 700) this.input.markers.shift();
 
     if (now - this.lastMini > 100) {
+      this.showPerf();
       this.minimap.draw(now);
       this.chat.update(); // los mensajes viejos se desvanecen
       this.lastMini = now;

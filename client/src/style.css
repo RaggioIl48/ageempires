@@ -810,6 +810,37 @@ table.eco tr.me {
   border-radius: 10px;
   text-align: center;
 }
+/* Indicador de fluidez (ping, fps): pequeño, arriba a la derecha bajo la barra. */
+.perf {
+  position: fixed;
+  top: calc(var(--top-h) + 4px);
+  right: 8px;
+  z-index: 6;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+  color: #e9d7b5;
+  background: rgba(20, 15, 10, 0.72);
+  border: 1px solid rgba(233, 215, 181, 0.25);
+  border-radius: 6px;
+}
+.perf[data-level='good'] b,
+.perf[data-level='good'] {
+  --dot: #6fe07a;
+}
+.perf[data-level='warn'] {
+  --dot: #f0c14b;
+}
+.perf[data-level='bad'] {
+  --dot: #ff6b5b;
+}
+.perf::first-letter {
+  color: var(--dot);
+}
+.perf b {
+  color: var(--dot);
+}
 #quiz .quiz-box {
   width: min(560px, 92vw);
   padding: 18px 22px;

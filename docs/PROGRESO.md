@@ -632,6 +632,33 @@ Total War: Napoleon:
   in 20 s. The server checks the answer; computer rivals skip the questions. Option in the teacher panel
   ("Questions to advance an age": history / my own / off).
 
+## Smoother play: faster drawing, depth effects, instant orders, smoothness meter (2026-10-08)
+
+- **Drawing 6× lighter**: the fog veil was repainted as thousands of polygons ~6 times per second (~80 ms each,
+  10.5 of the 11.9 ms per frame). Now a per-map table says which tile (with its hill) each fog pixel shows, and an
+  update only writes numbers into an image (`client/src/fogmap.ts`): 0.14 ms per frame. Frame drawing with a big
+  battle: 11.9 ms → 1.9 ms (steady 60 fps). The minimap merges soldiers on the same pixel (270 → 27 draw calls).
+- **Bars only where they matter** (like TW/AoE): selected troops show health, morale and stamina; the rest show
+  health only when wounded, morale only when wavering (< 45%), stamina only when exhausted; zoomed far out, only
+  the selection.
+- **Depth in 2D**: soft shadows cast to the lower right (light from the upper left); arrows and cannonballs cast
+  a shadow on the ground and arc higher when the target is far, and arrows tilt along their curve; dust behind
+  cavalry, vehicles and running infantry, dust bursts on charges, smoke and dust where cannonballs land and
+  buildings fall (`client/src/particles.ts`, capped at 240 puffs and 5 new dust clouds per frame).
+- **Turning**: units turn gradually (10 rad/s) and the 4-direction soldiers no longer flicker between two
+  drawings when walking diagonally (a margin at the border between directions, `client/src/motion.ts`).
+- **Instant response**: right-click and the selected units turn toward the click at once, without waiting for
+  the server (0.6 s of priority over the server facing until the movement starts).
+- **Smooth zoom** to the cursor (the wheel sets a target; the camera glides in ~0.2 s).
+- **Smoothness meter**: a small dot with the ping at the top right; **F3** (or a click) shows fps, drawing ms,
+  ping, server ms per step and a plain verdict ("Slow connection…", "The server is overloaded…", "This computer
+  struggles…"). The server answers `ping` with its average step time.
+- **Player colour under armour**: the Roman spearman, several swordsmen, the Chosen Axeman and the Armored Archer
+  lost the player colour in some animations (chain mail covered the coloured tunic); they now wear a sash in the
+  player colour, and a test checks every animation of every soldier.
+- **Test plan**: `docs/TEST_PLAN.md` (pyramid, areas, targets, manual checks, gaps). New tests: `smooth.test.ts`,
+  a performance budget for 800 units, ping/pong, and team colour in every animation.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

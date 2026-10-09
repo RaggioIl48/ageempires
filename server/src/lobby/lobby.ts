@@ -53,6 +53,9 @@ export class Lobby {
       case 'cmd':
         if (conn.role === 'student') conn.room?.command(conn, msg.cmd);
         return;
+      case 'ping':
+        conn.send({ t: 'pong', n: msg.n, ms: Math.round((conn.room?.stepMs ?? 0) * 10) / 10 });
+        return;
       case 'quizAnswer':
         if (conn.role === 'student') conn.room?.answerQuiz(conn, msg.id, msg.choice);
         return;

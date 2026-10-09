@@ -25,6 +25,9 @@ import {
 } from '../../shared/protocol.ts';
 import { NO_TECHS, buildingMaxHp, unitLabel, unitStats, type TechMask, type UnitStats } from '../../shared/stats.ts';
 
+/** Cuánto manda el giro de una orden recién dada antes de que el servidor confirme (ms). */
+export const AIM_MS = 600;
+
 export interface ClientUnit {
   v: UnitView;
   prevX: number;
@@ -34,6 +37,12 @@ export interface ClientUnit {
   /** Velocidad real suavizada (casillas/s) y si de verdad está caminando (para animar). */
   speed?: number;
   moving?: boolean;
+  /** Ángulo dibujado: gira hacia `face` de a poco (sin saltos). */
+  turn?: number;
+  /** Última vez que levantó polvo (ms). */
+  dustAt?: number;
+  /** Hasta cuándo manda la orden recién dada (el giro previsto) sobre lo que diga el servidor. */
+  aimUntil?: number;
 }
 
 /** Unidad recién caída (para animar su muerte unos segundos). */
@@ -65,6 +74,8 @@ export interface ChatLine {
 export interface Effect {
   e: GameEvent;
   t0: number;
+  /** Ya soltó sus partículas (polvo, humo). */
+  fx?: boolean;
 }
 
 export class ClientState {
@@ -262,7 +273,7 @@ export class ClientState {
       const cu = this.units.get(p[i]);
       if (cu) cu.v = { ...cu.v, x: p[i + 1] / 100, y: p[i + 2] / 100 };
     }
-    for (const cu of this.units.values()) this.updateFace(cu);
+    for (const cu of this.units.values()) this.updateFace(cu, now);
     const events = (d.e ?? []).map(decodeEvent);
     const deaths = events.filter((e) => e.k === 'death');
     for (const id of d.ur ?? []) {
@@ -348,7 +359,22 @@ export class ClientState {
    * Hacia dónde mira una unidad: hacia donde camina; si pelea o construye, hacia su
    * objetivo; si recolecta, hacia el recurso de al lado.
    */
-  private updateFace(cu: ClientUnit): void {
+  /**
+   * Orden recién dada: las unidades giran ya hacia el destino, sin esperar al servidor
+   * (como en Age of Empires). Por un momento eso manda sobre lo que diga el servidor.
+   */
+  aimAt(ids: number[], x: number, y: number, now: number): void {
+    for (const id of ids) {
+      const cu = this.units.get(id);
+      if (!cu || cu.v.owner !== this.you) continue;
+      const dx = x - cu.v.x, dy = y - cu.v.y;
+      if (dx * dx + dy * dy < 0.04) continue;
+      cu.face = Math.atan2((dx + dy) * 0.5, dx - dy);
+      cu.aimUntil = now + AIM_MS;
+    }
+  }
+
+  private updateFace(cu: ClientUnit, now: number): void {
     const v = cu.v;
     let dx = v.x - cu.prevX, dy = v.y - cu.prevY;
     // Velocidad real (casillas por segundo, suavizada): los empujoncitos al separarse no cuentan
@@ -358,6 +384,7 @@ export class ClientState {
     const moving = (v.walk === 1 && cu.speed > 0.35) || cu.speed > 1.2;
     cu.moving = moving;
     if (!moving) [dx, dy] = [0, 0];
+    if (!moving && cu.aimUntil !== undefined && now < cu.aimUntil) return; // sigue mirando adonde se le ordenó
     if (!moving) {
       // Quieto: mira adonde dice el servidor (p. ej. el frente de la formación).
       if (v.fc !== undefined) {

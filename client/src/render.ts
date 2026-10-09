@@ -31,7 +31,10 @@ import {
   poly,
 } from './sprites.ts';
 import { drawDyingUnit } from './art.ts';
-import type { ClientState } from './state.ts';
+import { approachAngle } from './motion.ts';
+import { buildFogIndex, paintFog } from './fogmap.ts';
+import { Particles, puffAt, type PuffKind } from './particles.ts';
+import type { ClientState, ClientUnit } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
 import { MAX_LEVEL, RANK_NAMES } from '../../shared/data.ts';
 
@@ -94,8 +97,8 @@ export function buildTerrainTexture(state: ClientState): HTMLCanvasElement {
 
 /** Escala del terreno horneado (px del lienzo por px del mundo). */
 const BAKE = 0.5;
-/** Escala de la imagen de niebla (es suave: alcanza con poca resolución). */
-const FOG_BAKE = 0.25;
+/** Escala de la imagen de niebla: 1/4 en mapas chicos, menos en los grandes (como mucho ~1600 px de ancho). */
+const fogScale = (n: number) => Math.min(0.25, 1600 / (n * 64));
 /** Margen de arriba (px del mundo) para lo que las colinas levantan. */
 const BAKE_TOP = MAX_LEVEL * ELEV_PX + 8;
 
@@ -203,6 +206,12 @@ const SHELL_MS = 600;
 const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
   e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
 
+/** Como mucho estas nubes de polvo nuevas por cuadro. */
+const DUST_PER_FRAME = 5;
+
+/** Velocidad de giro de las unidades al dibujarlas (rad/s). */
+const TURN_RATE = 10;
+
 /** Píxeles que sube una unidad parada sobre una muralla. */
 const WALL_LIFT = 30;
 
@@ -212,12 +221,25 @@ export class Renderer {
   /** Niebla ya pintada (y de qué versión de lo visible). */
   private fog: HTMLCanvasElement | null = null;
   private fogDrawn = -1;
+  /** Casilla de cada píxel de la niebla (se calcula una vez por mapa) y la imagen que se va pintando. */
+  private fogIndex: Int32Array | null = null;
+  private fogIndexFor: ClientState | null = null;
+  private fogImage: ImageData | null = null;
+  private lastDraw = 0;
+  /** Polvo y humo (con tope fijo). */
+  readonly particles = new Particles();
+  private puffImg: Partial<Record<PuffKind, HTMLCanvasElement>> = {};
+  /** Nubes de polvo nuevas que quedan en este cuadro (un ejército grande no llena la pantalla). */
+  private dustBudget = 0;
+  private dustSeen = 0;
+  private dustScale = 1;
   private mountains: { tx: number; ty: number }[] = [];
 
   /** Llamar al recibir un mapa nuevo. */
   setMap(state: ClientState): void {
     this.terrain = buildTerrainTexture(state);
     this.baked = bakeTerrain(state, this.terrain);
+    this.fogIndex = null; // mapa nuevo: otras colinas
     this.mountains = [];
     for (let ty = 0; ty < state.size; ty++)
       for (let tx = 0; tx < state.size; tx++) if (state.tile(tx, ty) === TILE_MOUNTAIN) this.mountains.push({ tx, ty });
@@ -230,6 +252,7 @@ export class Renderer {
    */
   private drawFog(ctx: CanvasRenderingContext2D, state: ClientState): void {
     const n = state.size;
+    const FOG_BAKE = fogScale(n);
     const W = Math.ceil(n * TILE_W * FOG_BAKE), H = Math.ceil((n * TILE_H + BAKE_TOP + 8) * FOG_BAKE);
     if (!this.fog || this.fog.width !== W || this.fog.height !== H) {
       this.fog = document.createElement('canvas');
@@ -237,35 +260,27 @@ export class Renderer {
       this.fog.height = H;
       this.fogDrawn = -1;
     }
+    if (!this.fogIndex || this.fogIndexFor !== state || this.fogIndex.length !== W * H) {
+      // Una vez por mapa: qué casilla (con su colina) cae en cada píxel de la niebla.
+      this.fogIndex = buildFogIndex(n, W, H, (x, y) => {
+        const p = worldToPx(x, y);
+        return [(p.px + (n * TILE_W) / 2) * FOG_BAKE, (p.py + BAKE_TOP) * FOG_BAKE];
+      });
+      this.fogIndexFor = state;
+      this.fogImage = new ImageData(W, H);
+      const d = this.fogImage.data;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = 8;
+        d[i + 1] = 10;
+        d[i + 2] = 16;
+      }
+      this.fogDrawn = -1;
+    }
     if (this.fogDrawn !== state.fogVersion) {
       this.fogDrawn = state.fogVersion;
-      const fc = this.fog.getContext('2d')!;
-      fc.setTransform(1, 0, 0, 1, 0, 0);
-      fc.clearRect(0, 0, W, H);
-      fc.setTransform(FOG_BAKE, 0, 0, FOG_BAKE, (n * TILE_W * FOG_BAKE) / 2, BAKE_TOP * FOG_BAKE);
-      const steps = 8;
-      const paths: Path2D[] = Array.from({ length: steps + 1 }, () => new Path2D());
-      const used = new Array<boolean>(steps + 1).fill(false);
-      for (let ty = 0; ty < n; ty++)
-        for (let tx = 0; tx < n; tx++) {
-          const f = state.fogLevel[ty * n + tx];
-          if (f <= 0.01) continue;
-          const k = Math.round(f * steps);
-          const a = worldToPx(tx, ty), b = worldToPx(tx + 1, ty), d = worldToPx(tx + 1, ty + 1), e = worldToPx(tx, ty + 1);
-          const p = paths[k];
-          p.moveTo(a.px, a.py - 2);
-          p.lineTo(b.px + 2, b.py);
-          p.lineTo(d.px, d.py + 2);
-          p.lineTo(e.px - 2, e.py);
-          p.closePath();
-          used[k] = true;
-        }
-      for (let k = 1; k <= steps; k++) {
-        if (!used[k]) continue;
-        // Lo que no se ve ahora: un velo oscuro (todo el mapa está a la vista, más apagado).
-        fc.fillStyle = `rgba(8,10,16,${Math.min(0.62, (k / steps) * 1.25)})`;
-        fc.fill(paths[k]);
-      }
+      // Lo que no se ve ahora: un velo oscuro (todo el mapa está a la vista, más apagado).
+      paintFog(this.fogIndex, state.fogLevel, this.fogImage!.data);
+      this.fog.getContext('2d')!.putImageData(this.fogImage!, 0, 0);
     }
     ctx.save();
     ctx.imageSmoothingEnabled = true;
@@ -328,14 +343,22 @@ export class Renderer {
       if (b.type === 'farm') flat.push(b);
       else list.push({ depth: b.tx + b.ty + s, k: 'building', b });
     }
+    // Giro gradual: ~10 rad/s (media vuelta en 0,3 s).
+    this.dustBudget = DUST_PER_FRAME;
+    this.dustScale = Math.max(1, this.dustSeen / 25);
+    this.dustSeen = 0;
+    const turnStep = Math.min(0.1, Math.max(0, (now - this.lastDraw) / 1000)) * TURN_RATE;
+    this.lastDraw = now;
     for (const cu of state.units.values()) {
+      cu.turn = cu.turn === undefined ? cu.face : approachAngle(cu.turn, cu.face, turnStep);
       const p = state.unitPos(cu, now);
       // Los aviones se dibujan encima de todo.
       const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
       // Sobre una muralla: el defensor arriba del todo; el que trepa, a media altura de la escala.
       const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed }, x: p.x, y: p.y, face: cu.face, lift });
+      if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed }, x: p.x, y: p.y, face: cu.turn!, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 
@@ -423,6 +446,8 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
 
+    this.drawPuffs(ctx, now, 'dust');
+
     for (const d of list) {
       switch (d.k) {
         case 'mountain': {
@@ -454,17 +479,20 @@ export class Renderer {
     // Barras de vida: de lo seleccionado y de todo lo que esté herido.
     for (const d of list) {
       if (d.k === 'unit') {
+        // Barras solo donde importan: todas en lo elegido; en el resto, la vida si está herido,
+        // la moral si flaquea y el aguante si están agotados. Muy lejos, solo lo elegido.
+        const chosen = sel.units.has(d.u.id), far = cam.zoom < 0.6;
         const max = state.statsOf(d.u.owner, d.u.type).hp;
-        if (d.u.hp < max || sel.units.has(d.u.id)) {
+        if (chosen || (!far && d.u.hp < max)) {
           const p = worldToPx(d.x, d.y);
           healthBar(ctx, p.px, p.py - d.lift - unitTop(d.u.type, state.faction(d.u.owner)) - 4, d.u.hp / max);
         }
         const top = unitTop(d.u.type, state.faction(d.u.owner)) + d.lift;
         const p = worldToPx(d.x, d.y);
         // Aguante (amarillo) cuando la tropa está cansada.
-        if (d.u.st !== undefined && d.u.st < 70 && !d.u.rout) staminaBar(ctx, p.px, p.py - top + 2, d.u.st / 100);
+        if (d.u.st !== undefined && !d.u.rout && ((chosen && d.u.st < 70) || (!far && d.u.st < 25))) staminaBar(ctx, p.px, p.py - top + 2, d.u.st / 100);
         // Moral (azul) bajo la vida cuando no está completa; bandera blanca si huye.
-        if (d.u.morale !== undefined && !d.u.rout) moraleBar(ctx, p.px, p.py - top - 0.5, d.u.morale / 100);
+        if (d.u.morale !== undefined && !d.u.rout && (chosen || (!far && d.u.morale < 45))) moraleBar(ctx, p.px, p.py - top - 0.5, d.u.morale / 100);
         if (d.u.rout) whiteFlag(ctx, p.px, p.py - top - 6, now + d.u.id * 97);
         if (d.u.rank) chevrons(ctx, p.px - 13, p.py - top - 1, d.u.rank);
         if (d.u.type === 'general') generalBanner(ctx, p.px + 9, p.py - top + 6, state.color(d.u.owner), now + d.u.id * 31);
@@ -516,6 +544,7 @@ export class Renderer {
     }
 
     this.drawEffects(ctx, state, now);
+    this.drawPuffs(ctx, now, 'smoke');
 
     // Previsualización del edificio a colocar.
     if (ghost?.line) {
@@ -546,10 +575,71 @@ export class Renderer {
     }
   }
 
+  /**
+   * Polvo que levantan los que se mueven rápido: la caballería y los vehículos siempre que
+   * van ligero, la infantería solo corriendo (poco). Sale por detrás, a los pies.
+   */
+  private dustFrom(cu: ClientUnit, state: ClientState, x: number, y: number, now: number): void {
+    if (!cu.moving || !cu.speed || this.dustBudget <= 0) return;
+    const st = state.statsOf(cu.v.owner, cu.v.type);
+    if (st.flies) return;
+    const mounted = st.category === 'cavalry' || st.category === 'armor' || st.category === 'siege';
+    const base = mounted ? (cu.speed > 1.6 ? 90 : 0) : cu.v.walk !== 1 && cu.speed > 1.3 ? 260 : 0;
+    if (!base) return;
+    this.dustSeen++;
+    // Muchos a la vez: cada uno levanta polvo más de vez en cuando (así todos levantan algo).
+    if (now - (cu.dustAt ?? 0) < base * this.dustScale) return;
+    cu.dustAt = now;
+    this.dustBudget--;
+    const p = worldToPx(x, y);
+    const f = cu.turn ?? cu.face;
+    const size = mounted ? 1 : 0.6;
+    this.particles.emit({
+      x: p.px - Math.cos(f) * 7 * size + (Math.random() - 0.5) * 6, y: p.py - Math.sin(f) * 4 * size, z: 1,
+      vx: -Math.cos(f) * 10 + (Math.random() - 0.5) * 8, vy: -Math.sin(f) * 5, vz: 6 * size,
+      r0: 2.5 * size, r1: (7 + Math.random() * 4) * size, t0: now, life: 650 + Math.random() * 350, alpha: 0.32 * (mounted ? 1 : 0.8), kind: 'dust',
+    });
+  }
+
+  /** Nube suave (degradado) de polvo o de humo, pintada una sola vez. */
+  private puffSprite(kind: PuffKind): HTMLCanvasElement {
+    let c = this.puffImg[kind];
+    if (c) return c;
+    c = document.createElement('canvas');
+    c.width = c.height = 32;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(16, 16, 1, 16, 16, 16);
+    const rgb = kind === 'dust' ? '176,152,116' : '205,203,198';
+    grad.addColorStop(0, `rgba(${rgb},1)`);
+    grad.addColorStop(0.6, `rgba(${rgb},0.55)`);
+    grad.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 32, 32);
+    this.puffImg[kind] = c;
+    return c;
+  }
+
+  private drawPuffs(ctx: CanvasRenderingContext2D, now: number, kind: PuffKind): void {
+    const img = this.puffSprite(kind);
+    for (const p of this.particles.pool) {
+      if (!p.alive || p.kind !== kind) continue;
+      if (now - p.t0 >= p.life) {
+        p.alive = false;
+        continue;
+      }
+      const s = puffAt(p, now);
+      if (s.a <= 0.01) continue;
+      ctx.globalAlpha = s.a;
+      ctx.drawImage(img, s.x - s.r, s.y - s.r, s.r * 2, s.r * 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /** Flechas, golpes, muertes y derrumbes. Los efectos viejos se descartan. */
   private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number): void {
     state.effects = state.effects.filter(({ e, t0 }) => now - t0 < effectMs(e));
-    for (const { e, t0 } of state.effects) {
+    for (const item of state.effects) {
+      const { e, t0 } = item;
       const age = (now - t0) / effectMs(e);
       switch (e.k) {
         case 'shot': {
@@ -571,9 +661,20 @@ export class Renderer {
             const a = worldToPx(e.x1, e.y1), b = worldToPx(e.x2, e.y2);
             if (age < 0.8) {
               const k = age / 0.8;
-              const x = a.px + (b.px - a.px) * k, y = a.py - 16 + (b.py - 10 - (a.py - 16)) * k - Math.sin(k * Math.PI) * 40;
-              ellipse(ctx, x, y, 2.5, 2.5, '#2b2b2b');
+              const arc = Math.min(70, 24 + Math.hypot(b.px - a.px, b.py - a.py) * 0.18);
+              const gx = a.px + (b.px - a.px) * k, gy = a.py + (b.py - a.py) * k;
+              // Sombra en el suelo: así se ve que vuela alto.
+              ctx.globalAlpha = 0.18 + 0.2 * k;
+              ellipse(ctx, gx, gy, 3, 1.5, '#000');
+              ctx.globalAlpha = 1;
+              const y = a.py - 16 + (b.py - 10 - (a.py - 16)) * k - Math.sin(k * Math.PI) * arc;
+              ellipse(ctx, gx, y, 2.5, 2.5, '#2b2b2b');
             } else {
+              if (!item.fx) {
+                item.fx = true;
+                this.particles.burst(b.px, b.py, 7, 'smoke', now, 1.1);
+                this.particles.burst(b.px, b.py, 5, 'dust', now, 0.9);
+              }
               const k = (age - 0.8) / 0.2;
               ctx.globalAlpha = 1 - k;
               ellipse(ctx, b.px, b.py - 8, 6 + k * 10, 4 + k * 7, '#ff9f43');
@@ -584,8 +685,14 @@ export class Renderer {
           }
           // Flecha en arco desde el tirador hasta el blanco.
           const a = worldToPx(e.x1, e.y1), b = worldToPx(e.x2, e.y2);
-          const x = a.px + (b.px - a.px) * age, y = a.py - 30 + (b.py - 12 - (a.py - 30)) * age - Math.sin(age * Math.PI) * 18;
-          const ang = Math.atan2(b.py - a.py - 12, b.px - a.px);
+          const arc = Math.min(60, 10 + Math.hypot(b.px - a.px, b.py - a.py) * 0.22);
+          const x = a.px + (b.px - a.px) * age, y = a.py - 30 + (b.py - 12 - (a.py - 30)) * age - Math.sin(age * Math.PI) * arc;
+          ctx.globalAlpha = 0.22;
+          ctx.fillStyle = '#000';
+          ctx.fillRect(x - 3, a.py + (b.py - a.py) * age - 0.5, 6, 1);
+          ctx.globalAlpha = 1;
+          // La flecha apunta según la curva: sube, se nivela y cae.
+          const ang = Math.atan2(b.py - 12 - (a.py - 30) - Math.cos(age * Math.PI) * Math.PI * arc, b.px - a.px);
           ctx.strokeStyle = '#3b2a1a';
           ctx.lineWidth = 1.5;
           ctx.beginPath();
@@ -596,6 +703,10 @@ export class Renderer {
         }
         case 'hit': {
           const p = worldToPx(e.x, e.y);
+          if (e.c && !item.fx) {
+            item.fx = true;
+            this.particles.burst(p.px, p.py, 6, 'dust', now, 0.8);
+          }
           const spark = (now - t0) / EFFECT_MS.hit;
           if (spark < 1) {
           ctx.globalAlpha = 1 - spark;
@@ -692,6 +803,10 @@ export class Renderer {
         }
         case 'destroyed': {
           const p = worldToPx(e.x, e.y);
+          if (!item.fx) {
+            item.fx = true;
+            this.particles.burst(p.px, p.py - 6, 12, 'dust', now, 1.6 + e.size * 0.3);
+          }
           ctx.globalAlpha = 0.7 * (1 - age);
           for (let i = 0; i < 5; i++) {
             const ang = (i / 5) * Math.PI * 2;

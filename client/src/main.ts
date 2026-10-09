@@ -239,6 +239,9 @@ function onMessage(msg: ServerMessage): void {
       if (game.hud.spectator) game.hud.spectator.paused = paused;
       game.hud.update();
       return;
+    case 'pong':
+      game.perf.pong(msg.n, msg.ms, performance.now());
+      return;
     case 'quiz':
       showQuiz(msg.id, msg.era, msg.q, msg.options);
       return;

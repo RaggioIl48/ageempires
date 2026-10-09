@@ -159,6 +159,7 @@ export class Input {
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) dy -= 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) dy += 1;
     if (dx || dy) this.cam.pan(dx * KEY_PAN_SPEED * dt, dy * KEY_PAN_SPEED * dt);
+    this.cam.update(dt);
     if (this.ghost) this.moveGhost();
   }
 
@@ -334,6 +335,8 @@ export class Input {
       }
       return;
     }
+    // Respuesta inmediata: giran hacia donde se hizo clic (el servidor confirma enseguida).
+    this.state.aimAt(ids, x, y, now);
 
     if (target?.kind === 'unit' || target?.kind === 'building') {
       const owner =
@@ -444,6 +447,7 @@ export class Input {
       ...(this.runNow() ? {} : { walk: true }),
     });
     const now = performance.now();
+    this.state.aimAt(ids, x, y, now);
     for (const s of f.spots) this.markers.push({ x: s.x, y: s.y, color: '#7dff8a', t0: now });
   }
 
@@ -696,7 +700,7 @@ export class Input {
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
     const p = this.local(e);
-    this.cam.zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015));
+    this.cam.zoomSmooth(p.x, p.y, Math.exp(-e.deltaY * 0.0015));
   }
 
   private onKeyDown(e: KeyboardEvent): void {

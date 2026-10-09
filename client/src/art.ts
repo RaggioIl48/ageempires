@@ -8,6 +8,7 @@
 
 import { BUILDING_DEFS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
+import { stickyRow } from './motion.ts';
 
 interface AnimMeta {
   /** Fila superior del bloque; w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
@@ -241,6 +242,19 @@ function dirRow(o: SheetMeta['o'], dirs: number, angle: number): number {
   return s < 0 ? 0 : 2;
 }
 
+/** Última dirección dibujada de cada unidad (para no parpadear en las diagonales). */
+const lastRow = new Map<number, number>();
+
+/** Fila de la hoja para esta unidad, con margen respecto de la que ya tenía. */
+function rowOf(u: UnitView, sheet: SheetMeta, dirs: number, face: number): number {
+  if (dirs <= 1) return 0;
+  if (lastRow.size > 5000) lastRow.clear();
+  const key = u.id * 16 + dirs;
+  const row = stickyRow(lastRow.get(key), face, dirs === 8 ? 0.14 : 0.22, (a) => dirRow(sheet.o, dirs, a));
+  lastRow.set(key, row);
+  return row;
+}
+
 /** Qué animación corresponde a lo que está haciendo la unidad. */
 function animName(u: UnitView): string {
   if (u.walk === 1) return 'walk';
@@ -289,11 +303,29 @@ export function drawSpriteUnit(
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
   const pace = name === 'walk' && u.sp ? Math.min(1.5, Math.max(0.45, u.sp / 1.4)) : 1;
   const f = Math.floor(t * a.fps * pace) % a.n;
-  ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath();
-  ctx.ellipse(x, y, shadow * 0.8, shadow * 0.4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  return drawFrame(ctx, id, sheet, img, a, dirRow(sheet.o, a.d, face), f, x, y, color);
+  drawShadow(ctx, x, y, shadow);
+  return drawFrame(ctx, id, sheet, img, a, rowOf(u, sheet, a.d, face), f, x, y, color);
+}
+
+/** Sombra difusa de una figura (degradado ya pintado: barato y suave). */
+let shadowImg: HTMLCanvasElement | null = null;
+export function drawShadow(ctx: CanvasRenderingContext2D, x: number, y: number, half: number): void {
+  if (!shadowImg) {
+    shadowImg = document.createElement('canvas');
+    shadowImg.width = 64;
+    shadowImg.height = 32;
+    const g = shadowImg.getContext('2d')!;
+    const grad = g.createRadialGradient(32, 16, 2, 32, 16, 32);
+    grad.addColorStop(0, 'rgba(0,0,0,0.42)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,0.26)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.setTransform(1, 0, 0, 0.5, 0, 8);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+  }
+  // La luz viene de arriba a la izquierda: la sombra cae un poco a la derecha y hacia abajo.
+  const w = half * 2.3, h = half * 1.15;
+  ctx.drawImage(shadowImg, x - w / 2 + half * 0.28, y - h / 2 + half * 0.08, w, h);
 }
 
 /** Cuadro de la animación de morir (para los caídos), o false si la unidad no tiene. */

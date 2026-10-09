@@ -86,6 +86,27 @@ export class Camera {
     this.clamp();
   }
 
+  /** Zoom suave (como en Total War): la rueda fija un objetivo y la cámara llega deslizándose. */
+  private zoomGoal = 0;
+  private zoomAnchor = { sx: 0, sy: 0 };
+
+  /** La rueda: acumula el objetivo de zoom (con el punto bajo el cursor fijo). */
+  zoomSmooth(sx: number, sy: number, factor: number): void {
+    const from = this.zoomGoal || this.zoom;
+    this.zoomGoal = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, from * factor));
+    this.zoomAnchor = { sx, sy };
+  }
+
+  /** Llamar cada fotograma: acerca el zoom a su objetivo (llega en ~0,2 s, sin saltos). */
+  update(dt: number): void {
+    if (!this.zoomGoal) return;
+    const k = 1 - Math.exp(-dt * 16);
+    const z = this.zoom + (this.zoomGoal - this.zoom) * k;
+    const done = Math.abs(this.zoomGoal - z) < 0.002;
+    this.zoomAt(this.zoomAnchor.sx, this.zoomAnchor.sy, (done ? this.zoomGoal : z) / this.zoom);
+    if (done) this.zoomGoal = 0;
+  }
+
   /** El centro de la cámara no puede salir del rombo del mapa. */
   clamp(): void {
     const w = pxToWorld(this.cx, this.cy);

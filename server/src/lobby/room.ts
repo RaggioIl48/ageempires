@@ -77,6 +77,8 @@ export class Room {
   private quizWait = new Map<number, number>();
   private quizSeen = new Map<number, Set<string>>();
   private nextQuizId = 1;
+  /** Cuánto tarda cada paso (simulación + envío), promedio suave en ms. */
+  stepMs = 0;
   /** Profesores mirando la partida. */
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
@@ -410,6 +412,7 @@ export class Room {
     if (this.paused && this.pauseUntil && Date.now() >= this.pauseUntil) this.setPaused(false);
     if (this.phase !== 'playing' || this.paused || !this.game) return;
     const game = this.game;
+    const t0 = performance.now();
     for (const ai of this.ais) ai.update(game);
     game.step();
     // Empezó una batalla: pausa táctica para que todos den sus órdenes.
@@ -423,6 +426,8 @@ export class Room {
       sync.collect(frame);
       if (!conn.congested()) conn.send(sync.build(frame, game));
     }
+    const ms = performance.now() - t0;
+    this.stepMs = this.stepMs ? this.stepMs * 0.9 + ms * 0.1 : ms;
     const outcome = game.world.outcome;
     if (outcome) this.end(outcome.reason, outcome.winners);
     else if (limit > 0 && game.world.tick >= limit * TICK_RATE) {

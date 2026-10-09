@@ -177,8 +177,15 @@ describe('server over the network', () => {
     };
     const a = await connect(s.port);
     for (let i = 0; i < 200; i++) a.send({ t: 'leave' });
-    await sleep(150);
-    expect(handled).toBe(30);
+    // Esperar a que dejen de llegar (con la máquina cargada pueden tardar más de 150 ms).
+    let last = -1;
+    for (let i = 0; i < 40 && handled !== last; i++) {
+      last = handled;
+      await sleep(100);
+    }
+    // 30 por segundo: si el envío cruzó el cambio de segundo, como mucho 60 de los 200.
+    expect(handled).toBeGreaterThanOrEqual(30);
+    expect(handled).toBeLessThanOrEqual(60);
   });
 
   it('ignores garbage messages without crashing', async () => {
