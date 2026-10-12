@@ -74,8 +74,13 @@ export interface UnitView {
   dk?: 1;
   /** Hacia dónde mira según el servidor: 0–7 (octantes, 0 = +x, en sentido de +y). */
   fc?: number;
+  /** Paso del servidor en que dio su último golpe (si fue hace poco): para animar el impacto a tiempo. */
+  sk?: number;
   /** Solo en el cliente: velocidad real (casillas/s), para animar el paso. */
   sp?: number;
+  /** Solo en el cliente: cuándo llegó la confirmación del último golpe (ms) y la espera real entre golpes (ms). */
+  ha?: number;
+  cool?: number;
 }
 
 export interface NodeView {

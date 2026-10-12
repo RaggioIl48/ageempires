@@ -659,6 +659,26 @@ Total War: Napoleon:
 - **Test plan**: `docs/TEST_PLAN.md` (pyramid, areas, targets, manual checks, gaps). New tests: `smooth.test.ts`,
   a performance budget for 800 units, ping/pong, and team colour in every animation.
 
+## Attack animations synced with the real hit; importing external sprite sheets (2026-10-12)
+
+- **Attack sync**: the server already applied damage on one exact step (`lastStrike`); it now reports that
+  step to clients (`sk` in the unit data, only for 10 s after a hit). The client (`client/src/attackSync.ts`)
+  plays the swing around it: wind-up before the next predicted hit (last hit + the server's exact interval,
+  `strikeIntervalTicks` in `shared/stats.ts`, which reproduces the server's 0.1 s countdown and its rounding),
+  **the impact frame only when the hit is confirmed** (together with the health drop and the sparks), then the
+  recovery, then guard. If the hit is late (slow network, target walking away) the weapon stays raised; it
+  never shows an impact the server did not apply. Fast attackers squeeze the swing into their real cooldown.
+  Every attack animation now has its impact frame (`hit`: cut/thrust mid-swing, arrow on release, cannon at the
+  muzzle flash, ram at full reach). No balance change: the server code that decides damage is untouched.
+  Tested with 12 attack speeds (0.6–7 s) and latencies of 0–300 ms with jitter (`attack-sync.test.ts`).
+- **External sprite sheets** (`tools/art/importgrid.mjs`, `docs/SPRITES_EXTERNOS.md`): imports a grid image
+  (JPG or PNG; e.g. made with AI) into the game format: removes paper backgrounds, baked shadows, grid lines and
+  labels, mirrors missing directions, anchors the feet, shrinks with soft edges, turns magenta (#FF00FF) parts
+  into the player-colour mask, and reports problems. Output goes to `client/public/art/experimental/` (not in
+  git, not published); the client uses it when present and falls back to the normal sheet if it is missing or
+  fails to load. The Mongol horse-archer test image was imported this way (local test only: unknown licence,
+  only 3 real views, one drawing per action, no player colour).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

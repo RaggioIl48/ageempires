@@ -3,7 +3,7 @@
 
 import { BUILDING_DEFS, CREW_BONUS, RESOURCE_TYPES, TILE_MOUNTAIN, TILE_WATER, type BuildingType } from '../../shared/data.ts';
 import type { BuildingView, NodeView, UnitView } from '../../shared/protocol.ts';
-import { isUpgraded } from '../../shared/stats.ts';
+import { isUpgraded, strikeIntervalTicks } from '../../shared/stats.ts';
 import {
   UNIT_LOOK,
   buildingTop,
@@ -36,7 +36,7 @@ import { buildFogIndex, paintFog } from './fogmap.ts';
 import { Particles, puffAt, type PuffKind } from './particles.ts';
 import type { ClientState, ClientUnit } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
-import { MAX_LEVEL, RANK_NAMES } from '../../shared/data.ts';
+import { MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
 
 export { RESOURCE_COLORS, shade } from './sprites.ts';
 
@@ -206,6 +206,14 @@ const SHELL_MS = 600;
 const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
   e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
 
+/** Tiempo real entre golpes (ms), según la misma cuenta del servidor (guardado por espera). */
+const swingCache = new Map<number, number>();
+const swingMs = (cooldown: number): number => {
+  let ms = swingCache.get(cooldown);
+  if (ms === undefined) swingCache.set(cooldown, (ms = strikeIntervalTicks(cooldown) * TICK_MS));
+  return ms;
+};
+
 /** Como mucho estas nubes de polvo nuevas por cuadro. */
 const DUST_PER_FRAME = 5;
 
@@ -358,7 +366,7 @@ export class Renderer {
       const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed }, x: p.x, y: p.y, face: cu.turn!, lift });
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 

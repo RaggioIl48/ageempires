@@ -14,6 +14,7 @@ import {
   CAVALRY_VS_BLADE,
   CAVALRY_VS_SPEAR,
   CHARGE_BONUS,
+  TICK_MS,
   DAMAGE_BONUS,
   SPEAR_VS_CAVALRY,
   FACTIONS,
@@ -272,4 +273,19 @@ export function scaleCost(cost: Cost, f: number): Cost {
   const out: Cost = {};
   for (const r of RESOURCE_TYPES) if (cost[r]) out[r] = Math.floor((cost[r] ?? 0) * f);
   return out;
+}
+
+/**
+ * Pasos reales entre dos golpes de una unidad con esta espera (segundos). Reproduce la misma
+ * cuenta del servidor (resta 0,1 s por paso hasta llegar a 0), con sus mismos redondeos: así
+ * el cliente anima la preparación justo a tiempo. No cambia el ritmo: solo lo describe.
+ */
+export function strikeIntervalTicks(cooldown: number): number {
+  const dt = TICK_MS / 1000;
+  let c = cooldown, k = 0;
+  do {
+    c = Math.max(0, c - dt);
+    k++;
+  } while (c > 0 && k < 100_000);
+  return k;
 }

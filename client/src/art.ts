@@ -9,6 +9,7 @@
 import { BUILDING_DEFS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { stickyRow } from './motion.ts';
+import { attackFrame, defaultHit } from './attackSync.ts';
 
 interface AnimMeta {
   /** Fila superior del bloque; w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
@@ -21,6 +22,8 @@ interface AnimMeta {
   ax: number;
   ay: number;
   fps: number;
+  /** Cuadro del impacto del ataque (corte, estocada, disparo); si falta, la mitad. */
+  hit?: number;
   loop: boolean;
   /** Recortes de color de equipo: 6 números por cuadro [x, y, w, h, dx, dy]. */
   m: number[];
@@ -86,6 +89,12 @@ export interface WallPieces {
 
 const BASE = import.meta.env.BASE_URL ?? '/';
 let manifest: Manifest | null = null;
+/**
+ * Arte experimental (de prueba, no publicado): si existe art/experimental/units.json, sus hojas
+ * reemplazan a las normales de esas unidades. Si no existe, o su imagen no carga, se usa la
+ * hoja normal (respaldo): nunca queda una unidad sin dibujo.
+ */
+let experimental: Manifest | null = null;
 let buildingArt: BuildingArt | null = null;
 let loading: Promise<void> | null = null;
 /** Imagen de cada hoja; null = falló (se usa el dibujo de formas). */
@@ -102,8 +111,9 @@ const getJson = <T>(file: string): Promise<T | null> =>
 
 /** Carga los manifiestos (las imágenes se piden recién cuando aparece cada cosa). */
 export function loadArt(): Promise<void> {
-  loading ??= Promise.all([getJson<Manifest>('units.json'), getJson<BuildingArt>('buildings.json')]).then(([m, b]) => {
+  loading ??= Promise.all([getJson<Manifest>('units.json'), getJson<BuildingArt>('buildings.json'), getJson<Manifest>('experimental/units.json')]).then(([m, b, x]) => {
     if (m?.v === 1) manifest = m;
+    if (x?.v === 1 && m?.v === 1) experimental = x;
     if (b?.v === 3) buildingArt = b;
   });
   return loading;
@@ -202,8 +212,14 @@ export function wallPiece(faction: FactionId, piece: keyof WallPieces, cx: numbe
 }
 
 function sheetId(faction: FactionId, type: UnitType): string | undefined {
+  // Primero la experimental, pero solo si su imagen ya está lista (si falla o tarda, la normal).
+  const ex = experimental?.units[`${faction}/${type}`] ?? experimental?.units[`*/${type}`];
+  if (ex && experimental!.sheets[ex] && artImage(experimental!.sheets[ex].file)) return ex;
   return manifest?.units[`${faction}/${type}`] ?? manifest?.units[`*/${type}`];
 }
+
+/** Datos de una hoja (experimental o normal). */
+const sheetMeta = (id: string): SheetMeta => experimental?.sheets[id] ?? manifest!.sheets[id];
 
 /** Imagen lista de una hoja, o null (y la pide si aún no se pidió). */
 function imageOf(_id: string, sheet: SheetMeta): HTMLImageElement | null {
@@ -294,7 +310,7 @@ export function drawSpriteUnit(
 ): SpriteInfo | null {
   const id = sheetId(faction, u.type);
   if (!id) return null;
-  const sheet = manifest!.sheets[id];
+  const sheet = sheetMeta(id);
   const img = imageOf(id, sheet);
   if (!img) return null;
   const name = animName(u);
@@ -302,7 +318,11 @@ export function drawSpriteUnit(
   const t = now / 1000 + u.id * 0.37;
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
   const pace = name === 'walk' && u.sp ? Math.min(1.5, Math.max(0.45, u.sp / 1.4)) : 1;
-  const f = Math.floor(t * a.fps * pace) % a.n;
+  // Ataque: sincronizado con el golpe real del servidor (preparación, impacto, recuperación).
+  const f =
+    name === 'attack' && u.cool
+      ? attackFrame(now, u.ha, { n: a.n, fps: a.fps, hit: a.hit ?? defaultHit(a.n), cooldownMs: u.cool }).frame
+      : Math.floor(t * a.fps * pace) % a.n;
   drawShadow(ctx, x, y, shadow);
   return drawFrame(ctx, id, sheet, img, a, rowOf(u, sheet, a.d, face), f, x, y, color);
 }
@@ -341,7 +361,7 @@ export function drawDyingUnit(
 ): boolean {
   const id = sheetId(faction, u.type);
   if (!id) return false;
-  const sheet = manifest!.sheets[id];
+  const sheet = sheetMeta(id);
   const a = sheet.anims.die;
   const img = a ? imageOf(id, sheet) : null;
   if (!a || !img) return false;
@@ -407,7 +427,7 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   if (!id) return null;
   const key = `${id}|${color}|${size}`;
   if (portraits.has(key)) return portraits.get(key)!;
-  const sheet = manifest!.sheets[id];
+  const sheet = sheetMeta(id);
   const img = imageOf(id, sheet);
   const a = sheet.anims.idle;
   if (!img || !a) return null;
@@ -450,7 +470,7 @@ export function hasSprite(faction: FactionId, type: UnitType): boolean {
 export function spriteTop(faction: FactionId, type: UnitType): number | null {
   const id = sheetId(faction, type);
   if (!id) return null;
-  const sheet = manifest!.sheets[id];
+  const sheet = sheetMeta(id);
   const a = sheet.anims.idle;
   return a ? a.ay * sheet.scale : null;
 }

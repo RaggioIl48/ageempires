@@ -82,6 +82,7 @@ export function packSheet(anims) {
       ax: b.a.ax - b.x0,
       ay: b.a.ay - b.y0,
       fps: b.a.fps,
+      ...(b.a.hit !== undefined ? { hit: b.a.hit } : {}),
       loop: b.a.loop !== false,
       m: m.every((v) => v === 0) ? [] : m,
     };

@@ -37,6 +37,9 @@ const OUT_UNITS = path.join(OUT, 'units');
 const SCALE = { foot: 0.6, worker: 0.6, horse: 0.6, siege: 0.42 };
 /** Animaciones de ataque: cuadros por segundo. */
 const ATTACK_FPS = { slash: 12, thrust: 12, shoot: 16 };
+/** Momento del impacto dentro del ataque (fracción): el corte y la estocada a la mitad; la flecha sale tarde (después de tensar). */
+export const HIT_AT = { slash: 0.5, thrust: 0.5, shoot: 0.7 };
+const hitOf = (style, n) => Math.min(n - 1, Math.round(n * (HIT_AT[style] ?? 0.5)));
 
 async function main() {
   const only = process.argv[2]; // p. ej. "romans-legionary" para rehacer una sola
@@ -75,7 +78,7 @@ async function main() {
       anims.walk = { ...(await rider.anim(r.parts, color, { cycle: 'r', hframes: [0, 1, 2, 3], anim: 'walk', frames: [0] })), fps: 10 };
       const af = r.attack === 'shoot' ? [0, 2, 4, 6, 8, 10, 12] : undefined;
       const atk = await rider.anim(r.parts, color, { cycle: 's', hframes: [0], anim: r.attack, frames: af ?? (await attackFrames(comp, r)) });
-      anims.attack = { ...atk, fps: ATTACK_FPS[r.attack] * (af ? 0.6 : 1) };
+      anims.attack = { ...atk, fps: ATTACK_FPS[r.attack] * (af ? 0.6 : 1), hit: hitOf(r.attack, atk.n) };
     } else {
       const walk = await comp.anim(r.parts, 'walk', opts);
       if (r.gun) addGun(walk, 'walk', r.gun);
@@ -92,7 +95,7 @@ async function main() {
       } else {
         const a = await comp.anim(r.parts, r.attack, opts);
         if (r.gun) addGun(a, r.attack, r.gun);
-        anims.attack = { ...a, ...anchor(a), fps: ATTACK_FPS[r.attack] };
+        anims.attack = { ...a, ...anchor(a), fps: ATTACK_FPS[r.attack], hit: hitOf(r.attack, a.n) };
       }
       const hurt = await comp.anim(r.parts, 'hurt', opts);
       anims.die = { ...hurt, ...anchor(hurt), fps: 8, loop: false };
@@ -310,7 +313,8 @@ async function zeroadVehicle(z, { actor, tiles, skip, main = false, fs: FS = 224
   return {
     idle: anim(1, 1, (r) => frame(r)),
     walk: anim(4, 8, (r, k) => frame(r, 0, k % 2)),
-    attack: anim(PUSH.length, 8, (r, k) => frame(r, PUSH[k])),
+    // Impacto: el cañón al disparar (retroceso); el ariete cuando llega más adelante.
+    attack: { ...anim(PUSH.length, 8, (r, k) => frame(r, PUSH[k])), hit: recoil ? 1 : PUSH.indexOf(Math.max(...PUSH)) },
   };
 }
 
@@ -398,7 +402,8 @@ async function crewedGun(comp, g) {
   return {
     idle: anim(1, 1, (r) => frame(r)),
     walk: anim(4, 8, (r, k) => frame(r, { bob: k % 2, crewFrame: 1 + k * 2 })),
-    attack: anim(g.push.length, 8, (r, k) =>
+    // Impacto: el primer fogonazo.
+    attack: withHit(g.flash[0], anim(g.push.length, 8, (r, k) =>
       frame(r, {
         push: g.push[k],
         crewAnim: work,
@@ -412,8 +417,13 @@ async function crewedGun(comp, g) {
           else if (k >= 1) puff(img, mx, my - k, 4 * smoke + k, [214, 210, 200], 0.5);
         },
       }),
-    ),
+    )),
   };
+}
+
+/** Animación con su cuadro de impacto marcado. */
+function withHit(hit, a) {
+  return { ...a, hit };
 }
 
 /** Las piezas cuyo nombre coincide con `re` se pintan con el color del jugador. */

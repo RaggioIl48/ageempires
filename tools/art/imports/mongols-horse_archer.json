@@ -1,0 +1,27 @@
+{
+  "id": "exp-mongols-horse_archer",
+  "units": ["mongols/horse_archer"],
+  "license": "unconfirmed (AI-generated test image supplied by the user; not published)",
+  "grid": { "x0": 156, "x1": 1386, "cols": 8, "rows": [129, 257, 385, 513, 641, 752] },
+  "rows": ["idle", "walk", "gallop", "shooting", "death"],
+  "cols": ["N", "NE", "E", "SE", "S", "SW", "W", "NW"],
+  "dirs": {
+    "S": "S",
+    "SE": "SE",
+    "E": "E",
+    "NE": "NE",
+    "N": "N",
+    "NW": { "col": "NE", "mirror": true },
+    "W": "W",
+    "SW": "SW"
+  },
+  "anims": {
+    "idle": { "frames": ["idle"], "fps": 1 },
+    "walk": { "frames": ["walk", "idle", "walk", "idle"], "fps": 5, "bob": [0, -1, 0, -1] },
+    "attack": { "frames": ["idle", "shooting", "shooting"], "fps": 6, "hit": 1 },
+    "die": { "frames": ["death"], "fps": 1, "loop": false }
+  },
+  "shrink": 2,
+  "scale": 0.85,
+  "frame": 96
+}

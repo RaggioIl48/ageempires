@@ -23,7 +23,7 @@ export const q = (v: number): number => Math.round(v * 100);
 export const dq = (v: number): number => v / 100;
 
 // ---------- Unidades ----------
-// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla, moral, huye, efecto, espera1, espera2, rango, guardia, aguante, trepa, acoplada, mira]
+// [id, owner, tipo, x, y, vida, estado, camina, tarea, tipoCarga, carga, objetivo, cuadrilla, moral, huye, efecto, espera1, espera2, rango, guardia, aguante, trepa, acoplada, mira, últimoGolpe]
 export type UnitTuple = number[];
 export const U_X = 3;
 export const U_Y = 4;
@@ -54,6 +54,7 @@ export function encodeUnit(u: UnitView): UnitTuple {
     u.cl ? 1 : 0,
     u.dk ? 1 : 0,
     u.fc ?? -1,
+    u.sk ?? -1,
   ];
 }
 
@@ -85,6 +86,7 @@ export function decodeUnit(t: UnitTuple): UnitView {
   if (t[21]) v.cl = 1;
   if (t[22]) v.dk = 1;
   if (t[23] >= 0) v.fc = t[23];
+  if (t[24] >= 0) v.sk = t[24];
   return v;
 }
 

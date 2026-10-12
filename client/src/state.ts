@@ -39,6 +39,8 @@ export interface ClientUnit {
   moving?: boolean;
   /** Ángulo dibujado: gira hacia `face` de a poco (sin saltos). */
   turn?: number;
+  /** Cuándo llegó la confirmación de su último golpe (ms, reloj del cliente). */
+  hitAt?: number;
   /** Última vez que levantó polvo (ms). */
   dustAt?: number;
   /** Hasta cuándo manda la orden recién dada (el giro previsto) sobre lo que diga el servidor. */
@@ -265,8 +267,12 @@ export class ClientState {
     for (const t of d.u ?? []) {
       const v = decodeUnit(t);
       const old = this.units.get(v.id);
+      const cu = old ?? { v, prevX: v.x, prevY: v.y, face: Math.PI / 2 };
+      // Golpe nuevo confirmado por el servidor: el instante en que llegó (el paso `sk` fue
+      // hace (k − sk) pasos). La animación pone el impacto ahí, a la vez que la vida que baja.
+      if (v.sk !== undefined && v.sk !== old?.v.sk) cu.hitAt = now - Math.max(0, d.k - v.sk) * TICK_MS;
       if (old) old.v = v;
-      else this.units.set(v.id, { v, prevX: v.x, prevY: v.y, face: Math.PI / 2 });
+      else this.units.set(v.id, cu);
     }
     const p = d.p ?? [];
     for (let i = 0; i + 2 < p.length; i += 3) {

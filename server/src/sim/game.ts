@@ -411,6 +411,9 @@ export class Game {
   }
 }
 
+/** Cuánto se sigue informando el último golpe (pasos). */
+const STRIKE_MEMORY = 100;
+
 function unitView(u: Unit, tick: number): UnitView {
   const v: UnitView = {
     id: u.id,
@@ -439,6 +442,8 @@ function unitView(u: Unit, tick: number): UnitView {
   if (u.climb > 0) v.cl = 1;
   if (u.docked) v.dk = 1;
   v.fc = (Math.round(Math.atan2(u.fy, u.fx) / (Math.PI / 4)) + 8) % 8;
+  // Último golpe (si fue en los últimos 10 s): el cliente anima el impacto en ese instante.
+  if (Number.isFinite(u.lastStrike) && tick - u.lastStrike <= STRIKE_MEMORY) v.sk = u.lastStrike;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }
