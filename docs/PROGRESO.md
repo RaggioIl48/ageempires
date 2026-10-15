@@ -706,6 +706,20 @@ Total War: Napoleon:
 - Not yet: the other five peoples, workers, cavalry (0 A.D. horse + rider skeletons) and the Gaul naked fanatic
   (no 0 A.D. model) still use LPC. Adds ≈6.5 MB of art, loaded only when that unit appears.
 
+## All infantry in 8 directions, smoother marching, battle diagnosis (2026-10-15)
+
+- **The other five peoples' infantry is now 3D too** (29 more sheets, 40 in total): Germans, Visigoths,
+  Ostrogoths, Vikings and Mongols, including their foot unique units. 0 A.D. has none of these peoples, so
+  each borrows the closest gear from another civilisation (table in [SOLDADOS_3D.md](SOLDADOS_3D.md)).
+- **Half-resolution copies of the big sheets** when drawn at half size or less (`art.ts`): 600 soldiers went
+  from 38 to 54 fps in the stress test, measured with REA in Chrome.
+- **Tick clock for drawing positions** (`motion.ts` `TickClock`/`posAt`, used by `state.ts`): units are drawn
+  from a short per-tick position history on a smoothed clock, so network jitter no longer makes troops stop
+  and jump (6.8 % → 0 % jerky frames at 60 ms of jitter; same one-tick delay as before on a stable network).
+- **Stress test in the animation viewer**: `/preview.html?stress=600&art=3d|lpc&lod=0|1`.
+- Docs: [DIAGNOSTICO_BATALLAS.md](DIAGNOSTICO_BATALLAS.md) (what is missing to feel like Total War: Attila,
+  prioritised), [FLUIDEZ_Y_RENDIMIENTO.md](FLUIDEZ_Y_RENDIMIENTO.md) (measurements and next steps).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

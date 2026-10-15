@@ -40,13 +40,30 @@ and what was evaluated on the way. Code: `tools/art/soldiers.mjs` (recipes and p
    (`attack: 'attack_ranged'` for javelins, slings, bows).
 4. `node tools/art/soldiers.mjs <id>` (≈20 s), check it in `/preview.html?unit=<faction>/<type>`, run `npm test`.
 
+## Which 0 A.D. gear each people uses
+
+Romans and Gauls use their own 0 A.D. soldiers. The other five peoples do not exist in 0 A.D., so each
+borrows the closest gear from another civilisation, chosen so that every people still looks different.
+These are approximations and can be changed in `SOLDIERS` (one line per unit).
+
+| People | Source in 0 A.D. | Why |
+|---|---|---|
+| Germans | Britons (+ one Gaul swordsman) | Northern Celtic look: trousers, oval shields, javelins |
+| Visigoths | Iberians (+ Carthaginian elite archer) | They settled in Hispania |
+| Ostrogoths | Seleucids (+ Thracian for the warband) | Heavy late-antique infantry, pikes for the heavy spearman |
+| Vikings | Athenians, Spartans (huscarl), Gaul and Iberian warriors (berserker, ulfhednar) | Round shields, spears, helmets |
+| Mongols | Han and Persians | Their armies absorbed Chinese and Persian infantry |
+
+"Archer" is a javelin thrower or slinger where 0 A.D. has no archer for that source (Romans, Gauls,
+Germans, Visigoths).
+
 ## Suggested next steps
 
-- **Other peoples**: 0 A.D. has no Germans, Goths, Vikings or Mongols. Closest gear: Britons/Gauls (Germanic
-  peoples, Vikings with different variants), Persians/Saka or Han (Mongols). Decide per people before
-  rendering, so each still looks distinct.
+- **Still LPC (4 directions)**: workers, all cavalry, the General, the Gaul naked fanatic (no 0 A.D.
+  model) and the Industrial/Modern units.
 - **Workers**: 0 A.D. citizens have gather/build animations (`gather_tree`, `build`…) matching the game's
   `chop`/`farm`/`mine`/`build`.
 - **Cavalry**: horse and rider are separate skeletons (rider mounted on a horse prop point); needs
   `posedParts` to pose the horse with its own animation.
-- **Weight**: ~600 KB per unit; `FIGURE_PX` 72 would save ~25 % if needed.
+- **Weight**: 40 sheets, ~21.7 MB in total (~550 KB each), loaded only when the unit appears;
+  `FIGURE_PX` 72 would save ~25 %, WebP ~40 %. Drawing cost: see `FLUIDEZ_Y_RENDIMIENTO.md`.

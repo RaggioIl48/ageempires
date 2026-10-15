@@ -200,7 +200,9 @@ The user supplied an AI-generated Mongol horse-archer sheet. Specific, reproduci
   and posed with their own animations in Node (`tools/art/skin.mjs`, `soldiers.mjs`) and drawn in 8 directions
   with the existing renderer. See `docs/SOLDADOS_3D.md`. Option 2 (attack sync) was already done on 2026-10-12.
 - Blender 5.x cannot import 0 A.D.'s COLLADA files, which is why the skinning is done in Node.
-- Still LPC (4 directions): the other five peoples, workers, cavalry, the Gaul naked fanatic.
+- 2026-10-15: all seven peoples' foot soldiers are now 3D (40 sheets). Still LPC (4 directions): workers,
+  cavalry, the General, the Gaul naked fanatic, Industrial/Modern units. Battle gaps vs Attila:
+  `docs/DIAGNOSTICO_BATALLAS.md`; smoothness measurements: `docs/FLUIDEZ_Y_RENDIMIENTO.md`.
 - Dev tool: `/preview.html` (with `npm run dev:client`) shows any unit in 8 directions × idle/walk/attack/death.
 
 ### What would actually move the needle on animation quality

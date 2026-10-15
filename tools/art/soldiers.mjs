@@ -78,6 +78,43 @@ export const SOLDIERS = {
   'gauls-chosen_swordsman-3d': foot('gauls/chosen_swordsman', 'gauls/infantry_swordsman_e'),
   // 0 A.D. no tiene arqueros galos: el tirador es un hondero (el de ropa y escudo con color del jugador).
   'gauls-archer-3d': foot('gauls/archer', 'gauls/infantry_slinger_a', { attack: 'attack_ranged' }),
+
+  // Los demás pueblos no existen en 0 A.D.: se usa el equipo más parecido de otro pueblo, cuidando que
+  // cada uno se vea distinto. Son aproximaciones (ver docs/SOLDADOS_3D.md) y se pueden cambiar acá.
+  // Germanos ← britanos (celtas del norte: pantalones, escudos ovales, jabalinas).
+  'germans-warrior-3d': foot('germans/warrior', 'britons/infantry_spearman_a'),
+  'germans-spearman-3d': foot('germans/spearman', 'britons/infantry_spearman_b'),
+  'germans-swordsman-3d': foot('germans/swordsman', 'gauls/infantry_swordsman_b'),
+  'germans-archer-3d': foot('germans/archer', 'britons/infantry_javelinist_b', { attack: 'attack_ranged' }),
+  'germans-chosen_spearman-3d': foot('germans/chosen_spearman', 'britons/infantry_spearman_e'),
+  'germans-axe_thrower-3d': foot('germans/axe_thrower', 'britons/infantry_javelinist_e', { attack: 'attack_ranged' }),
+  'germans-chosen_axeman-3d': foot('germans/chosen_axeman', 'britons/infantry_swordsman_c'),
+  // Visigodos ← íberos (se asentaron en Hispania); arquero acorazado ← arquero cartaginés de élite.
+  'visigoths-warrior-3d': foot('visigoths/warrior', 'iberians/infantry_spearman_a'),
+  'visigoths-spearman-3d': foot('visigoths/spearman', 'iberians/infantry_spearman_b'),
+  'visigoths-swordsman-3d': foot('visigoths/swordsman', 'iberians/infantry_swordsman_a'),
+  'visigoths-archer-3d': foot('visigoths/archer', 'iberians/infantry_javelinist_b', { attack: 'attack_ranged' }),
+  'visigoths-armored_archer-3d': foot('visigoths/armored_archer', 'carthaginians/infantry_archer_e', { attack: 'attack_ranged' }),
+  // Ostrogodos ← seléucidas (infantería pesada de estilo tardorromano/oriental); banda guerrera ← tracios.
+  'ostrogoths-warrior-3d': foot('ostrogoths/warrior', 'seleucids/infantry_spearman_a'),
+  'ostrogoths-spearman-3d': foot('ostrogoths/spearman', 'seleucids/infantry_spearman_b'),
+  'ostrogoths-swordsman-3d': foot('ostrogoths/swordsman', 'seleucids/infantry_swordsman_b'),
+  'ostrogoths-archer-3d': foot('ostrogoths/archer', 'seleucids/infantry_archer_b', { attack: 'attack_ranged' }),
+  'ostrogoths-heavy_spearman-3d': foot('ostrogoths/heavy_spearman', 'seleucids/infantry_pikeman_e'),
+  'ostrogoths-gothic_warband-3d': foot('ostrogoths/gothic_warband', 'macedonians/infantry_swordsman_c_thracian'),
+  // Vikingos ← atenienses y espartanos (escudo redondo, lanza, casco); berserker y ulfhednar ← guerreros celtas e íberos.
+  'vikings-warrior-3d': foot('vikings/warrior', 'athenians/infantry_spearman_a'),
+  'vikings-spearman-3d': foot('vikings/spearman', 'athenians/infantry_spearman_b'),
+  'vikings-swordsman-3d': foot('vikings/swordsman', 'athenians/infantry_swordsman_c'),
+  'vikings-archer-3d': foot('vikings/archer', 'athenians/infantry_archer_b', { attack: 'attack_ranged' }),
+  'vikings-huscarl-3d': foot('vikings/huscarl', 'spartans/infantry_spearman_e'),
+  'vikings-berserker-3d': foot('vikings/berserker', 'gauls/infantry_swordsman_c'),
+  'vikings-ulfhednar-3d': foot('vikings/ulfhednar', 'iberians/infantry_swordsman_e'),
+  // Mongoles ← han y persas (su ejército sumó infantería china y persa de los pueblos conquistados).
+  'mongols-warrior-3d': foot('mongols/warrior', 'han/infantry_spearman_a'),
+  'mongols-spearman-3d': foot('mongols/spearman', 'persians/infantry_spearman_b'),
+  'mongols-swordsman-3d': foot('mongols/swordsman', 'han/infantry_swordsman_b'),
+  'mongols-archer-3d': foot('mongols/archer', 'persians/infantry_archer_b', { attack: 'attack_ranged' }),
 };
 
 /** Altura de la figura en reposo (con casco) en la hoja, en px: da detalle para el zoom. */

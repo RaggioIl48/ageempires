@@ -393,16 +393,46 @@ function drawFrame(
 ): SpriteInfo {
   const s = sheet.scale;
   const dx = x - a.ax * s, dy = y - a.ay * s;
-  ctx.drawImage(img, f * a.w, a.y + d * a.h, a.w, a.h, dx, dy, a.w * s, a.h * s);
+  // Hojas grandes (soldados 3D) dibujadas a menos de la mitad de su tamaño: se usa la copia a media
+  // resolución (más barata de muestrear y más liviana para la GPU), si ya está lista.
+  const t = ctx.getTransform();
+  const half = lodEnabled && img.width * img.height > BIG_SHEET_PX && s * Math.hypot(t.a, t.b) <= 0.5 ? halfOf(sheet.file, img) : null;
+  const q = half ? 0.5 : 1;
+  ctx.drawImage(half ?? img, f * a.w * q, (a.y + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
   if (a.m.length) {
     const k = (d * a.n + f) * 6;
     const mw = a.m[k + 2], mh = a.m[k + 3];
     if (mw && mh) {
       const tint = tintOf(id, img, sheet, color);
-      ctx.drawImage(tint, a.m[k], a.m[k + 1] - sheet.maskY, mw, mh, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
+      const ht = half ? halfOf(`${id}|${color}|tint`, tint) : null;
+      const r = ht ? 0.5 : 1;
+      ctx.drawImage(ht ?? tint, a.m[k] * r, (a.m[k + 1] - sheet.maskY) * r, mw * r, mh * r, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
     }
   }
   return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+}
+
+/** Desde cuántos píxeles una hoja vale la pena tener copia a media resolución. */
+const BIG_SHEET_PX = 2_000_000;
+/** Copias a media resolución activas (el visor de animaciones las apaga para comparar). */
+let lodEnabled = true;
+export function setLod(on: boolean): void {
+  lodEnabled = on;
+}
+/** Copias a media resolución (se preparan fuera del hilo principal); null = en preparación o no disponible. */
+const halves = new Map<string, ImageBitmap | null>();
+function halfOf(key: string, src: HTMLImageElement | HTMLCanvasElement): ImageBitmap | null {
+  const have = halves.get(key);
+  if (have !== undefined) return have;
+  halves.set(key, null);
+  if (typeof createImageBitmap === 'function')
+    createImageBitmap(src, { resizeWidth: Math.max(1, Math.round(src.width / 2)), resizeHeight: Math.max(1, Math.round(src.height / 2)), resizeQuality: 'high' })
+      .then((b) => {
+        halves.set(key, b);
+        artVersion++;
+      })
+      .catch(() => {});
+  return null;
 }
 
 /** Cantidad de especies de árboles con imagen. */

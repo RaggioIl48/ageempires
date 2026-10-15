@@ -65,3 +65,44 @@ describe('smooth movement with a jittery network', () => {
     expect(t.unitPos(tu, 29 * 100 + 100).x).toBeCloseTo(tu.v.x);
   });
 });
+
+describe('even marching speed on a jittery network (tick clock)', () => {
+  /** Red simulada: un estado por paso, que llega con un retraso aleatorio entre 0 y `jitter` ms. */
+  function simulate(jitter: number, seed = 7) {
+    let r = seed;
+    const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+    const s = new ClientState();
+    s.size = 64;
+    s.apply(delta(1, { u: [encodeUnit(unit({ x: 10, y: 10 }))] }), 0);
+    const arrivals: [number, number][] = [];
+    for (let k = 2; k <= 80; k++) arrivals.push([k, (k - 1) * 100 + rand() * jitter]);
+    arrivals.sort((a, b) => a[1] - b[1]);
+    // Cuadros de 16 ms: cuánto avanza el dibujo en cada uno (la tropa marcha a 1 casilla por paso).
+    const steps: number[] = [];
+    let prev = 10, i = 0;
+    for (let now = 0; now < 79 * 100; now += 16) {
+      while (i < arrivals.length && arrivals[i][1] <= now) {
+        const [k, at] = arrivals[i++];
+        if (k > s.tick) s.apply(delta(k, { p: [1, (10 + k) * 100, 1000] }), at);
+      }
+      const x = s.unitPos(s.units.get(1)!, now).x;
+      if (now > 1500) steps.push(x - prev); // después de que el reloj se acomoda
+      prev = x;
+    }
+    const mean = steps.reduce((a, b) => a + b, 0) / steps.length;
+    // Tirones: cuadros en que casi no avanza (frenada) o avanza el doble (salto).
+    const jerks = steps.filter((d) => d < mean * 0.35 || d > mean * 2).length;
+    return { mean, jerks, frames: steps.length };
+  }
+
+  it('with a stable network the marching speed is the real one', () => {
+    const { mean, jerks } = simulate(0);
+    expect(mean).toBeCloseTo(0.16, 2); // 1 casilla cada 100 ms → 0,16 por cuadro de 16 ms
+    expect(jerks).toBe(0);
+  });
+
+  it('with up to 60 ms of jitter there are (almost) no stops or jumps', () => {
+    const { jerks, frames } = simulate(60);
+    expect(jerks / frames).toBeLessThan(0.02);
+  });
+});
