@@ -61,6 +61,26 @@ const foot = (unit, actor, { attack, choose = [] } = {}) => ({ units: [unit], ac
  * y qué animación de 0 A.D. va en cada animación del juego, con cuántos cuadros.
  * El impacto del ataque sale del propio 0 A.D. (atributo "event" de la animación).
  */
+/**
+ * Jinete: unidad del juego y actor del CABALLO de 0 A.D. (`…_m`; el jinete `…_r` va montado).
+ * `ranged`: el jinete tira (jabalina, arco) mientras el caballo queda en reposo.
+ * La escala sale de un soldado de a pie (jinete e infante miden lo mismo).
+ */
+const horse = (unit, actor, { ranged = false, coat = 'brown' } = {}) => ({
+  units: [unit],
+  actor: `units/${actor}.xml`,
+  // Pelaje del caballo (variante de 0 A.D.: brown, cherrybay, tan, gray, white, black…).
+  choose: [coat],
+  scaleFrom: 'units/romans/infantry_swordsman_b.xml',
+  box: { fs: 300, ax: 150, ay: 205 },
+  anims: {
+    idle: { from: 'idle', frames: 6, fps: 4 },
+    walk: { from: 'run', frames: 10, fps: 14 },
+    attack: ranged ? { from: 'attack_ranged', body: 'idle', frames: 8, fps: 12 } : { from: 'attack_melee', frames: 8, fps: 12 },
+    die: { from: 'death', frames: 8, fps: 10, loop: false },
+  },
+});
+
 export const SOLDIERS = {
   // Romanos: guerrero sin casco (Edad Tribal), astados y príncipes (lanza y gladius con scutum),
   // legionario, triario veterano y vélites.
@@ -115,6 +135,35 @@ export const SOLDIERS = {
   'mongols-spearman-3d': foot('mongols/spearman', 'persians/infantry_spearman_b'),
   'mongols-swordsman-3d': foot('mongols/swordsman', 'han/infantry_swordsman_b'),
   'mongols-archer-3d': foot('mongols/archer', 'persians/infantry_archer_b', { attack: 'attack_ranged' }),
+
+  // ---------- Caballería: caballo (su esqueleto y animaciones) + jinete montado (los suyos) ----------
+  // Misma fuente de 0 A.D. que la infantería de cada pueblo. Al moverse, galope.
+  'romans-scout-3d': horse('romans/scout', 'romans/cavalry_javelinist_a_m', { ranged: true, coat: 'cherrybay' }),
+  'romans-knight-3d': horse('romans/knight', 'romans/cavalry_spearman_b_m', { coat: 'cherrybay' }),
+  'romans-general-3d': horse('romans/general', 'romans/cavalry_swordsman_c_m', { coat: 'white' }),
+  'gauls-scout-3d': horse('gauls/scout', 'gauls/cavalry_javelinist_a_m', { ranged: true, coat: 'tan' }),
+  'gauls-knight-3d': horse('gauls/knight', 'gauls/cavalry_swordsman_b_m', { coat: 'tan' }),
+  'gauls-general-3d': horse('gauls/general', 'gauls/cavalry_swordsman_e_m', { coat: 'white' }),
+  'germans-scout-3d': horse('germans/scout', 'britons/cavalry_javelinist_a_m', { ranged: true, coat: 'brown' }),
+  'germans-knight-3d': horse('germans/knight', 'britons/cavalry_swordsman_b_m', { coat: 'brown' }),
+  'germans-general-3d': horse('germans/general', 'britons/cavalry_swordsman_e_m', { coat: 'white' }),
+  'visigoths-scout-3d': horse('visigoths/scout', 'iberians/cavalry_javelinist_a_m', { ranged: true, coat: 'gray' }),
+  'visigoths-knight-3d': horse('visigoths/knight', 'iberians/cavalry_spearman_b_m', { coat: 'gray' }),
+  'visigoths-general-3d': horse('visigoths/general', 'iberians/cavalry_swordsman_e_m', { coat: 'white' }),
+  'visigoths-gothic_knight-3d': horse('visigoths/gothic_knight', 'iberians/cavalry_spearman_e_m', { coat: 'gray' }),
+  'visigoths-javelin_rider-3d': horse('visigoths/javelin_rider', 'iberians/cavalry_javelinist_b_m', { ranged: true, coat: 'gray' }),
+  'ostrogoths-scout-3d': horse('ostrogoths/scout', 'seleucids/cavalry_javelinist_a_m', { ranged: true, coat: 'black' }),
+  'ostrogoths-knight-3d': horse('ostrogoths/knight', 'seleucids/cavalry_spearman_b_m', { coat: 'black' }),
+  'ostrogoths-general-3d': horse('ostrogoths/general', 'seleucids/cavalry_spearman_e_m', { coat: 'white' }),
+  'ostrogoths-gothic_lancer-3d': horse('ostrogoths/gothic_lancer', 'seleucids/cavalry_spearman_c_m', { coat: 'black' }),
+  'vikings-scout-3d': horse('vikings/scout', 'athenians/cavalry_javelinist_a_m', { ranged: true, coat: 'halflinger' }),
+  'vikings-knight-3d': horse('vikings/knight', 'athenians/cavalry_swordsman_b_m', { coat: 'halflinger' }),
+  'vikings-general-3d': horse('vikings/general', 'athenians/cavalry_swordsman_e_m', { coat: 'white' }),
+  'mongols-scout-3d': horse('mongols/scout', 'persians/cavalry_javelinist_a_m', { ranged: true, coat: 'beige' }),
+  'mongols-knight-3d': horse('mongols/knight', 'persians/cavalry_spearman_b_m', { coat: 'beige' }),
+  'mongols-general-3d': horse('mongols/general', 'han/cavalry_swordsman_e_m', { coat: 'white' }),
+  'mongols-horse_archer-3d': horse('mongols/horse_archer', 'persians/cavalry_archer_b_m', { ranged: true, coat: 'beige' }),
+  'mongols-keshig-3d': horse('mongols/keshig', 'han/cavalry_spearman_e_m', { coat: 'beige' }),
 };
 
 /** Altura de la figura en reposo (con casco) en la hoja, en px: da detalle para el zoom. */
@@ -170,15 +219,16 @@ async function resolve(rel, choose, anims, depth = 0) {
   const actor = kid(await readXml(`actors/${rel}`), 'actor');
   if (!actor) return null;
   const material = kid(actor, 'material')?.text.trim() ?? '';
-  const node = { actor: rel, mode: /player/.test(material) ? 'player' : /trans|alpha/.test(material) ? 'trans' : 'opaque', mesh: null, tex: null, props: [] };
+  const node = { actor: rel, mode: /player/.test(material) ? 'player' : /trans|alpha/.test(material) ? 'trans' : 'opaque', mesh: null, tex: null, props: [], anims: {} };
   let meshRel = null, baseTex = null;
-  // Solo las del cuerpo: los accesorios (honda, estandarte) traen las suyas, que no son del soldado.
+  // Cada actor guarda las suyas: las del cuerpo son las del soldado (o del caballo); un jinete
+  // montado trae las propias. Las de accesorios sueltos (la honda) no se usan.
+  const own = depth === 0 ? anims : node.anims;
   const collect = (cur, picked) => {
-    if (depth > 0) return;
     for (const a of kid(cur, 'animations')?.children ?? []) {
       const name = a.attrs.name?.toLowerCase();
-      if (!name || !a.attrs.file || (anims[name] && (anims[name].picked || !picked))) continue;
-      anims[name] = { file: a.attrs.file, event: Number(a.attrs.event ?? 0.5), picked };
+      if (!name || !a.attrs.file || (own[name] && (own[name].picked || !picked))) continue;
+      own[name] = { file: a.attrs.file, event: Number(a.attrs.event ?? 0.5), picked };
     }
   };
   for (const group of kids(actor, 'group')) {
@@ -198,6 +248,8 @@ async function resolve(rel, choose, anims, depth = 0) {
       for (const p of kid(cur, 'props')?.children ?? []) {
         const at = p.attrs.attachpoint ?? 'root';
         if (!p.attrs.actor || node.props.some((q) => q.at === at)) continue;
+        // Capas de jinete: las animaciones del jinete no mueven sus huesos y quedarían paradas hacia arriba.
+        if (/^props\/units\/capes\/rider\//.test(p.attrs.actor)) continue;
         const child = await resolve(p.attrs.actor, choose, anims, depth + 1);
         if (child) node.props.push({ at, node: child });
       }
@@ -206,29 +258,86 @@ async function resolve(rel, choose, anims, depth = 0) {
   }
   if (meshRel) node.mesh = fs.readFileSync(await file(`meshes/${meshRel}`), 'utf8');
   node.tex = await texture(baseTex);
+  if (depth === 0) node.anims = anims;
   return node;
 }
 
-/** Piezas del soldado en una pose: cuerpo con esqueleto + accesorios en sus puntos. */
-function posedParts(body, skinned, world) {
+/**
+ * Piezas del soldado en una pose: cuerpo con esqueleto + accesorios en sus puntos.
+ * `phase` (0–1) = momento de la animación; `clipName` = la animación de un jinete montado
+ * (que tiene esqueleto y animaciones propias y va sobre el hueso "rider" del caballo).
+ */
+function posedParts(body, skinned, world, phase = 0, clipName = null) {
   const parts = [{ tris: skinTris(skinned, world), tex: body.tex, mode: body.mode }];
-  const point = (name) => world.get(`prop-${name}`) ?? world.get(name);
-  const addProps = (node, at, points) => {
+  const pointIn = (w, name) => w.get(`prop-${name}`) ?? w.get(`prop_${name}`) ?? w.get(name);
+  const addProps = (node, w, at, points) => {
     for (const p of node.props) {
-      const m = p.at === 'root' ? at : points ? points[p.at] && mul(at, points[p.at]) : point(p.at);
+      const m = p.at === 'root' ? at : points ? points[p.at] && mul(at, points[p.at]) : w && pointIn(w, p.at);
       if (!m || !p.node.mesh) continue;
       p.node.model ??= loadCollada(p.node.mesh);
       const { tris, points: own } = p.node.model;
-      // Accesorio con esqueleto propio (capas, faldas): sigue a los mismos huesos que el cuerpo.
       if (/<skin\b/.test(p.node.mesh)) {
         p.node.skinned ??= loadSkinned(p.node.mesh);
-        parts.push({ tris: skinTris(p.node.skinned, world), tex: p.node.tex, mode: p.node.mode });
-      } else parts.push({ tris: tris.map((t) => t.map((c) => ({ ...c, p: applyM(m, c.p), n: c.n ? applyN(m, c.n) : null }))), tex: p.node.tex, mode: p.node.mode });
-      addProps(p.node, m, own);
+        const clip = clipName && p.node.clips?.[clipName];
+        if (clip) {
+          // Jinete: su propio esqueleto, en la misma fase que el caballo, montado en el punto.
+          const local = pose(p.node.skinned.nodes, clip, phase * clip.duration, { fixRoot: false });
+          const w2 = new Map([...local].map(([k2, v]) => [k2, mul(m, v)]));
+          parts.push({ tris: skinTris(p.node.skinned, w2), tex: p.node.tex, mode: p.node.mode });
+          addProps(p.node, w2, m, null);
+          continue;
+        }
+        // Capas, faldas: siguen a los huesos de quien las lleva.
+        parts.push({ tris: skinTris(p.node.skinned, w), tex: p.node.tex, mode: p.node.mode });
+        addProps(p.node, w, m, null);
+        continue;
+      }
+      parts.push({ tris: tris.map((t) => t.map((c) => ({ ...c, p: applyM(m, c.p), n: c.n ? applyN(m, c.n) : null }))), tex: p.node.tex, mode: p.node.mode });
+      addProps(p.node, null, m, own);
     }
   };
-  addProps(body, IDENTITY, null);
+  addProps(body, world, IDENTITY, null);
   return parts;
+}
+
+/** Carga, para los jinetes montados, la animación `name` (o `fallback`) de cada uno. */
+async function loadRiderClips(node, name, fallback) {
+  for (const p of node.props) {
+    if (p.node.mesh && /<skin\b/.test(p.node.mesh) && Object.keys(p.node.anims).length) {
+      const src = p.node.anims[name] ?? p.node.anims[fallback];
+      if (src) {
+        p.node.clips ??= {};
+        p.node.clips[name] = loadAnimation(fs.readFileSync(await file(`animation/${src.file}`), 'utf8'));
+        p.node.events ??= {};
+        p.node.events[name] = src.event;
+      }
+    }
+    await loadRiderClips(p.node, name, fallback);
+  }
+}
+
+/** Impacto declarado por el jinete (si lo hay) para esa animación. */
+function riderEvent(node, name) {
+  for (const p of node.props) {
+    const e = p.node.events?.[name] ?? riderEvent(p.node, name);
+    if (e !== undefined) return e;
+  }
+  return undefined;
+}
+
+/** Escala de referencia (unidades del modelo → casillas): la de un soldado de a pie, para que todos midan igual. */
+const refScale = new Map();
+async function scaleOf(actor) {
+  if (!refScale.has(actor)) {
+    const anims = {};
+    const body = await resolve(actor, [], anims);
+    const skinned = loadSkinned(body.mesh);
+    const idle = loadAnimation(fs.readFileSync(await file(`animation/${anims.idle.file}`), 'utf8'));
+    const parts = posedParts(body, skinned, pose(skinned.nodes, idle, 0));
+    const top = parts.reduce((t0, p) => p.tris.reduce((t2, t) => Math.max(t2, t[0].p[2], t[1].p[2], t[2].p[2]), t0), 0);
+    refScale.set(actor, FIGURE_PX / HEIGHT_PX / top);
+  }
+  return refScale.get(actor);
 }
 
 const applyM = (m, p) => [m[0] * p[0] + m[1] * p[1] + m[2] * p[2] + m[3], m[4] * p[0] + m[5] * p[1] + m[6] * p[2] + m[7], m[8] * p[0] + m[9] * p[1] + m[10] * p[2] + m[11]];
@@ -239,7 +348,7 @@ function applyN(m, n) {
 }
 
 /** Dibuja las piezas mirando a la dirección r (0 = S, 1 = SE, … en el orden 'oga8'), pies en (AX, AY). */
-function drawView(parts, r, k) {
+function drawView(parts, r, k, box = { fs: FS, ax: AX, ay: AY }) {
   // El frente del modelo es −y; con el giro a = (r+1)·45° mira a S, SE, E, … (igual que los vehículos).
   const a = (((r + 1) % 8) * Math.PI) / 4, ca = Math.cos(a), sa = Math.sin(a);
   const rot = (x, y) => [x * ca - y * sa, -(x * sa + y * ca)];
@@ -251,8 +360,8 @@ function drawView(parts, r, k) {
     })),
   }));
   const out = cropRender(render(tp, { ss: 4, ambient: 0.56, diffuse: 0.6 }));
-  const img = new Img(FS, FS), mask = new Img(FS, FS);
-  const ox = Math.round(AX - out.ox), oy = Math.round(AY - out.oy);
+  const img = new Img(box.fs, box.fs), mask = new Img(box.fs, box.fs);
+  const ox = Math.round(box.ax - out.ox), oy = Math.round(box.ay - out.oy);
   img.draw(out.img, 0, 0, out.img.w, out.img.h, ox, oy);
   mask.draw(out.mask, 0, 0, out.mask.w, out.mask.h, ox, oy);
   return [img, mask];
@@ -264,26 +373,32 @@ export async function soldierSheet(r) {
   const body = await resolve(r.actor, r.choose ?? [], animsByName);
   const skinned = loadSkinned(body.mesh);
   const anims = {};
-  let k;
+  // Jinetes: la escala sale de un soldado de a pie (si no, el caballo achicaría al jinete).
+  let k = r.scaleFrom ? await scaleOf(r.scaleFrom) : undefined;
+  const box = r.box ?? { fs: FS, ax: AX, ay: AY };
   for (const [name, a] of Object.entries(r.anims)) {
-    const src = animsByName[a.from.toLowerCase()];
-    if (!src) throw new Error(`${r.actor}: no tiene la animación ${a.from}`);
+    // `body`: animación del cuerpo (el caballo) si es distinta de la del jinete (`from`).
+    const bodyName = (a.body ?? a.from).toLowerCase();
+    const src = animsByName[bodyName];
+    if (!src) throw new Error(`${r.actor}: no tiene la animación ${bodyName}`);
     const clip = loadAnimation(fs.readFileSync(await file(`animation/${src.file}`), 'utf8'));
+    await loadRiderClips(body, a.from.toLowerCase(), bodyName);
     const loop = a.loop !== false;
     // Cuadros repartidos en toda la animación (en bucle no se repite el último = el primero).
-    const times = [...Array(a.frames).keys()].map((k) => (clip.duration * k) / (loop ? a.frames : a.frames - 1));
-    const poses = times.map((t) => posedParts(body, skinned, pose(skinned.nodes, clip, t)));
+    const phases = [...Array(a.frames).keys()].map((i) => i / (loop ? a.frames : a.frames - 1));
+    const poses = phases.map((ph) => posedParts(body, skinned, pose(skinned.nodes, clip, ph * clip.duration), ph, a.from.toLowerCase()));
     // Escala (unidades del modelo → casillas): según la altura de la figura en su primera pose de reposo.
     k ??= FIGURE_PX / HEIGHT_PX / poses[0].reduce((top, p) => p.tris.reduce((t2, t) => Math.max(t2, t[0].p[2], t[1].p[2], t[2].p[2]), top), 0);
     const base = [], mask = [];
     for (let d = 0; d < 8; d++) {
-      const row = poses.map((p) => drawView(p, d, k));
+      const row = poses.map((p) => drawView(p, d, k, box));
       base.push(row.map((x) => x[0]));
       mask.push(row.map((x) => x[1]));
     }
+    const event = riderEvent(body, a.from.toLowerCase()) ?? src.event;
     anims[name] = {
-      fs: FS, dirs: 8, n: a.frames, base, mask, ax: AX, ay: AY, fps: a.fps, loop,
-      ...(name === 'attack' ? { hit: Math.min(a.frames - 1, Math.round(a.frames * src.event)) } : {}),
+      fs: box.fs, dirs: 8, n: a.frames, base, mask, ax: box.ax, ay: box.ay, fps: a.fps, loop,
+      ...(name === 'attack' ? { hit: Math.max(1, Math.min(a.frames - 2, Math.round(a.frames * event))) } : {}),
     };
   }
   const packed = packSheet(anims);

@@ -13,7 +13,7 @@ import { WALL, type Point, type Unit, type World } from './world.ts';
 export function moveUnits(world: World, dt: number): void {
   const bodies = bucketBodies(world);
   for (const u of world.units.values()) {
-    if (u.path.length === 0) continue;
+    if (u.path.length === 0 || u.down > 0) continue; // derribado: todavía en el suelo
     const stats = world.statsOf(u);
     world.setWalker(u);
     // En formación, todos marchan al paso del más lento.

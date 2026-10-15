@@ -1,5 +1,6 @@
 // Batallas tácticas (Total War): líneas que no se deshacen, cansancio y asedios.
 import { describe, expect, it } from 'vitest';
+import { updateProjectiles } from '../src/sim/projectiles.ts';
 import { CLIMB_DAMAGE_TAKEN, FATIGUE_TIERS, MARCH_MAX_SECONDS, MARCH_STAMINA, SIEGE_SECONDS, TICK_RATE } from '../../shared/data.ts';
 import { strike } from '../src/sim/combat.ts';
 import { fatigueOf } from '../src/sim/fatigue.ts';
@@ -154,10 +155,15 @@ describe('asedios', () => {
       const att = w.addUnit('archer', 1, 22.5, 26.5);
       const st = w.statsOf(att);
       strike(w, 1, st.attack, st.category, att, { kind: 'unit', unit: def }, att);
+      // La flecha vuela: se la deja caer antes de medir.
+      for (const p of w.projectiles) p.at = w.tick;
+      updateProjectiles(w);
       const taken = w.statsOf(def).hp - def.hp;
       const ds = w.statsOf(def);
       const foe = w.addUnit('spearman', 1, 22.5, 28.5);
       strike(w, 2, ds.attack, ds.category, def, { kind: 'unit', unit: foe }, def);
+      for (const p of w.projectiles) p.at = w.tick;
+      updateProjectiles(w);
       const dealt = w.statsOf(foe).hp - foe.hp;
       for (const u of [def, att, foe]) w.units.delete(u.id);
       return { taken, dealt };

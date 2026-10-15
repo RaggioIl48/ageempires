@@ -76,8 +76,16 @@ export interface UnitView {
   fc?: number;
   /** Paso del servidor en que dio su último golpe (si fue hace poco): para animar el impacto a tiempo. */
   sk?: number;
+  /** Regimiento (Total War): los soldados con el mismo número se seleccionan y mandan juntos. */
+  rg?: number;
+  /** Munición que le queda (0–100 %), solo soldados a distancia con munición limitada. */
+  am?: number;
+  /** 1 = derribado por una carga (en el suelo un momento). */
+  dn?: 1;
   /** Solo en el cliente: velocidad real (casillas/s), para animar el paso. */
   sp?: number;
+  /** Solo en el cliente: destello al recibir un golpe (1 = recién golpeado … 0). */
+  hf?: number;
   /** Solo en el cliente: cuándo llegó la confirmación del último golpe (ms) y la espera real entre golpes (ms). */
   ha?: number;
   cool?: number;
@@ -137,9 +145,11 @@ export interface EconomyView {
 /** Cosas que pasaron en este paso (para efectos visuales). */
 export type GameEvent =
   /** s: 0 flecha, 1 bala, 2 proyectil de cañón. */
-  | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number }
+  /** ms = tiempo de vuelo (proyectiles que vuelan: el daño llega al caer). */
+  | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number; ms?: number }
   /** c: 1 = golpe de carga (más grande). */
-  | { k: 'hit'; x: number; y: number; c?: 1; fl?: 1 | 2 }
+  /** c = carga; fl = flanco (1) o espalda (2); b = el escudo paró el tiro. */
+  | { k: 'hit'; x: number; y: number; c?: 1; fl?: 1 | 2; b?: 1 }
   | { k: 'death'; x: number; y: number }
   /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
   | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }
@@ -335,7 +345,20 @@ export type Formation = (typeof FORMATIONS)[number];
 
 export type Command =
   /** formation: 'line' = filas (infantería adelante, a distancia detrás, caballería a los lados), 'column' = columna angosta, 'loose' = grupo suelto. */
-  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation; front?: FrontLine; /** true = los soldados caminan (si falta, corren). */ walk?: boolean }
+  | {
+      kind: 'move';
+      unitIds: number[];
+      x: number;
+      y: number;
+      formation?: Formation;
+      front?: FrontLine;
+      /** true = los soldados caminan (si falta, corren). */
+      walk?: boolean;
+      /** true = atacar-moviendo: pelean con lo que encuentren en el camino y siguen. */
+      amove?: boolean;
+      /** true = se agrega a la cola (Shift): se cumple después de lo que estén haciendo. */
+      queue?: boolean;
+    }
   /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
   | { kind: 'march'; unitIds: number[]; target: number }
   | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
@@ -701,6 +724,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
           ? { kind: 'move', unitIds, x: c.x, y: c.y, formation: c.formation as Formation }
           : { kind: 'move', unitIds, x: c.x, y: c.y };
         if (c.walk === true) m.walk = true;
+        if (c.amove === true) m.amove = true;
+        if (c.queue === true) m.queue = true;
         const f = c.front as Record<string, unknown> | undefined;
         if (f && typeof f === 'object' && isCoord(f.fx) && isCoord(f.fy) && isCoord(f.width)) {
           const len = Math.hypot(f.fx, f.fy);

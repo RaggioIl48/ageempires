@@ -254,6 +254,40 @@ button:disabled {
   height: 100%;
   background: #3fb04f;
 }
+/* Regimiento (Total War): tarjeta más ancha con cuántos quedan y barras de vida, moral y munición. */
+.card.reg {
+  position: relative;
+  width: 40px;
+  height: 46px;
+}
+.card.reg .count {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font: bold 11px/1 system-ui, sans-serif;
+  color: #f3ead2;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+}
+.card.reg .hp,
+.card.reg .mo,
+.card.reg .am {
+  height: 3px;
+  margin-top: 1px;
+  background: #2a2016;
+}
+.card.reg .mo div,
+.card.reg .am div {
+  height: 100%;
+}
+.card.reg .mo div {
+  background: #5ab0ff;
+}
+.card.reg .am div {
+  background: #e0c060;
+}
+.card.reg.warn {
+  border-color: #ff9f43;
+}
 #actions {
   flex: 1 1 60%;
   display: flex;

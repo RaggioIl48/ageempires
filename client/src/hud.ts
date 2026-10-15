@@ -25,7 +25,7 @@ import {
   type FactionId,
   type ResourceType,
   type TechId,
-  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId } from '../../shared/data.ts';
+  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId, regimentSize } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
@@ -202,6 +202,9 @@ export class Hud {
           return this.input.toggleGuard();
         case 'pace':
           this.input.togglePace();
+          return this.update();
+        case 'amove':
+          this.input.toggleAttackMove();
           return this.update();
       }
     });
@@ -474,14 +477,37 @@ export class Hud {
   private renderBottom(): void {
     const sel = this.input.sel;
     const units = [...sel.units].map((id) => this.state.units.get(id)?.v).filter((u): u is UnitView => !!u);
-    const cards = units
-      .slice(0, 36)
-      .map((u) => {
-        const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
-        return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
+    // Tarjetas: una por regimiento (Total War), con vida, moral y munición promedio; el resto, una por unidad.
+    const regs = new Map<number, UnitView[]>();
+    const singles: UnitView[] = [];
+    for (const u of units) {
+      if (u.rg) {
+        const list = regs.get(u.rg) ?? [];
+        list.push(u);
+        regs.set(u.rg, list);
+      } else singles.push(u);
+    }
+    const bar = (cls: string, frac: number) => `<div class="${cls}"><div style="width:${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%"></div></div>`;
+    const regCards = [...regs.values()].map((list) => {
+      const u = list[0];
+      const maxHp = this.state.statsOf(u.owner, u.type).hp;
+      const hp = list.reduce((s, m) => s + m.hp / maxHp, 0) / list.length;
+      const morale = list.reduce((s, m) => s + (m.morale ?? 100), 0) / list.length / 100;
+      const routing = list.filter((m) => m.rout).length;
+      const ammo = list.some((m) => m.am !== undefined) ? list.reduce((s, m) => s + (m.am ?? 100), 0) / list.length / 100 : null;
+      const size = regimentSize(u.type);
+      const state = routing * 2 >= list.length ? '🏳 Routing' : morale < 0.45 ? '⚠ Wavering' : '';
+      const tip = `${this.state.labelOf(u.owner, u.type)} regiment: ${list.length}/${size} men · health ${Math.round(hp * 100)}% · morale ${Math.round(morale * 100)}%${ammo !== null ? ` · ammo ${Math.round(ammo * 100)}%` : ''}${state ? ` · ${state}` : ''}`;
+      return `<div class="card reg ${state ? 'warn' : ''}" data-id="${u.id}" title="${esc(tip)}" style="color:${this.state.color(u.owner)}">
+        ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<span class="count">${list.length}</span>
+        ${bar('hp', hp)}${bar('mo', morale)}${ammo !== null ? bar('am', ammo) : ''}</div>`;
+    });
+    const singleCards = singles.map((u) => {
+      const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
+      return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
           ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
-      })
-      .join('');
+    });
+    const cards = [...regCards, ...singleCards].slice(0, 36).join('');
     if (this.state.spectator) {
       setHtml(el('selection-grid'), this.economyTable());
       setHtml(el('actions'), this.teacherActions());
@@ -572,11 +598,15 @@ export class Hud {
       const pace = soldiers > 0
         ? `<button class="act small ${this.input.pace === 'run' ? 'on' : ''}" data-action="pace" title="Walk: slower but they barely tire. Run: full speed, but they get tired. Double right click = run just that order.">${this.input.pace === 'run' ? '🏃 Run' : '🚶 Walk'} <span class="key">R</span></button>`
         : '';
+      const amove = soldiers > 0
+        ? `<button class="act small ${this.input.attackMove ? 'on' : ''}" data-action="amove" title="Attack-move: they advance to the point you right click next and fight every enemy they meet on the way. Shortcut: Ctrl + right click. Shift + right click: add the order to a queue (one after the other).">⚔ Attack-move</button>`
+        : '';
       const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${abilities}${formation}${pace}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
+      return `${abilities}${formation}${pace}${amove}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it, face forward and hold their spot.
+        <b>Ctrl</b> + right click: attack-move · <b>Shift</b> + right click: queue the order. Clicking a soldier selects his whole regiment.
         Idle troops attack the enemies they see on their own.</p>`;
     }
     if (b) {
@@ -606,7 +636,7 @@ export class Hud {
     const name = this.state.labelOf(this.state.you, type);
     const cost = unitCost(type, this.state.techsOf(this.state.you));
     const ok = !have || canAfford(have, cost);
-    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
+    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s${regimentSize(type) ? `\nShift + click: a whole regiment (${regimentSize(type)} soldiers)` : ''}`;
     const icon = iconOf(type, this.state.faction(this.state.you), this.state.color(this.state.you));
     const portrait = icon.startsWith('<img');
     return `<button class="act with-icon ${portrait ? 'with-portrait' : ''}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">

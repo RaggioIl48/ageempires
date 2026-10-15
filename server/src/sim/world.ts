@@ -2,6 +2,7 @@
 // simulación se puede probar sin sockets ni navegador.
 
 import {
+  ammoFor,
   BUILDING_DEFS,
   FACTION_ORDER,
   NODE_DEFS,
@@ -28,6 +29,7 @@ import {
 import type { BattleResultView, ChronicleEntry, ChronicleKind, GameEvent, HistorySample, UnitState } from '../../../shared/protocol.ts';
 import type { PendingWar, Proposal } from './diplomacy.ts';
 import { HeightField } from '../../../shared/terrain.ts';
+import { createRng } from '../../../shared/rng.ts';
 import { NO_TECHS, buildingMaxHp, canAfford, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
 
 /** Ejército en marcha forzada: sus soldados salen del mapa y aparecen al llegar. */
@@ -139,6 +141,32 @@ export interface Unit {
   docked: boolean;
   /** Solo el General: paso desde el que puede volver a usar cada habilidad. */
   ready: Record<AbilityId, number>;
+  /** Regimiento al que pertenece (0 = ninguno). Ver regiment.ts. */
+  reg: number;
+  /** Atacar-moviendo: destino final; pelea con lo que encuentre en el camino y después sigue. */
+  amove: Point | null;
+  /** Órdenes de movimiento en cola (Shift + clic derecho): se cumplen una tras otra. */
+  orders: { x: number; y: number; amove: boolean }[];
+  /** Pasos que le quedan en el suelo tras ser derribado por una carga (0 = de pie). */
+  down: number;
+  /** Disparos que le quedan (solo soldados a distancia; Infinity = sin límite). */
+  ammo: number;
+}
+
+/** Proyectil en vuelo: el daño se decide al caer, donde esté el objetivo en ese momento. */
+export interface Projectile {
+  owner: number;
+  attackerId: number;
+  /** Objetivo apuntado y punto de caída (con el desvío del tiro ya aplicado). */
+  targetId: number;
+  x: number;
+  y: number;
+  /** Desde dónde se tiró (para saber si el escudo del objetivo lo cubre). */
+  fromX: number;
+  fromY: number;
+  /** Paso en que cae. */
+  at: number;
+  damage: number;
 }
 
 export interface ResourceNode {
@@ -172,6 +200,8 @@ export interface Building {
   queue: QueueItem[];
   /** Punto de reunión; targetId = recurso donde las unidades nuevas se ponen a trabajar. */
   rally: { x: number; y: number; targetId: number } | null;
+  /** Regimiento que se está llenando con los soldados que salen de acá (0 = ninguno). */
+  openReg: number;
   /** Campos de trabajo (granja, cantera, mina): recurso que les queda. */
   stock: number;
   /** Producción detenida por falta de población. */
@@ -226,6 +256,10 @@ export class World {
   /** 1 = no se puede caminar (nodo o edificio sólido). */
   readonly solid: Uint8Array;
   readonly units = new Map<number, Unit>();
+  /** Proyectiles en vuelo. */
+  projectiles: Projectile[] = [];
+  /** Azar del combate (desvío de los tiros), con semilla: las pruebas se repiten igual. */
+  rand: () => number = createRng(0x5eed);
   readonly nodes = new Map<number, ResourceNode>();
   readonly buildings = new Map<number, Building>();
   readonly players = new Map<number, Player>();
@@ -464,6 +498,7 @@ export class World {
       progress: built ? 1 : 0,
       queue: [],
       rally: null,
+      openReg: 0,
       stock: def.field?.amount ?? 0,
       needsHouses: false,
       cooldown: 0,
@@ -550,6 +585,11 @@ export class World {
       climb: 0,
       docked: false,
       ready: { inspire: 0, hold: 0 },
+      reg: 0,
+      amove: null,
+      orders: [],
+      down: 0,
+      ammo: ammoFor(type),
     };
     this.units.set(u.id, u);
     return u;

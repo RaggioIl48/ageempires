@@ -13,6 +13,8 @@ import { Renderer } from './render.ts';
 import { ClientState } from './state.ts';
 import { Camera } from './view.ts';
 import { PerfMeter, perfVerdict } from './perf.ts';
+import { Sound } from './sound.ts';
+import { preloadFaction } from './art.ts';
 
 export class GameView {
   readonly state = new ClientState();
@@ -34,6 +36,8 @@ export class GameView {
   private perfOpen = false;
   private readonly perfBox = document.getElementById('perf')!;
   readonly perf = new PerfMeter();
+  /** Sonido de batalla (M = silencio). */
+  readonly sound = new Sound();
   active = false;
 
   constructor(private readonly net: Net) {
@@ -73,8 +77,14 @@ export class GameView {
 
   /** Mensajes de la partida (bienvenida, cambios, jugadores). */
   handle(msg: ServerMessage): void {
+    const battlesBefore = this.state.battles.length;
     this.state.apply(msg, performance.now());
+    if (msg.t === 'd' && this.active) {
+      const w = this.cam.width / this.cam.zoom, h = this.cam.height / this.cam.zoom;
+      this.sound.onEvents(this.state.lastEvents, { cx: this.cam.cx, cy: this.cam.cy, w, h }, this.state.battles.length > battlesBefore);
+    }
     if (msg.t === 'welcome') {
+      if (!this.state.spectator) preloadFaction(this.state.faction(this.state.you));
       this.renderer.setMap(this.state);
       this.minimap.reset();
       this.cam.mapSize = this.state.size;

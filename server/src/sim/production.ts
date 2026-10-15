@@ -20,6 +20,7 @@ import { assignGather } from './gather.ts';
 import { moveGroup } from './movement.ts';
 import { hasGeneral } from './general.ts';
 import { freeTilesAround, type Building, type QueueItem, type World } from './world.ts';
+import { formAtRally, joinRegiment } from './regiment.ts';
 
 function itemCost(item: QueueItem): Cost {
   return item.paid ?? (item.tech ? TECH_DEFS[item.tech].cost : UNIT_DEFS[item.unit!].cost);
@@ -178,6 +179,9 @@ function spawn(world: World, b: Building, type: UnitType): boolean {
   const spot = freeTilesAround(world, ex, ey, 1)[0];
   if (!spot) return false;
   const u = world.addUnit(type, b.owner, spot.x + 0.5, spot.y + 0.5);
+  // Regimiento: se suma al que se está llenando y se forma con sus compañeros.
+  const mates = joinRegiment(world, b, u);
+  if (formAtRally(world, b, u, mates)) return true;
   if (!b.rally) return true;
   const node = b.rally.targetId ? world.nodes.get(b.rally.targetId) : undefined;
   if (node && type === 'worker') assignGather(world, u, node);

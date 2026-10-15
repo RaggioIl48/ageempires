@@ -8,6 +8,8 @@ export type NetStatus = 'connecting' | 'online' | 'offline';
 export class Net {
   private ws: WebSocket | null = null;
   status: NetStatus = 'connecting';
+  /** Intentos seguidos fallidos: la espera crece (1,5 s … 10 s) para no saturar al servidor que vuelve. */
+  private failures = 0;
 
   constructor(
     private onMessage: (msg: ServerMessage) => void,
@@ -22,6 +24,7 @@ export class Net {
     this.ws = ws;
     this.setStatus('connecting');
     ws.onopen = () => {
+      this.failures = 0;
       this.setStatus('online');
       this.onOpen();
     };
@@ -29,7 +32,9 @@ export class Net {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.setStatus('offline');
-      setTimeout(() => this.connect(), 1500);
+      // Con algo de azar: si se reinicia el servidor, no vuelven los 16 alumnos en el mismo instante.
+      const wait = Math.min(10_000, 1500 * 1.6 ** this.failures++) * (0.8 + Math.random() * 0.4);
+      setTimeout(() => this.connect(), wait);
     };
   }
 

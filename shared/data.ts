@@ -665,8 +665,8 @@ export function sellPrice(price: number): number {
 
 /** Reparar cuesta esta fracción del precio del edificio (proporcional a la vida recuperada). */
 export const REPAIR_COST_FACTOR = 0.5;
-/** Elementos que caben en la cola de un edificio. */
-export const MAX_QUEUE = 5;
+/** Elementos que caben en la cola de un edificio (alcanza para un regimiento entero). */
+export const MAX_QUEUE = 10;
 /** Población máxima por jugador (límite de rendimiento para la clase). */
 export const POP_CAP_MAX = 75;
 
@@ -1037,6 +1037,55 @@ export function uniquesOf(faction: FactionId): { units: UnitType[]; building: Bu
     building: (Object.keys(BUILDING_DEFS) as BuildingType[]).find((b) => BUILDING_DEFS[b].faction === faction),
   };
 }
+
+// ---------- Regimientos (Total War): los soldados se mandan en bloque ----------
+/**
+ * Soldados por regimiento según su categoría. Los soldados nuevos de un mismo tipo que salen de un
+ * mismo edificio se suman al regimiento abierto hasta llenarlo; el regimiento se selecciona con un
+ * clic, marcha en formación y comparte la moral. Chicos a propósito: la clase juega en un servidor modesto.
+ */
+export const REGIMENT_SIZE: Partial<Record<Category, number>> = { infantry: 8, ranged: 6, cavalry: 4 };
+/** Moral por segundo que pierden los que siguen firmes cuando huye una parte del regimiento (× fracción que huye). */
+export const REGIMENT_PANIC = 10;
+/** Fracción del regimiento que tiene que huir para que cunda el pánico. */
+export const REGIMENT_PANIC_FROM = 0.3;
+
+/** Soldados por regimiento de un tipo (0 = no forma regimientos: trabajadores, General, máquinas). */
+export function regimentSize(type: UnitType): number {
+  const def = UNIT_DEFS[type];
+  if (def.hero) return 0;
+  return REGIMENT_SIZE[def.category] ?? 0;
+}
+
+// ---------- Proyectiles y munición (Total War) ----------
+/** Velocidad de vuelo (casillas por segundo): flechas, jabalinas/hondas y balas. */
+export const PROJECTILE_SPEED = { arrow: 14, javelin: 10, bullet: 60 } as const;
+/** Distancia (casillas) desde el punto de caída en la que el proyectil todavía alcanza a alguien. */
+export const PROJECTILE_HIT_RADIUS = 0.55;
+/** Desvío del tiro: fracción de la distancia (los veteranos apuntan mejor). */
+export const PROJECTILE_SPREAD = 0.06;
+/** Munición inicial de un tipo (Infinity = no se le acaba: armas de fuego, máquinas, cuerpo a cuerpo). */
+export function ammoFor(type: UnitType): number {
+  const def = UNIT_DEFS[type];
+  if (def.attack.type !== 'ranged' || def.shot) return Infinity;
+  return def.category === 'ranged' || def.category === 'cavalry' ? AMMO : Infinity;
+}
+/** Si el objetivo mira hacia el tirador y lleva escudo, el daño se multiplica por esto. */
+export const SHIELD_BLOCK = 0.45;
+/** Disparos por soldado a distancia (las máquinas y las armas de fuego no se quedan sin munición). */
+export const AMMO = 24;
+/** Munición que se recupera por segundo cerca de un edificio propio que entrena tropas. */
+export const AMMO_RESUPPLY = 2;
+export const AMMO_RESUPPLY_RADIUS = 8;
+
+// ---------- Choque de la carga (Total War) ----------
+/** Segundos en el suelo de un soldado derribado por una carga de caballería. */
+export const KNOCKDOWN_SECONDS = 1.6;
+/** Casillas que retrocede el derribado. */
+export const KNOCKDOWN_PUSH = 0.5;
+/** Enemigos extra que se lleva por delante una carga (además del objetivo) y su daño relativo. */
+export const CHARGE_TRAMPLE = 2;
+export const CHARGE_TRAMPLE_DAMAGE = 0.5;
 
 // ---------- Moral y flancos (idea de Total War: Attila) ----------
 /**

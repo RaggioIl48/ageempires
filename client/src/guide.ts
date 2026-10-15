@@ -131,7 +131,16 @@ export class GuidePanel {
         points hurts the riders), <b>cavalry</b> rides down <b>swordsmen</b> and archers, and <b>swords</b> break <b>spearmen</b>.
         A spear wall only protects from the front: hit spearmen from the side or the back with your cavalry!</p>
         <p><b>Cavalry charge:</b> a mounted melee unit that has not fought for ${CHARGE_READY_SEC} s hits ×${CHARGE_BONUS} on its first strike
-        (${esc(f.name)}: ×${charge}). Attack, pull back, and charge again!</p>
+        (${esc(f.name)}: ×${charge}). Attack, pull back, and charge again! The charge <b>knocks down</b> the soldier it hits
+        and tramples the ones right behind him: they lie on the ground for a moment, unable to fight.</p>
+        <p><b>Regiments 🚩:</b> soldiers of the same type that leave the same building form a regiment (8 infantry, 6 ranged,
+        4 cavalry), with its own standard. Click one soldier to select the whole regiment; <b>Shift + click</b> the train
+        button to order a whole regiment at once. When part of a regiment flees, the rest waver.</p>
+        <p><b>Arrows fly:</b> they land where the target <i>was</i>, so moving troops dodge some — and an arrow can hit a
+        friend in a melee. Shields stop much of the damage from the front: shoot at flanks and backs. Archers carry
+        limited ammunition (yellow bar on the regiment card); they refill near your own Town Center or barracks.</p>
+        <p><b>Orders:</b> <b>Ctrl</b> + right click (or ⚔ Attack-move) = advance and fight everything on the way.
+        <b>Shift</b> + right click = queue orders, one after another. <b>M</b> = sound on/off.</p>
         <p><b>Morale:</b> soldiers lose morale when hit and when allies fall nearby. At 0 they <b>rout</b> 🏳: they run home,
         ignore orders and take extra damage, then rally once safe. A battle is often won by breaking the enemy, not killing everyone.</p>
         <p><b>Flanks:</b> melee hits from the side deal ×${FLANK_DAMAGE} and from behind ×${REAR_DAMAGE}, and break morale faster.

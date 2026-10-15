@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
+import { AMMO, BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -32,6 +32,9 @@ import { pathToRect } from './pathfinding.ts';
 import { gloryOf, updateVictory } from './victory.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
+import { resupply, updateKnockdowns, updateProjectiles } from './projectiles.ts';
+import { regimentPanic } from './regiment.ts';
+import { clearOrders, queueMoves, setAttackMove, updateOrders } from './orders.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
 const GROUP_SPREAD_RADIUS = 4;
@@ -66,7 +69,11 @@ export class Game {
     updateDiplomacy(w);
     updateProduction(w, dt);
     updateCombat(w, dt);
+    updateProjectiles(w);
+    updateKnockdowns(w);
+    resupply(w);
     updateMorale(w, dt);
+    regimentPanic(w, dt);
     updateBuffs(w);
     updateHealing(w, dt);
     moveUnits(w, dt);
@@ -74,6 +81,7 @@ export class Game {
     updateGatherers(w, dt);
     updateBuilders(w, dt);
     removeDead(w);
+    updateOrders(w);
     recordHistory(w);
     updateWar(w);
     updateVictory(w);
@@ -141,6 +149,8 @@ export class Game {
       .filter((u): u is Unit => u !== undefined && u.owner === playerId && u.hp > 0 && u.routing === 0); // los que huyen no obedecen
     if (units.length === 0) return;
     const workers = units.filter((u) => u.type === 'worker');
+    // Una orden nueva borra el atacar-moviendo y la cola (salvo las que se agregan a la cola).
+    if (cmd.kind !== 'stance' && cmd.kind !== 'ability' && !(cmd.kind === 'move' && cmd.queue)) clearOrders(units);
     switch (cmd.kind) {
       case 'stop':
         for (const u of units) stopWork(u);
@@ -164,6 +174,11 @@ export class Game {
         break;
       }
       case 'move':
+        // Shift: a la cola (los que están quietos salen en el próximo paso).
+        if (cmd.queue) {
+          queueMoves(w, units, clamp(cmd.x, 0, w.size - 0.01), clamp(cmd.y, 0, w.size - 0.01), cmd.amove === true);
+          break;
+        }
         if (!cmd.front && manWalls(w, units, Math.floor(cmd.x), Math.floor(cmd.y))) break;
         moveGroup(
           w,
@@ -175,6 +190,7 @@ export class Game {
           cmd.front?.width,
           cmd.walk !== true,
         );
+        if (cmd.amove) setAttackMove(units);
         break;
       case 'gather': {
         const node = w.nodes.get(cmd.targetId);
@@ -444,6 +460,9 @@ function unitView(u: Unit, tick: number): UnitView {
   v.fc = (Math.round(Math.atan2(u.fy, u.fx) / (Math.PI / 4)) + 8) % 8;
   // Último golpe (si fue en los últimos 10 s): el cliente anima el impacto en ese instante.
   if (Number.isFinite(u.lastStrike) && tick - u.lastStrike <= STRIKE_MEMORY) v.sk = u.lastStrike;
+  if (u.reg) v.rg = u.reg;
+  if (Number.isFinite(u.ammo)) v.am = Math.round((100 * u.ammo) / AMMO);
+  if (u.down > 0) v.dn = 1;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }

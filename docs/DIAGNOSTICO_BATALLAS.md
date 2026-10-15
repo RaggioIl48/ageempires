@@ -4,6 +4,20 @@ Fecha: 2026-10-15. Basado en el código actual (`server/src/sim/*`, `shared/data
 `client/src/*`). Cada punto dice qué hay hoy, qué hace Attila, cuánto impacto tendría y cuánto cuesta.
 Escala: impacto ★ a ★★★; esfuerzo **S** (días), **M** (1–2 semanas), **L** (más).
 
+## 0. Implementado el 2026-10-15
+
+| Punto del diagnóstico | Qué se hizo | Dónde |
+|---|---|---|
+| 1. Regimientos | Los soldados de un mismo tipo que salen de un mismo edificio forman un regimiento (8 infantería, 6 tiradores, 4 jinetes) que se llena solo. Un clic selecciona el regimiento entero; Shift + clic en el botón de entrenar encarga uno completo. Estandarte con el color del dueño, cuántos quedan y barras de vida y moral; tarjeta con vida, moral y munición. Pánico compartido: si huye el 30 % o más, el resto pierde moral. Sin cambios de economía ni de población. | `sim/regiment.ts`, `render.ts` (`drawStandards`), `hud.ts` |
+| 2. Proyectiles y munición | Flechas, jabalinas, piedras y balas vuelan (con su tiempo real); el daño se aplica al caer, donde esté el objetivo. Si se movió, puede pegarle a otro, incluso a uno propio (fuego amigo, a la mitad). Escudo de frente: el tiro pierde el 55 %. 24 tiros por tirador; se recargan cerca de un edificio propio que entrena tropas. | `sim/projectiles.ts` |
+| 3. Choque de la carga | La carga derriba al objetivo (1,6 s en el suelo, sin pelear ni moverse), lo empuja medio casillero y arrolla hasta 2 enemigos de atrás. | `sim/projectiles.ts` (`chargeImpact`) |
+| 4. Órdenes | Atacar-moviendo (Ctrl + clic derecho o el botón ⚔), cola de órdenes (Shift + clic derecho). | `sim/orders.ts`, `input.ts` |
+| 9. Sonido | Choque de armas, golpe en el escudo, flechas, carga, caídas y cuerno de batalla, generados con Web Audio (sin archivos). Ubicados según la cámara; M = silencio. | `client/src/sound.ts` |
+| 11. Caballería en 3D | Las 26 hojas de jinetes (7 pueblos × explorador, caballero y General, más los 5 jinetes únicos): caballo y jinete con sus esqueletos y animaciones, sincronizados. | `tools/art/soldiers.mjs` |
+
+Siguen pendientes: 5 (habilidades por unidad), 6 (bosques y ríos), 7 (estados de moral más ricos), 8 (cámara
+lenta, seguir a una unidad), 10 (animaciones por pares), 12 (asedio avanzado), 13 (clima).
+
 ## 1. Lo que ya está y se parece a Attila
 
 | Mecánica | Dónde | Estado |

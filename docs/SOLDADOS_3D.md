@@ -59,11 +59,12 @@ Germans, Visigoths).
 
 ## Suggested next steps
 
-- **Still LPC (4 directions)**: workers, all cavalry, the General, the Gaul naked fanatic (no 0 A.D.
-  model) and the Industrial/Modern units.
+- **Cavalry (done 2026-10-15)**: the horse actor (`…_m`) is the body; the rider (`…_r`) is a skinned prop with
+  its own skeleton and animations, posed at the same phase and mounted on the horse's `prop_rider` bone
+  (`posedParts`, `loadRiderClips`). Scale comes from an infantry reference (`scaleFrom`) so riders and foot
+  soldiers match. Rider capes are skipped (the rider clips do not move their bones). Coat colour per people.
+- **Still LPC (4 directions)**: workers, the Gaul naked fanatic (no 0 A.D. model) and the Industrial/Modern units.
 - **Workers**: 0 A.D. citizens have gather/build animations (`gather_tree`, `build`…) matching the game's
   `chop`/`farm`/`mine`/`build`.
-- **Cavalry**: horse and rider are separate skeletons (rider mounted on a horse prop point); needs
-  `posedParts` to pose the horse with its own animation.
 - **Weight**: 40 sheets, ~21.7 MB in total (~550 KB each), loaded only when the unit appears;
   `FIGURE_PX` 72 would save ~25 %, WebP ~40 %. Drawing cost: see `FLUIDEZ_Y_RENDIMIENTO.md`.

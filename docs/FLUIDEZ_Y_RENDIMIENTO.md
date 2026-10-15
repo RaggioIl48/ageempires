@@ -47,6 +47,15 @@ aleatorio. Se cuenta en cuántos cuadros (de 16 ms) el dibujo casi se frena o sa
 3. **Visor con prueba de carga** (`client/src/preview.ts`): `?stress=600`, `art=lpc` para comparar con
    las hojas viejas, `lod=0` para apagar la media resolución. Sirve para repetir estas mediciones.
 
+## 2b. Agregado el 2026-10-15
+
+4. **Transiciones entre animaciones** (`art.ts`, `blendOf`): al pasar de caminar a quieto o a atacar, el
+   cuadro anterior se desvanece en 120 ms en vez de cortar de golpe.
+5. **Reacción al golpe**: destello claro de 160 ms sobre el soldado que recibe daño.
+6. **Precarga** (`preloadFaction`): al entrar a la partida se piden las hojas del propio pueblo, de a una.
+7. **Servidor con proyectiles y regimientos**: 800 soldados peleando = 6,45 ms por paso (de 100 disponibles),
+   con hasta 38 proyectiles en vuelo; igual que antes.
+
 ## 3. Qué hacer después (no hecho todavía)
 
 ### Fluidez de las animaciones

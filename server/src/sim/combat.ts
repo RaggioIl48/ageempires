@@ -16,6 +16,7 @@ import { buffArmor, buffDamage } from './general.ts';
 import { fatigueOf, spend } from './fatigue.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Point, type Unit, type World } from './world.ts';
+import { chargeImpact, launch } from './projectiles.ts';
 
 export type Target = { kind: 'unit'; unit: Unit } | { kind: 'building'; building: Building };
 
@@ -196,6 +197,16 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   }
   if (attacker) attacker.lastStrike = world.tick;
   const at = centerOf(t);
+  // Flechas, jabalinas, piedras y balas vuelan: el daño se aplica al caer (projectiles.ts).
+  if (attack.type === 'ranged' && t.kind === 'unit' && attacker) {
+    const shot = launch(world, owner, attacker, t.unit, dmg);
+    if (shot) {
+      const look = UNIT_DEFS[attacker.type].shot;
+      world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: shot.x, y2: shot.y, s: look === 'bullet' ? 1 : 0, ms: shot.ticks * (1000 / TICK_RATE) });
+      notifyVictim(world, t);
+      return;
+    }
+  }
   const before = t.kind === 'unit' ? t.unit.hp : t.building.hp;
   if (t.kind === 'unit') {
     t.unit.hp -= dmg;
@@ -218,21 +229,27 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
       if (rankOf(attacker.kills) > before) world.events.push({ k: 'rank', x: attacker.x, y: attacker.y, r: rankOf(attacker.kills) });
     }
   }
+  // Choque de la carga: derriba, empuja y arrolla (projectiles.ts).
+  if (charge && attacker && t.kind === 'unit') chargeImpact(world, attacker, t.unit, dmg);
   if (attack.type === 'ranged') {
     const look = attacker ? UNIT_DEFS[attacker.type].shot : undefined;
     world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: at.x, y2: at.y, s: look === 'bullet' ? 1 : look === 'shell' ? 2 : 0 });
   }
   else world.events.push({ k: 'hit', x: at.x, y: at.y, ...(charge ? { c: 1 as const } : {}), ...(side ? { fl: side } : {}) });
 
-  // Aviso para el atacado (como mucho uno cada 15 segundos).
+  notifyVictim(world, t);
+  // Una unidad militar quieta que recibe un golpe responde.
+  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly && !UNIT_DEFS[t.unit.type].docks)
+    assignAttack(t.unit, attacker.id, true);
+}
+
+/** Aviso para el atacado (como mucho uno cada 15 segundos). */
+function notifyVictim(world: World, t: Target): void {
   const victim = world.players.get(ownerOf(t));
   if (victim && world.tick - victim.lastAttackNotice > 150) {
     victim.lastAttackNotice = world.tick;
     world.notify(victim.id, 'You are under attack!');
   }
-  // Una unidad militar quieta que recibe un golpe responde.
-  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly && !UNIT_DEFS[t.unit.type].docks)
-    assignAttack(t.unit, attacker.id, true);
 }
 
 /** Intervalo (pasos) entre búsquedas automáticas de objetivo, repartido por id. */
@@ -247,7 +264,13 @@ export function updateCombat(world: World, dt: number): void {
   for (const u of world.units.values()) {
     if (u.cooldown > 0) u.cooldown = Math.max(0, u.cooldown - dt);
     if (isRouting(u)) continue; // huyendo no pelea
+    if (u.down > 0) continue; // derribado por una carga: todavía en el suelo
     if (UNIT_DEFS[u.type].docks) continue; // la torre de asedio no pelea
+    // Sin munición: el tirador deja de tirar (la recupera cerca de un edificio propio).
+    if (u.ammo <= 0) {
+      if (u.task?.kind === 'attack') stopWork(u);
+      continue;
+    }
     const stats = world.statsOf(u);
     const onlyBuildings = UNIT_DEFS[u.type].buildingsOnly === true;
     const holding = u.guard || u.hold;
@@ -256,7 +279,9 @@ export function updateCombat(world: World, dt: number): void {
     if ((world.tick + u.id) % SCAN_EVERY === 0 && skirmish(world, grid, u, stats)) continue;
     // Militares quietos: buscan enemigos a la vista (en modo guardia, solo los que llegan cerca).
     const hitsAir = canHitAir(stats.attack);
-    if (!u.task && u.state === 'idle' && stats.category !== 'worker' && (world.tick + u.id) % SCAN_EVERY === 0) {
+    // Atacar-moviendo: también busca mientras marcha hacia su puesto.
+    const scanning = !u.task && (u.state === 'idle' || (u.amove !== null && u.state === 'moving'));
+    if (scanning && stats.category !== 'worker' && (world.tick + u.id) % SCAN_EVERY === 0) {
       const scan = holding ? (stats.attack.type === 'ranged' ? stats.attack.range + 0.5 : GUARD_ENGAGE) : stats.sight;
       const t = findTarget(world, grid, u.owner, u.x, u.y, scan, false, hitsAir, onlyBuildings, crowd);
       if (t) {

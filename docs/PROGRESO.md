@@ -720,6 +720,22 @@ Total War: Napoleon:
 - Docs: [DIAGNOSTICO_BATALLAS.md](DIAGNOSTICO_BATALLAS.md) (what is missing to feel like Total War: Attila,
   prioritised), [FLUIDEZ_Y_RENDIMIENTO.md](FLUIDEZ_Y_RENDIMIENTO.md) (measurements and next steps).
 
+## Regiments, flying arrows, charge impact, attack-move, battle sound, 3D cavalry (2026-10-15)
+
+- **Regiments**: soldiers of one type from one building fill a regiment (8 infantry / 6 ranged / 4 cavalry);
+  one click selects it, Shift-click on a train button orders a whole one; standard over each regiment with
+  men left, health and morale; regiment cards in the selection bar; shared panic when 30 %+ of it routs.
+  Economy and population unchanged (the computer rival needs no changes).
+- **Projectiles** fly with their real travel time and hurt where they land (dodging, friendly fire at half
+  damage); shields facing the shooter stop 55 %; 24 shots per archer/skirmisher, refilled near own
+  military buildings.
+- **Charge impact**: knockdown (1.6 s), push back, trample up to 2 more.
+- **Attack-move** (Ctrl + right click or the ⚔ button) and **queued orders** (Shift + right click).
+- **Battle sound** synthesised with Web Audio (no files), positioned by the camera; M mutes.
+- **Smoother drawing**: 120 ms blend between animations, hit flash, faction sheets preloaded.
+- **3D cavalry**: horse and rider skeletons posed with their own synchronised animations (26 sheets).
+- Tests: `totalwar.test.ts` (12). Server step with 800 fighting soldiers: 6.45 ms, unchanged.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

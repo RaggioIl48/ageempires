@@ -128,6 +128,7 @@ function artImage(file: string): HTMLImageElement | null {
     images.set(file, img);
     img.onload = () => {
       ready.add(file);
+      if (img.width * img.height > BIG_SHEET_PX) bigFiles.add(file);
       artVersion++;
     };
     img.onerror = () => images.set(file, null);
@@ -320,8 +321,8 @@ export function drawSpriteUnit(
   const id = sheetId(faction, u.type);
   if (!id) return null;
   const sheet = sheetMeta(id);
-  const img = imageOf(id, sheet);
-  if (!img) return null;
+  const img = sourceFor(ctx, sheet, now);
+  if (!img && !halves.get(sheet.file)) return null;
   const name = animName(u);
   const a = sheet.anims[name] ?? sheet.anims.idle;
   const t = now / 1000 + u.id * 0.37;
@@ -333,7 +334,50 @@ export function drawSpriteUnit(
       ? attackFrame(now, u.ha, { n: a.n, fps: a.fps, hit: a.hit ?? defaultHit(a.n), cooldownMs: u.cool }).frame
       : Math.floor(t * a.fps * pace) % a.n;
   drawShadow(ctx, x, y, shadow);
-  return drawFrame(ctx, id, sheet, img, a, rowOf(u, sheet, a.d, face), f, x, y, color);
+  const row = rowOf(u, sheet, a.d, face);
+  // Transición: al cambiar de animación (caminar → quieto → atacar), el cuadro anterior se
+  // desvanece en unos 120 ms en vez de cortar de golpe.
+  const tr = blendOf(u.id, name, row, f, now);
+  if (tr && sheet.anims[tr.name]) {
+    const pa = sheet.anims[tr.name];
+    ctx.globalAlpha = tr.alpha;
+    drawFrame(ctx, id, sheet, img, pa, Math.min(tr.row, pa.d - 1), Math.min(tr.frame, pa.n - 1), x, y, color);
+    ctx.globalAlpha = 1 - tr.alpha * 0.6;
+  }
+  const info = drawFrame(ctx, id, sheet, img, a, row, f, x, y, color);
+  ctx.globalAlpha = 1;
+  // Golpe recibido: un destello claro breve sobre la figura.
+  if (u.hf) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = u.hf * 0.45;
+    drawFrame(ctx, id, sheet, img, a, row, f, x, y, color);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  return info;
+}
+
+/** Duración de la transición entre animaciones (ms). */
+const BLEND_MS = 120;
+/** Última animación dibujada de cada unidad (para la transición). */
+const lastAnim = new Map<number, { name: string; row: number; frame: number; since: number; prev?: { name: string; row: number; frame: number } }>();
+function blendOf(id: number, name: string, row: number, frame: number, now: number): { name: string; row: number; frame: number; alpha: number } | null {
+  if (lastAnim.size > 5000) lastAnim.clear();
+  const s = lastAnim.get(id);
+  if (!s) {
+    lastAnim.set(id, { name, row, frame, since: -Infinity });
+    return null;
+  }
+  if (s.name !== name) {
+    s.prev = { name: s.name, row: s.row, frame: s.frame };
+    s.since = now;
+    s.name = name;
+  }
+  s.row = row;
+  s.frame = frame;
+  const k = (now - s.since) / BLEND_MS;
+  if (!s.prev || k >= 1) return null;
+  return { ...s.prev, alpha: 1 - k };
 }
 
 /** Sombra difusa de una figura (degradado ya pintado: barato y suave). */
@@ -372,8 +416,8 @@ export function drawDyingUnit(
   if (!id) return false;
   const sheet = sheetMeta(id);
   const a = sheet.anims.die;
-  const img = a ? imageOf(id, sheet) : null;
-  if (!a || !img) return false;
+  const img = a ? sourceFor(ctx, sheet, performance.now()) : null;
+  if (!a || (!img && !halves.get(sheet.file))) return false;
   const f = Math.min(a.n - 1, Math.floor(age * a.fps));
   drawFrame(ctx, id, sheet, img, a, dirRow(sheet.o, a.d, face), f, x, y, color);
   return true;
@@ -383,7 +427,7 @@ function drawFrame(
   ctx: CanvasRenderingContext2D,
   id: string,
   sheet: SheetMeta,
-  img: HTMLImageElement,
+  img: HTMLImageElement | null,
   a: AnimMeta,
   d: number,
   f: number,
@@ -393,23 +437,79 @@ function drawFrame(
 ): SpriteInfo {
   const s = sheet.scale;
   const dx = x - a.ax * s, dy = y - a.ay * s;
-  // Hojas grandes (soldados 3D) dibujadas a menos de la mitad de su tamaño: se usa la copia a media
-  // resolución (más barata de muestrear y más liviana para la GPU), si ya está lista.
-  const t = ctx.getTransform();
-  const half = lodEnabled && img.width * img.height > BIG_SHEET_PX && s * Math.hypot(t.a, t.b) <= 0.5 ? halfOf(sheet.file, img) : null;
-  const q = half ? 0.5 : 1;
-  ctx.drawImage(half ?? img, f * a.w * q, (a.y + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
+  const info = { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+  // Hojas grandes (soldados 3D) dibujadas a la mitad de su tamaño o menos: copia a media resolución
+  // (más barata de muestrear y más liviana para la GPU). Si la original fue liberada, también se usa
+  // la media mientras vuelve a llegar.
+  const big = bigFiles.has(sheet.file);
+  const small = big && lodEnabled && s * zoomOf(ctx) <= 0.5;
+  const half = big ? (img ? halfOf(sheet.file, img) : (halves.get(sheet.file) ?? null)) : null;
+  const src = (small && half) || img || half;
+  if (!src) return info;
+  const q = src === half ? 0.5 : 1;
+  ctx.drawImage(src, f * a.w * q, (a.y + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
   if (a.m.length) {
     const k = (d * a.n + f) * 6;
     const mw = a.m[k + 2], mh = a.m[k + 3];
     if (mw && mh) {
-      const tint = tintOf(id, img, sheet, color);
-      const ht = half ? halfOf(`${id}|${color}|tint`, tint) : null;
-      const r = ht ? 0.5 : 1;
-      ctx.drawImage(ht ?? tint, a.m[k] * r, (a.m[k + 1] - sheet.maskY) * r, mw * r, mh * r, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
+      const tkey = `${id}|${color}|tint`;
+      const tint = img ? tintOf(id, img, sheet, color) : null;
+      const ht = big ? (tint ? halfOf(tkey, tint) : (halves.get(tkey) ?? null)) : null;
+      const t2 = (src === half && ht) || tint || ht;
+      if (t2) {
+        const r2 = t2 === ht ? 0.5 : 1;
+        ctx.drawImage(t2, a.m[k] * r2, (a.m[k + 1] - sheet.maskY) * r2, mw * r2, mh * r2, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
+      }
     }
   }
-  return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+  return info;
+}
+
+/** Escala de pantalla del lienzo (zoom × densidad de píxeles). */
+const zoomOf = (ctx: CanvasRenderingContext2D) => {
+  const t = ctx.getTransform();
+  return Math.hypot(t.a, t.b);
+};
+
+/** Hojas grandes ya cargadas alguna vez, y cuándo se necesitó por última vez su resolución original. */
+const bigFiles = new Set<string>();
+const fullNeeded = new Map<string, number>();
+/** Tras cuántos ms sin necesitar la original (con la media lista) se la libera. */
+const EVICT_AFTER_MS = 15_000;
+let lastEvict = 0;
+
+/**
+ * Imagen original de una hoja si hace falta (o ya está), o null. No la pide si alcanza con la
+ * media resolución (así una hoja liberada no se vuelve a descargar mientras no se acerque el zoom).
+ */
+function sourceFor(ctx: CanvasRenderingContext2D, sheet: SheetMeta, now: number): HTMLImageElement | null {
+  if (now - lastEvict > 5000) evictIdle(now);
+  const file = sheet.file;
+  const big = bigFiles.has(file);
+  const needFull = !big || !lodEnabled || sheet.scale * zoomOf(ctx) > 0.5 || !halves.get(file);
+  if (needFull) {
+    fullNeeded.set(file, now);
+    return artImage(file);
+  }
+  return ready.has(file) ? images.get(file)! : null;
+}
+
+/** Libera las originales que hace rato no hacen falta (la media resolución y su máscara ya están). */
+function evictIdle(now: number): void {
+  lastEvict = now;
+  for (const file of bigFiles) {
+    if (!ready.has(file) || !halves.get(file) || now - (fullNeeded.get(file) ?? 0) < EVICT_AFTER_MS) continue;
+    // Las máscaras de equipo de esta hoja: se liberan las que ya tienen su copia a media resolución.
+    for (const key of [...tints.keys()]) {
+      const sid = key.slice(0, key.indexOf('|'));
+      const sh = experimental?.sheets[sid] ?? manifest?.sheets[sid];
+      if (sh?.file !== file) continue;
+      if (halves.get(`${key}|tint`)) tints.delete(key);
+      else return; // falta alguna máscara reducida: todavía no se libera esta hoja
+    }
+    images.delete(file);
+    ready.delete(file);
+  }
 }
 
 /** Desde cuántos píxeles una hoja vale la pena tener copia a media resolución. */
@@ -498,6 +598,24 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
     artVersion++;
   });
   return null;
+}
+
+/**
+ * Precarga las hojas de las unidades de un pueblo (al entrar a la partida), de a una cada tanto
+ * para no competir con el resto de la carga: así la primera tropa ya aparece con su dibujo.
+ */
+export function preloadFaction(faction: FactionId): void {
+  void loadArt().then(() => {
+    if (!manifest) return;
+    const files = new Set<string>();
+    for (const [key, id] of Object.entries(manifest.units)) {
+      if (!key.startsWith(`${faction}/`) && !key.startsWith('*/')) continue;
+      const sheet = manifest.sheets[id];
+      if (sheet) files.add(sheet.file);
+    }
+    let i = 0;
+    for (const file of files) setTimeout(() => artImage(file), 150 * i++);
+  });
 }
 
 /** ¿Hay hoja para esta unidad? (para mostrar créditos o decidir sombras). */

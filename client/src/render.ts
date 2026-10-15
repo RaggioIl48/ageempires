@@ -196,6 +196,8 @@ type Drawable =
   | { depth: number; k: 'building'; b: BuildingView }
   | { depth: number; k: 'mountain'; tx: number; ty: number };
 
+/** Destello al recibir un golpe (ms). */
+const HURT_MS = 160;
 /** Cuánto quedan los caídos en el suelo (ms). */
 const CORPSE_MS = 4000;
 
@@ -203,8 +205,8 @@ const CORPSE_MS = 4000;
 const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, rank: 1600, death: 900, destroyed: 1200, gain: 1600 } as const;
 /** Los disparos de cañón vuelan más lento y terminan en una explosión. */
 const SHELL_MS = 600;
-const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
-  e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
+const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number; ms?: number }) =>
+  e.k === 'shot' && e.ms ? e.ms : e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
 
 /** Tiempo real entre golpes (ms), según la misma cuenta del servidor (guardado por espera). */
 const swingCache = new Map<number, number>();
@@ -366,7 +368,7 @@ export class Renderer {
       const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.hurtAt !== undefined && now - cu.hurtAt < HURT_MS ? { hf: 1 - (now - cu.hurtAt) / HURT_MS } : {}), ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 
@@ -478,18 +480,22 @@ export class Renderer {
           const p = worldToPx(d.x, d.y);
           p.py -= d.lift;
           if (d.u.buff) buffRing(ctx, p.px, p.py, d.u.buff, UNIT_LOOK[d.u.type].ring + 2, now);
+          // Derribado por una carga: en el suelo (cuadro de la caída) hasta que se levanta.
+          if (d.u.dn && drawDyingUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), state.faction(d.u.owner), d.face, 0.45)) break;
           drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)), d.face);
           break;
         }
       }
     }
 
+    this.drawStandards(ctx, state, list, sel, now);
+
     // Barras de vida: de lo seleccionado y de todo lo que esté herido.
     for (const d of list) {
       if (d.k === 'unit') {
         // Barras solo donde importan: todas en lo elegido; en el resto, la vida si está herido,
         // la moral si flaquea y el aguante si están agotados. Muy lejos, solo lo elegido.
-        const chosen = sel.units.has(d.u.id), far = cam.zoom < 0.6;
+        const chosen = sel.units.has(d.u.id), far = cam.zoom < 0.6 || (!!d.u.rg && !chosen);
         const max = state.statsOf(d.u.owner, d.u.type).hp;
         if (chosen || (!far && d.u.hp < max)) {
           const p = worldToPx(d.x, d.y);
@@ -643,6 +649,65 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /**
+   * Estandartes de regimiento (Total War): sobre cada regimiento a la vista, un banderín con el
+   * color del dueño, cuántos quedan, y barras de vida y moral del conjunto. Bandera blanca si huye.
+   */
+  private drawStandards(ctx: CanvasRenderingContext2D, state: ClientState, list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[], sel: { units: Set<number> }, now: number): void {
+    const regs = new Map<number, { xs: number; ys: number; top: number; n: number; hp: number; mo: number; rout: number; owner: number; chosen: boolean; type: UnitView['type'] }>();
+    for (const d of list) {
+      if (d.k !== 'unit' || !d.u?.rg) continue;
+      const u = d.u, rg = d.u.rg, p = worldToPx(d.x!, d.y!);
+      const top = p.py - (d.lift ?? 0) - unitTop(u.type, state.faction(u.owner));
+      const r = regs.get(rg) ?? { xs: 0, ys: 0, top: Infinity, n: 0, hp: 0, mo: 0, rout: 0, owner: u.owner, chosen: false, type: u.type };
+      r.xs += p.px;
+      r.ys += p.py;
+      r.top = Math.min(r.top, top);
+      r.n++;
+      r.hp += u.hp / state.statsOf(u.owner, u.type).hp;
+      r.mo += (u.morale ?? 100) / 100;
+      if (u.rout) r.rout++;
+      if (sel.units.has(u.id)) r.chosen = true;
+      regs.set(rg, r);
+    }
+    for (const r of regs.values()) {
+      if (r.n < 2) continue;
+      const x = r.xs / r.n, y = r.top - 10;
+      const color = state.color(r.owner);
+      const routing = r.rout * 2 >= r.n;
+      // Asta
+      ctx.fillStyle = '#3b2a1a';
+      ctx.fillRect(x - 0.75, y - 16, 1.5, 18);
+      // Paño (ondea un poco)
+      const wave = Math.sin(now / 260 + r.xs) * 1.2;
+      ctx.fillStyle = routing ? '#f4f1e8' : color;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.75, y - 16);
+      ctx.lineTo(x + 15, y - 15 + wave);
+      ctx.lineTo(x + 15, y - 7 + wave);
+      ctx.lineTo(x + 0.75, y - 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = r.chosen ? '#ffffff' : 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = r.chosen ? 1.2 : 0.8;
+      ctx.stroke();
+      ctx.fillStyle = routing ? '#333' : '#fff';
+      ctx.font = 'bold 7px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(r.n), x + 8, y - 9.3 + wave * 0.5);
+      ctx.textAlign = 'start';
+      // Vida (verde) y moral (azul) del regimiento.
+      const bar = (yy: number, frac: number, fg: string) => {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x - 8, yy, 16, 2.2);
+        ctx.fillStyle = fg;
+        ctx.fillRect(x - 8, yy, 16 * Math.max(0, Math.min(1, frac)), 2.2);
+      };
+      bar(y + 3, r.hp / r.n, '#3fb04f');
+      bar(y + 6, r.mo / r.n, r.mo / r.n < 0.45 ? '#ff9f43' : '#5ab0ff');
+    }
+  }
+
   /** Flechas, golpes, muertes y derrumbes. Los efectos viejos se descartan. */
   private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number): void {
     state.effects = state.effects.filter(({ e, t0 }) => now - t0 < effectMs(e));
@@ -718,7 +783,7 @@ export class Renderer {
           const spark = (now - t0) / EFFECT_MS.hit;
           if (spark < 1) {
           ctx.globalAlpha = 1 - spark;
-          ctx.fillStyle = e.c ? '#ffb347' : '#fff3b0';
+          ctx.fillStyle = e.c ? '#ffb347' : e.b ? '#ffffff' : '#fff3b0';
           // Golpe de carga: más chispas y más grandes.
           const n = e.c ? 8 : 4, spread = e.c ? 10 : 5, sz = e.c ? 3 : 2;
           for (let i = 0; i < n; i++) {

@@ -49,6 +49,8 @@ export interface ClientUnit {
   dustAt?: number;
   /** Hasta cuándo manda la orden recién dada (el giro previsto) sobre lo que diga el servidor. */
   aimUntil?: number;
+  /** Cuándo recibió el último golpe (ms): destello breve al dibujarla. */
+  hurtAt?: number;
 }
 
 /** Unidad recién caída (para animar su muerte unos segundos). */
@@ -142,6 +144,8 @@ export class ClientState {
   /** Guerra: ejércitos en marcha, batallas en curso y resultados por mostrar. */
   marches: MarchView[] = [];
   battles: BattleView[] = [];
+  /** Eventos del último estado recibido (para el sonido). */
+  lastEvents: GameEvent[] = [];
   battleResults: BattleResultView[] = [];
   /** Colina Sagrada e imperios caídos. */
   victory: VictoryView = { defeated: [] };
@@ -276,6 +280,7 @@ export class ClientState {
       // Golpe nuevo confirmado por el servidor: el instante en que llegó (el paso `sk` fue
       // hace (k − sk) pasos). La animación pone el impacto ahí, a la vez que la vida que baja.
       if (v.sk !== undefined && v.sk !== old?.v.sk) cu.hitAt = now - Math.max(0, d.k - v.sk) * TICK_MS;
+      if (old && v.hp < old.v.hp) cu.hurtAt = now;
       if (old) old.v = v;
       else this.units.set(v.id, cu);
     }
@@ -294,6 +299,7 @@ export class ClientState {
     this.drawClock.observe(d.k, now);
     for (const cu of this.units.values()) this.updateFace(cu, now);
     const events = (d.e ?? []).map(decodeEvent);
+    this.lastEvents = events;
     const deaths = events.filter((e) => e.k === 'death');
     for (const id of d.ur ?? []) {
       const cu = this.units.get(id);
