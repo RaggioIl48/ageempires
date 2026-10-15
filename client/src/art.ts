@@ -211,7 +211,16 @@ export function wallPiece(faction: FactionId, piece: keyof WallPieces, cx: numbe
   return sp ? placeSprite(sp, cx, cy, 1, color) : null;
 }
 
+/** Solo para el visor de animaciones (preview.html): hoja forzada por 'pueblo/tipo'. */
+const forced = new Map<string, string>();
+export function forceSheet(faction: FactionId, type: UnitType, id: string | null): void {
+  if (id) forced.set(`${faction}/${type}`, id);
+  else forced.delete(`${faction}/${type}`);
+}
+
 function sheetId(faction: FactionId, type: UnitType): string | undefined {
+  const f = forced.get(`${faction}/${type}`);
+  if (f && manifest?.sheets[f]) return f;
   // Primero la experimental, pero solo si su imagen ya está lista (si falla o tarda, la normal).
   const ex = experimental?.units[`${faction}/${type}`] ?? experimental?.units[`*/${type}`];
   if (ex && experimental!.sheets[ex] && artImage(experimental!.sheets[ex].file)) return ex;

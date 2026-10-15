@@ -38,7 +38,7 @@ export function applyDir(m, x, y, z) {
   return [v[0] / l, v[1] / l, v[2] / l];
 }
 
-function nodeMatrix(node) {
+export function nodeMatrix(node) {
   let m = IDENTITY;
   for (const c of node.children) {
     const v = nums(c.text);
@@ -51,15 +51,15 @@ function nodeMatrix(node) {
 }
 
 /** Datos de una fuente (<source>): lista de vectores del tamaño de su "stride". */
-function sourceData(src) {
+export function sourceData(src) {
   const arr = nums(kid(src, 'float_array').text);
   const acc = all(src, 'accessor')[0];
   const stride = Number(acc?.attrs.stride ?? 1);
   return { arr, stride };
 }
 
-/** Triángulos de una geometría (sin transformar). */
-function readGeometry(geom) {
+/** Triángulos de una geometría (sin transformar); vi = índice del vértice (para sus pesos de hueso). */
+export function readGeometry(geom) {
   const mesh = kid(geom, 'mesh');
   if (!mesh) return [];
   const sources = new Map(kids(mesh, 'source').map((s) => [s.attrs.id, sourceData(s)]));
@@ -88,7 +88,7 @@ function readGeometry(geom) {
         const corner = (k) => {
           const base = (at + k) * stride;
           const get = (x, size) => (x ? x.src.arr.slice(p[base + x.off] * x.src.stride, p[base + x.off] * x.src.stride + size) : null);
-          return { p: get(pos, 3), n: get(nrm, 3), t0: get(uv0, 2), t1: get(uv1, 2) };
+          return { p: get(pos, 3), n: get(nrm, 3), t0: get(uv0, 2), t1: get(uv1, 2), vi: p[base + pos.off] };
         };
         for (let k = 1; k + 1 < cnt; k++) tris.push([corner(0), corner(k), corner(k + 1)]);
         at += cnt;

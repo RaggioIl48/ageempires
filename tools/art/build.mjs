@@ -26,6 +26,7 @@ import { cropRender, render } from './raster.mjs';
 import { MODEL_CREDITS, ensureModel, loadFbx, loadObj } from './models.mjs';
 import { GUN_LAYOUT, fieldGun, howitzer, maximGun } from './guns.mjs';
 import { gunCrews } from './recipes.mjs';
+import { SOLDIER_CREDIT, SOLDIER_CREDIT_ID, buildSoldiers } from './soldiers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -156,6 +157,9 @@ async function main() {
     console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 
+  // ---------- Soldados de 0 A.D. en 8 direcciones (reemplazan la hoja LPC de esas unidades) ----------
+  await buildSoldiers(save, only, manifest);
+
   // ---------- Artillería con sus sirvientes (modelos armados a mano + personajes LPC) ----------
   const crews = gunCrews();
   const guns = [
@@ -198,6 +202,7 @@ async function main() {
   }
   for (const [id, c] of Object.entries(UH_CREDITS)) addCredit(id, { ...c, licenses: normalizeLicenses(c.licenses) });
   addCredit('0ad:structures', { ...ZEROAD_CREDIT, licenses: normalizeLicenses(ZEROAD_CREDIT.licenses) });
+  addCredit(SOLDIER_CREDIT_ID, { ...SOLDIER_CREDIT, licenses: normalizeLicenses(SOLDIER_CREDIT.licenses) });
   for (const [id, c] of Object.entries(MODEL_CREDITS)) addCredit(id, { ...c, licenses: normalizeLicenses(c.licenses) });
 
   for (const [key, pack] of Object.entries(OGA_PACKS))
@@ -219,7 +224,7 @@ async function main() {
       ...Object.fromEntries(Object.entries(OGA_PACKS).map(([k, v]) => [k, { title: v.title, url: v.url }])),
       uh: { title: 'Unknown Horizons (buildings)', url: UH_REPO, version: UH_COMMIT },
       model: { title: 'Low-poly vehicle models (OpenGameArt, CC0)', url: 'https://opengameart.org' },
-      '0ad': { title: '0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
+      '0ad': { title: '0 A.D. (soldiers, fortresses, towers, walls, ram, war chariot and trebuchet)', url: ZEROAD_REPO, version: ZEROAD_COMMIT },
     },
     items,
   };

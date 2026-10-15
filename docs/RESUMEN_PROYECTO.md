@@ -195,6 +195,14 @@ The user supplied an AI-generated Mongol horse-archer sheet. Specific, reproduci
   with consistent character identity — the 0 A.D./LPC pipelines remain the reliable path for
   animated units.
 
+### Update 2026-10-14: real 8-direction infantry is in
+- Option 3 below is done for **Romans and Gauls on foot** (11 sheets): 0 A.D.'s skeletal soldiers are skinned
+  and posed with their own animations in Node (`tools/art/skin.mjs`, `soldiers.mjs`) and drawn in 8 directions
+  with the existing renderer. See `docs/SOLDADOS_3D.md`. Option 2 (attack sync) was already done on 2026-10-12.
+- Blender 5.x cannot import 0 A.D.'s COLLADA files, which is why the skinning is done in Node.
+- Still LPC (4 directions): the other five peoples, workers, cavalry, the Gaul naked fanatic.
+- Dev tool: `/preview.html` (with `npm run dev:client`) shows any unit in 8 directions × idle/walk/attack/death.
+
 ### What would actually move the needle on animation quality
 In priority order, matched to effort:
 1. **Give the LPC-based units more frames on their existing 4 directions** (e.g. richer idle

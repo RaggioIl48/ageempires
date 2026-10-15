@@ -679,6 +679,33 @@ Total War: Napoleon:
   fails to load. The Mongol horse-archer test image was imported this way (local test only: unknown licence,
   only 3 real views, one drawing per action, no player colour).
 
+## 8-direction animated soldiers from 0 A.D. (2026-10-14)
+
+- **Romans and Gauls on foot now come from 0 A.D.'s animated 3D soldiers** instead of 4-direction LPC pixel art:
+  warrior, spearman, swordsman, archer for both, plus the legionary and triarius (Romans) and the chosen
+  swordsman (Gauls). 11 sheets, each with **8 real directions** and 0 A.D.'s own motion-captured-style
+  animations: idle (6 frames), walk (10), attack (8, impact frame taken from 0 A.D.'s `event` attribute, so
+  `attackSync.ts` lines it up with the server hit) and death (8). The tunic/shield areas that 0 A.D. paints in
+  the player colour become the team mask, so every soldier shows its owner's colour.
+- **How** (`tools/art/soldiers.mjs`, `tools/art/skin.mjs`, `tools/art/quantize.mjs`): resolves the 0 A.D. actor
+  (body, head, helmet, weapon, shield, cape, chosen variants), downloads the pinned files, **skins the mesh to
+  the skeleton in Node** (linear blend skinning from the COLLADA skin + per-bone animation matrices, root kept
+  in place), attaches props to their bones, and draws each pose with `raster.mjs` (same isometric view and light
+  as the 0 A.D. buildings). Sheets are reduced to 256 colours (≈600 KB instead of 2.5 MB, visually identical).
+  `npm run art` builds them after the LPC sheets; `node tools/art/soldiers.mjs [id]` rebuilds only soldiers;
+  `--probe <actor>` lists an actor's animations, props and player-colour coverage. Full guide:
+  [SOLDADOS_3D.md](SOLDADOS_3D.md).
+- **Animation viewer** (`client/preview.html`, dev only: `npm run dev:client` → `/preview.html`): any unit in its
+  8 directions × idle/walk/attack/death, drawn with the game's own code, with simulated hits, zoom, and a sheet
+  selector to compare old and new art.
+- Why not Blender: Blender 5.x removed the COLLADA importer that 0 A.D.'s files need, and doing the skinning in
+  Node keeps the art reproducible with no external program.
+- Tests: `skin.test.ts` (skinning, interpolation, root kept in place, every recipe has an 8-direction sheet,
+  impact inside the swing, death does not loop); the existing art test caught a slinger variant without player
+  colour (switched to one that has it).
+- Not yet: the other five peoples, workers, cavalry (0 A.D. horse + rider skeletons) and the Gaul naked fanatic
+  (no 0 A.D. model) still use LPC. Adds ≈6.5 MB of art, loaded only when that unit appears.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).
