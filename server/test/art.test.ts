@@ -40,8 +40,26 @@ describe('arte de unidades', () => {
   });
 
   it('no hay imágenes sin manifiesto (todo lo publicado tiene créditos)', () => {
-    const listed = new Set(Object.values<{ file: string }>(units.sheets).map((s) => s.file));
+    // La hoja y su copia liviana (media resolución, tools/art/lo.mjs).
+    const listed = new Set(Object.values<{ file: string; lo?: string }>(units.sheets).flatMap((s) => (s.lo ? [s.file, s.lo] : [s.file])));
     for (const f of fs.readdirSync(path.join(ART, 'units'))) expect(listed, f).toContain(`units/${f}`);
+  });
+
+  it('ninguna hoja pasa del límite de textura de la GPU, y las grandes tienen copia liviana del mismo tamaño / 2', () => {
+    const size = (file: string) => {
+      const b = fs.readFileSync(path.join(ART, file));
+      return [b.readUInt32BE(16), b.readUInt32BE(20)];
+    };
+    for (const [id, s] of Object.entries<{ file: string; lo?: string }>(units.sheets)) {
+      const [w, h] = size(s.file);
+      expect(Math.max(w, h), id).toBeLessThanOrEqual(8192);
+      if (w * h > 2_000_000) expect(s.lo, id).toBeDefined();
+      if (s.lo) {
+        const [lw, lh] = size(s.lo);
+        expect(lw, id).toBe(Math.floor(w / 2));
+        expect(lh, id).toBe(Math.floor(h / 2));
+      }
+    }
   });
 
   it('cada pueblo tiene sprites para sus unidades de las eras Tribal y Media', () => {

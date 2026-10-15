@@ -763,6 +763,18 @@ Total War: Napoleon:
   the rider strikes (no rearing on every blow), 12-frame gallop.
 - Tests: `totalwar.test.ts` (19).
 
+## Smooth big battles, online play without Render (2026-10-15)
+
+- **Cause of the slowdown with ~70 units** (measured with REA at 200 % screen scale): the 3D cavalry
+  sheets were up to ~9000 px tall, over the GPU texture limit, so the browser drew them in software
+  (1 FPS, 414 ms per frame). Fixes: `tools/art/repack.mjs` packs every sheet in near-square shelves
+  (all ≤ 5120 × 6792); `tools/art/lo.mjs` makes half-resolution `.lo.png` copies used at normal zoom
+  (decoded memory 3.7 GB → 0.9 GB), with the full sheet only on close zoom and freed after 15 s unused;
+  the canvas pixel density is capped at 1.5. Result: **60 FPS, 6.3 ms per frame** in the same battle.
+- The F3 meter shows the renderer time per phase (terrain, ground, fog, units, bars, effects).
+- `DEMO_ARMY=n` (server env var, measurement only) gives every player n regiments that clash at the center.
+- **`npm run online`**: Cloudflare quick tunnel + server with the public link (see README).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

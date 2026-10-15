@@ -11,7 +11,7 @@ import { Minimap } from './minimap.ts';
 import type { Net } from './net.ts';
 import { Renderer } from './render.ts';
 import { ClientState } from './state.ts';
-import { Camera } from './view.ts';
+import { Camera, renderDpr } from './view.ts';
 import { PerfMeter, perfVerdict } from './perf.ts';
 import { Sound } from './sound.ts';
 import { preloadFaction } from './art.ts';
@@ -71,7 +71,7 @@ export class GameView {
     box.classList.remove('hidden');
     box.dataset.level = v.level;
     box.innerHTML = this.perfOpen
-      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs`
+      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs<br><small>${Object.entries(this.renderer.timings).map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join(' · ')}</small>`
       : `● ${Math.round(s.ping)} ms`;
   }
 
@@ -114,7 +114,7 @@ export class GameView {
   }
 
   resize(): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = renderDpr();
     this.cam.width = window.innerWidth;
     this.cam.height = window.innerHeight;
     this.canvas.width = Math.round(this.cam.width * dpr);
@@ -130,7 +130,7 @@ export class GameView {
     if (!this.active || this.state.size === 0) return;
     this.input.update(dt);
     this.state.updateVision(now);
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = renderDpr();
     const ctx = this.ctx;
     const t0 = performance.now();
     this.renderer.draw(ctx, dpr, this.cam, this.state, this.input.sel, this.input.markers, this.input.ghost, now, this.input.frontDrag);

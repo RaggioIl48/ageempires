@@ -12,7 +12,9 @@ import { stickyRow } from './motion.ts';
 import { attackFrame, defaultHit } from './attackSync.ts';
 
 interface AnimMeta {
-  /** Fila superior del bloque; w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
+  /** Esquina del bloque (x: columna, si la hoja tiene las animaciones lado a lado; y: fila);
+   *  w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
+  x?: number;
   y: number;
   w: number;
   h: number;
@@ -31,6 +33,8 @@ interface AnimMeta {
 
 interface SheetMeta {
   file: string;
+  /** Copia liviana (media resolución): la que se usa a tamaño normal (ver tools/art/lo.mjs). */
+  lo?: string;
   scale: number;
   /** Orden de las filas: 'lpc4' = N, O, S, E · 'oga8' = S, SE, E, NE, N, NO, O, SO. */
   o: 'lpc4' | 'oga8';
@@ -128,7 +132,6 @@ function artImage(file: string): HTMLImageElement | null {
     images.set(file, img);
     img.onload = () => {
       ready.add(file);
-      if (img.width * img.height > BIG_SHEET_PX) bigFiles.add(file);
       artVersion++;
     };
     img.onerror = () => images.set(file, null);
@@ -237,20 +240,21 @@ function imageOf(_id: string, sheet: SheetMeta): HTMLImageElement | null {
 }
 
 /** Recortes de equipo teñidos con el color del jugador (uno por hoja y color). */
-function tintOf(id: string, img: HTMLImageElement, sheet: SheetMeta, color: string): HTMLCanvasElement {
-  const key = `${id}|${color}`;
+function tintOf(id: string, img: HTMLImageElement, sheet: SheetMeta, color: string, q = 1): HTMLCanvasElement {
+  const key = `${id}|${color}|${q}`;
   let c = tints.get(key);
   if (!c) {
+    const top = Math.floor(sheet.maskY * q);
     c = document.createElement('canvas');
     c.width = img.width;
-    c.height = Math.max(1, img.height - sheet.maskY);
+    c.height = Math.max(1, img.height - top);
     const g = c.getContext('2d')!;
-    g.drawImage(img, 0, sheet.maskY, c.width, c.height, 0, 0, c.width, c.height);
+    g.drawImage(img, 0, top, c.width, c.height, 0, 0, c.width, c.height);
     g.globalCompositeOperation = 'multiply';
     g.fillStyle = color;
     g.fillRect(0, 0, c.width, c.height);
     g.globalCompositeOperation = 'destination-in';
-    g.drawImage(img, 0, sheet.maskY, c.width, c.height, 0, 0, c.width, c.height);
+    g.drawImage(img, 0, top, c.width, c.height, 0, 0, c.width, c.height);
     tints.set(key, c);
   }
   return c;
@@ -325,8 +329,8 @@ export function drawSpriteUnit(
   const id = sheetId(faction, u.type);
   if (!id) return null;
   const sheet = sheetMeta(id);
-  const img = sourceFor(ctx, sheet, now);
-  if (!img && !halves.get(sheet.file)) return null;
+  const img = pick(ctx, sheet, now);
+  if (!img) return null;
   const name = animName(u, sheet);
   const a = sheet.anims[name] ?? sheet.anims.idle;
   const t = now / 1000 + u.id * 0.37;
@@ -422,8 +426,8 @@ export function drawDyingUnit(
   if (!id) return false;
   const sheet = sheetMeta(id);
   const a = sheet.anims.die;
-  const img = a ? sourceFor(ctx, sheet, performance.now()) : null;
-  if (!a || (!img && !halves.get(sheet.file))) return false;
+  const img = a ? pick(ctx, sheet, performance.now()) : null;
+  if (!a || !img) return false;
   const f = Math.min(a.n - 1, Math.floor(age * a.fps));
   drawFrame(ctx, id, sheet, img, a, dirRow(sheet.o, a.d, face), f, x, y, color);
   return true;
@@ -433,7 +437,7 @@ function drawFrame(
   ctx: CanvasRenderingContext2D,
   id: string,
   sheet: SheetMeta,
-  img: HTMLImageElement | null,
+  pk: Picked,
   a: AnimMeta,
   d: number,
   f: number,
@@ -443,32 +447,24 @@ function drawFrame(
 ): SpriteInfo {
   const s = sheet.scale;
   const dx = x - a.ax * s, dy = y - a.ay * s;
-  const info = { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
-  // Hojas grandes (soldados 3D) dibujadas a la mitad de su tamaño o menos: copia a media resolución
-  // (más barata de muestrear y más liviana para la GPU). Si la original fue liberada, también se usa
-  // la media mientras vuelve a llegar.
-  const big = bigFiles.has(sheet.file);
-  const small = big && lodEnabled && s * zoomOf(ctx) <= 0.5;
-  const half = big ? (img ? halfOf(sheet.file, img) : (halves.get(sheet.file) ?? null)) : null;
-  const src = (small && half) || img || half;
-  if (!src) return info;
-  const q = src === half ? 0.5 : 1;
-  ctx.drawImage(src, f * a.w * q, (a.y + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
+  const { img, q } = pk;
+  ctx.drawImage(img, ((a.x ?? 0) + f * a.w) * q, (a.y + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
   if (a.m.length) {
     const k = (d * a.n + f) * 6;
     const mw = a.m[k + 2], mh = a.m[k + 3];
     if (mw && mh) {
-      const tkey = `${id}|${color}|tint`;
-      const tint = img ? tintOf(id, img, sheet, color) : null;
-      const ht = big ? (tint ? halfOf(tkey, tint) : (halves.get(tkey) ?? null)) : null;
-      const t2 = (src === half && ht) || tint || ht;
-      if (t2) {
-        const r2 = t2 === ht ? 0.5 : 1;
-        ctx.drawImage(t2, a.m[k] * r2, (a.m[k + 1] - sheet.maskY) * r2, mw * r2, mh * r2, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
-      }
+      const tint = tintOf(id, img, sheet, color, q);
+      const top = Math.floor(sheet.maskY * q);
+      ctx.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - top, mw * q, mh * q, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
     }
   }
-  return info;
+  return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+}
+
+/** Imagen elegida para dibujar una hoja y su escala respecto de la original (0,5 = la liviana). */
+interface Picked {
+  img: HTMLImageElement;
+  q: number;
 }
 
 /** Escala de pantalla del lienzo (zoom × densidad de píxeles). */
@@ -477,68 +473,52 @@ const zoomOf = (ctx: CanvasRenderingContext2D) => {
   return Math.hypot(t.a, t.b);
 };
 
-/** Hojas grandes ya cargadas alguna vez, y cuándo se necesitó por última vez su resolución original. */
-const bigFiles = new Set<string>();
-const fullNeeded = new Map<string, number>();
-/** Tras cuántos ms sin necesitar la original (con la media lista) se la libera. */
-const EVICT_AFTER_MS = 15_000;
-let lastEvict = 0;
-
-/**
- * Imagen original de una hoja si hace falta (o ya está), o null. No la pide si alcanza con la
- * media resolución (así una hoja liberada no se vuelve a descargar mientras no se acerque el zoom).
- */
-function sourceFor(ctx: CanvasRenderingContext2D, sheet: SheetMeta, now: number): HTMLImageElement | null {
-  if (now - lastEvict > 5000) evictIdle(now);
-  const file = sheet.file;
-  const big = bigFiles.has(file);
-  const needFull = !big || !lodEnabled || sheet.scale * zoomOf(ctx) > 0.5 || !halves.get(file);
-  if (needFull) {
-    fullNeeded.set(file, now);
-    return artImage(file);
-  }
-  return ready.has(file) ? images.get(file)! : null;
-}
-
-/** Libera las originales que hace rato no hacen falta (la media resolución y su máscara ya están). */
-function evictIdle(now: number): void {
-  lastEvict = now;
-  for (const file of bigFiles) {
-    if (!ready.has(file) || !halves.get(file) || now - (fullNeeded.get(file) ?? 0) < EVICT_AFTER_MS) continue;
-    // Las máscaras de equipo de esta hoja: se liberan las que ya tienen su copia a media resolución.
-    for (const key of [...tints.keys()]) {
-      const sid = key.slice(0, key.indexOf('|'));
-      const sh = experimental?.sheets[sid] ?? manifest?.sheets[sid];
-      if (sh?.file !== file) continue;
-      if (halves.get(`${key}|tint`)) tints.delete(key);
-      else return; // falta alguna máscara reducida: todavía no se libera esta hoja
-    }
-    images.delete(file);
-    ready.delete(file);
-  }
-}
-
-/** Desde cuántos píxeles una hoja vale la pena tener copia a media resolución. */
-const BIG_SHEET_PX = 2_000_000;
-/** Copias a media resolución activas (el visor de animaciones las apaga para comparar). */
+/** Hasta qué escala (px de pantalla por px de la hoja original) alcanza la copia liviana. */
+const LO_UNTIL = 1.0;
+/** Copias livianas activas (el visor de animaciones las apaga para comparar). */
 let lodEnabled = true;
 export function setLod(on: boolean): void {
   lodEnabled = on;
 }
-/** Copias a media resolución (se preparan fuera del hilo principal); null = en preparación o no disponible. */
-const halves = new Map<string, ImageBitmap | null>();
-function halfOf(key: string, src: HTMLImageElement | HTMLCanvasElement): ImageBitmap | null {
-  const have = halves.get(key);
-  if (have !== undefined) return have;
-  halves.set(key, null);
-  if (typeof createImageBitmap === 'function')
-    createImageBitmap(src, { resizeWidth: Math.max(1, Math.round(src.width / 2)), resizeHeight: Math.max(1, Math.round(src.height / 2)), resizeQuality: 'high' })
-      .then((b) => {
-        halves.set(key, b);
-        artVersion++;
-      })
-      .catch(() => {});
-  return null;
+/** Cuándo se necesitó por última vez la resolución original de cada hoja. */
+const fullNeeded = new Map<string, number>();
+/** Tras cuántos ms sin necesitar la original (con la liviana lista) se la libera. */
+const EVICT_AFTER_MS = 15_000;
+let lastEvict = 0;
+
+/**
+ * Imagen para dibujar una hoja: la liviana a tamaño normal (1/4 de la memoria), la original solo
+ * con mucho zoom. Mientras llega la que corresponde, se usa la otra si ya está.
+ */
+function pick(ctx: CanvasRenderingContext2D, sheet: SheetMeta, now: number): Picked | null {
+  if (now - lastEvict > 5000) evictIdle(now);
+  const full = (): HTMLImageElement | null => (ready.has(sheet.file) ? images.get(sheet.file)! : null);
+  if (sheet.lo && lodEnabled) {
+    const lo = artImage(sheet.lo);
+    if (sheet.scale * zoomOf(ctx) <= LO_UNTIL) {
+      if (lo) return { img: lo, q: 0.5 };
+      const f = full();
+      return f ? { img: f, q: 1 } : null;
+    }
+    fullNeeded.set(sheet.file, now);
+    const f = artImage(sheet.file);
+    if (f) return { img: f, q: 1 };
+    return lo ? { img: lo, q: 0.5 } : null;
+  }
+  const f = artImage(sheet.file);
+  return f ? { img: f, q: 1 } : null;
+}
+
+/** Libera las originales que hace rato no hacen falta (para eso está la liviana) y sus máscaras. */
+function evictIdle(now: number): void {
+  lastEvict = now;
+  const sheets = { ...(manifest?.sheets ?? {}), ...(experimental?.sheets ?? {}) };
+  for (const [id, sh] of Object.entries(sheets)) {
+    if (!sh.lo || !ready.has(sh.file) || now - (fullNeeded.get(sh.file) ?? 0) < EVICT_AFTER_MS) continue;
+    images.delete(sh.file);
+    ready.delete(sh.file);
+    for (const key of [...tints.keys()]) if (key.startsWith(`${id}|`) && key.endsWith('|1')) tints.delete(key);
+  }
 }
 
 /** Cantidad de especies de árboles con imagen. */
@@ -573,7 +553,8 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   const key = `${id}|${color}|${size}`;
   if (portraits.has(key)) return portraits.get(key)!;
   const sheet = sheetMeta(id);
-  const img = imageOf(id, sheet);
+  const q = sheet.lo ? 0.5 : 1;
+  const img = artImage(sheet.lo ?? sheet.file);
   const a = sheet.anims.idle;
   if (!img || !a) return null;
   portraits.set(key, null);
@@ -584,11 +565,11 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   frame.width = a.w;
   frame.height = a.h;
   const g = frame.getContext('2d')!;
-  g.drawImage(img, 0, a.y + d * a.h, a.w, a.h, 0, 0, a.w, a.h);
+  g.drawImage(img, (a.x ?? 0) * q, (a.y + d * a.h) * q, a.w * q, a.h * q, 0, 0, a.w, a.h);
   const k = d * a.n * 6;
   if (a.m.length && a.m[k + 2]) {
-    const tint = tintOf(id, img, sheet, color);
-    g.drawImage(tint, a.m[k], a.m[k + 1] - sheet.maskY, a.m[k + 2], a.m[k + 3], a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
+    const tint = tintOf(id, img, sheet, color, q);
+    g.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - Math.floor(sheet.maskY * q), a.m[k + 2] * q, a.m[k + 3] * q, a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
   }
   // Recorte cuadrado: medio cuerpo (a pie) o la figura entera (jinetes y máquinas).
   const side = wide ? Math.max(a.w, a.h) : Math.round(a.ay * 0.72);

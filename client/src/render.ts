@@ -334,11 +334,13 @@ export class Renderer {
     const z = cam.zoom * dpr;
     ctx.setTransform(z, 0, 0, z, dpr * (cam.width / 2) - cam.cx * z, dpr * (cam.height / 2) - cam.cy * z);
 
+    this.mark(); // inicio del cuadro
     // Terreno con colinas (horneado al recibir el mapa).
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     if (this.baked) ctx.drawImage(this.baked, -(state.size * TILE_W) / 2, -BAKE_TOP, this.baked.width / BAKE, this.baked.height / BAKE);
     ctx.restore();
+    this.mark('terrain');
 
     // Objetos visibles.
     const vis = cam.visiblePx(100);
@@ -397,8 +399,10 @@ export class Renderer {
       if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
     }
 
+    this.mark('ground');
     // Niebla de guerra: negro donde nunca se estuvo, velo gris donde no se ve ahora.
     if (state.fog) this.drawFog(ctx, state);
+    this.mark('fog');
 
     // Frente de formación que se está arrastrando: la línea, los puestos y una flecha hacia adelante.
     if (front) {
@@ -494,6 +498,7 @@ export class Renderer {
       }
     }
 
+    this.mark('units');
     this.drawStandards(ctx, state, list, sel, now);
 
     // Barras de vida: de lo seleccionado y de todo lo que esté herido.
@@ -563,8 +568,10 @@ export class Renderer {
       }
     }
 
+    this.mark('bars');
     this.drawEffects(ctx, state, now);
     this.drawPuffs(ctx, now, 'smoke');
+    this.mark('effects');
 
     // Previsualización del edificio a colocar.
     if (ghost?.line) {
@@ -593,6 +600,15 @@ export class Renderer {
       ellipse(ctx, p.px, p.py, 6 + age * 10, 3 + age * 5, null, m.color, 2);
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** Tiempo (ms, promedio suave) de cada parte del dibujo: lo muestra el medidor F3. */
+  readonly timings: Record<string, number> = {};
+  private markAt = 0;
+  private mark(name?: string): void {
+    const t = performance.now();
+    if (name) this.timings[name] = (this.timings[name] ?? 0) * 0.9 + (t - this.markAt) * 0.1;
+    this.markAt = t;
   }
 
   /**

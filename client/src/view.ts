@@ -125,3 +125,12 @@ export class Camera {
     return { x0: a.px - margin, y0: a.py - margin, x1: b.px + margin, y1: b.py + margin * 2 };
   }
 }
+
+/**
+ * Densidad de píxeles con la que se dibuja: la de la pantalla, como mucho 1,5. En pantallas al 200 %
+ * dibujar 4 veces los píxeles casi no se nota y cuesta mucho en computadoras modestas.
+ */
+export const MAX_RENDER_DPR = 1.5;
+export function renderDpr(): number {
+  return Math.min(MAX_RENDER_DPR, window.devicePixelRatio || 1);
+}

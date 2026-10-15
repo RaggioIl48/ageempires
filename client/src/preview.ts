@@ -83,8 +83,10 @@ async function stress(n: number, art: string): Promise<void> {
   await loadArt();
   const m = (await (await fetch(`${BASE}art/units.json`)).json()) as Manifest;
   document.querySelector('header')!.innerHTML = '<b>Stress test</b> <span id="stats">measuring…</span>';
-  // Siempre las mismas unidades (las 11 de romanos y galos), para comparar corridas entre sí.
-  const keys = Object.keys(m.units).filter((k) => /^(romans|gauls)\//.test(k) && m.units[k].endsWith('-3d'));
+  // Por defecto, siempre las mismas unidades (romanos y galos), para comparar corridas entre sí.
+  // types=all: todos los tipos 3D de todos los pueblos (como una partida real con muchos tipos a la vista).
+  const all = new URLSearchParams(location.search).get('types') === 'all';
+  const keys = Object.keys(m.units).filter((k) => (all || /^(romans|gauls)\//.test(k)) && m.units[k].endsWith('-3d'));
   // Con art=lpc se fuerzan las hojas LPC de esas mismas unidades (mismo id sin "-3d").
   if (art === 'lpc')
     for (const k of keys) {
@@ -125,7 +127,7 @@ async function stress(n: number, art: string): Promise<void> {
       const recent = times.slice(-60).sort((a, b) => a - b);
       const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
       const p95 = recent[Math.floor(recent.length * 0.95)] ?? avg;
-      const text = `art=${art} lod=${params.get('lod') ?? '1'} units=${n} fps=${Math.round((frames * 1000) / (now - since))} draw avg=${avg.toFixed(2)}ms p95=${p95.toFixed(2)}ms`;
+      const text = `art=${art} lod=${params.get('lod') ?? '1'} types=${keys.length} units=${n} fps=${Math.round((frames * 1000) / (now - since))} draw avg=${avg.toFixed(2)}ms p95=${p95.toFixed(2)}ms`;
       document.getElementById('stats')!.textContent = text;
       document.title = text;
       frames = 0;

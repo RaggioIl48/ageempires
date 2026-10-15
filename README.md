@@ -16,6 +16,22 @@ projects (LPC and OpenGameArt), with credits inside the game (*Art credits*).
 
 - [Node.js](https://nodejs.org) 20 or newer (only on the teacher's computer).
 
+## Playing online (students at home)
+
+No GitHub or Render needed: the game runs on the teacher's computer and a free Cloudflare
+"quick tunnel" gives it a public `https://` address.
+
+```bash
+winget install --id Cloudflare.cloudflared   # first time only
+npm run online
+```
+
+The console shows the link for the students (`https://something.trycloudflare.com`) and the teacher
+panel (`…/teacher`, which asks for the teacher PIN from outside; `http://localhost:8080/teacher` on this
+computer needs none). Keep that window open while playing. The link **changes every time** you run
+`npm run online`, so send it to the class each session. It is much faster than the free Render plan
+(the simulation uses the teacher's CPU instead of ~0.1 CPU).
+
 ## Playing in class (LAN mode)
 
 **1. The teacher starts the server** (in a terminal, in the project folder):

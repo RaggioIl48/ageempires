@@ -3,6 +3,7 @@
 // "token" secreto: si se le cae la conexión, vuelve a su mismo puesto.
 
 import { randomBytes } from 'node:crypto';
+import { spawnDemoArmies } from '../sim/demo.ts';
 import { FACTION_ORDER, PLAYER_COLORS, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
 import { QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
 import type {
@@ -337,6 +338,8 @@ export class Room {
     });
     // Los del mismo equipo empiezan aliados; el resto, en guerra.
     initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
+    // Solo para medir la fluidez (DEMO_ARMY=n): ejércitos listos al empezar.
+    spawnDemoArmies(this.game.world, Number(process.env.DEMO_ARMY) || 0);
     if (this.settings.fog !== false) this.game.enableFog();
     this.ais = players.filter((m) => m.bot).map((m) => new AiPlayer(m.id, m.bot!));
     for (const m of players) {

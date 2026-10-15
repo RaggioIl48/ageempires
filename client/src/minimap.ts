@@ -2,6 +2,7 @@
 // Clic/arrastre izquierdo = mover la cámara · clic derecho = ordenar movimiento.
 
 import { BUILDING_DEFS, type NodeType } from '../../shared/data.ts';
+import { renderDpr } from './view.ts';
 import type { Input } from './input.ts';
 import { TEX, type Renderer } from './render.ts';
 import type { ClientState } from './state.ts';
@@ -109,7 +110,7 @@ export class Minimap {
   }
 
   draw(now: number): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = renderDpr();
     const wantW = Math.round(this.W * dpr), wantH = Math.round(this.H * dpr);
     if (this.canvas.width !== wantW || this.canvas.height !== wantH) {
       this.canvas.width = wantW;
