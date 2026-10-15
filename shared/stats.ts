@@ -35,8 +35,7 @@ import {
   type StatMods,
   type TechId,
   type Weapon,
-  type UnitType,
-} from './data.ts';
+  type UnitType, REGIMENT_COST, REGIMENT_TIME_PER_EXTRA, regimentSize } from './data.ts';
 
 export const TECH_IDS = Object.keys(TECH_DEFS) as TechId[];
 const TECH_INDEX = new Map(TECH_IDS.map((t, i) => [t, BigInt(i)]));
@@ -242,6 +241,26 @@ export function canHitAir(attack: AttackDef): boolean {
 }
 
 /** Costo real de una unidad con las tecnologías de eficiencia (Armas estandarizadas…). */
+/** Soldados que salen de un encargo (un regimiento entero, o 1). */
+export function trainCount(type: UnitType): number {
+  return Math.max(1, regimentSize(type));
+}
+
+/** Costo de un encargo: el regimiento entero (con descuento) o la unidad sola. */
+export function trainCost(type: UnitType, mask: TechMask = NO_TECHS): Cost {
+  const one = unitCost(type, mask), n = trainCount(type);
+  if (n === 1) return one;
+  const out: Cost = {};
+  for (const r of RESOURCE_TYPES) if (one[r]) out[r] = Math.round(one[r]! * n * REGIMENT_COST);
+  return out;
+}
+
+/** Segundos de entrenamiento de un encargo (sin la velocidad del pueblo). */
+export function trainTime(type: UnitType): number {
+  const n = trainCount(type);
+  return UNIT_DEFS[type].trainTime * (1 + REGIMENT_TIME_PER_EXTRA * (n - 1));
+}
+
 export function unitCost(type: UnitType, mask: TechMask = NO_TECHS): Cost {
   const d = UNIT_DEFS[type];
   const out: Cost = { ...d.cost };

@@ -6,7 +6,7 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, SHIELD_WALL_ARMOR, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { elevationDamage } from '../../../shared/terrain.ts';
 import { isEnemy } from './diplomacy.ts';
@@ -16,7 +16,7 @@ import { buffArmor, buffDamage } from './general.ts';
 import { fatigueOf, spend } from './fatigue.ts';
 import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Point, type Unit, type World } from './world.ts';
-import { chargeImpact, launch } from './projectiles.ts';
+import { chargeImpact, inForest, launch } from './projectiles.ts';
 
 export type Target = { kind: 'unit'; unit: Unit } | { kind: 'building'; building: Building };
 
@@ -144,7 +144,7 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   if (t.kind === 'unit') {
     // Sobre la propia muralla, las almenas cubren de las flechas.
     const cover = attack.type === 'ranged' && world.onWall(t.unit) === 1 ? WALL_COVER : 0;
-    const extra = buffArmor(t.unit) + Math.max(0, rankOf(t.unit.kills) - 1) + cover;
+    const extra = buffArmor(t.unit) + Math.max(0, rankOf(t.unit.kills) - 1) + cover + (t.unit.wall && attack.type === 'melee' ? SHIELD_WALL_ARMOR : 0);
     if (extra) armor = { melee: armor.melee + extra, ranged: armor.ranged + extra };
   }
   const as = attacker ? world.statsOf(attacker) : undefined;
@@ -184,7 +184,9 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   }
   // Carga: la caballería cuerpo a cuerpo que lleva un rato sin pelear golpea más fuerte la primera vez.
   let charge = false;
-  if (attacker && cat === 'cavalry' && attack.type === 'melee' && world.tick - attacker.lastStrike >= CHARGE_READY_SEC * TICK_RATE) {
+  // En el bosque no se puede cargar (los árboles rompen la carrera).
+  const forest = attacker && t.kind === 'unit' && (inForest(world, attacker.x, attacker.y) || inForest(world, t.unit.x, t.unit.y));
+  if (attacker && !forest && cat === 'cavalry' && attack.type === 'melee' && world.tick - attacker.lastStrike >= CHARGE_READY_SEC * TICK_RATE) {
     spend(attacker, FATIGUE_CHARGE);
     if (tw === 'spear' && side === 0) {
       // De frente contra las lanzas: la carga se clava. Sin bonificación, y el jinete sale herido.

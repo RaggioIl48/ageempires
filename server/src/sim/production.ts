@@ -15,12 +15,12 @@ import {
   type TechId,
   type UnitType,
 } from '../../../shared/data.ts';
-import { addTech, buildingMaxHp, hasTech, trainSpeed, unitCost, unitStats } from '../../../shared/stats.ts';
+import { addTech, buildingMaxHp, hasTech, trainCost, trainCount, trainSpeed, trainTime, unitStats } from '../../../shared/stats.ts';
 import { assignGather } from './gather.ts';
 import { moveGroup } from './movement.ts';
 import { hasGeneral } from './general.ts';
 import { freeTilesAround, type Building, type QueueItem, type World } from './world.ts';
-import { formAtRally, joinRegiment } from './regiment.ts';
+import { formRegiment } from './regiment.ts';
 
 function itemCost(item: QueueItem): Cost {
   return item.paid ?? (item.tech ? TECH_DEFS[item.tech].cost : UNIT_DEFS[item.unit!].cost);
@@ -37,7 +37,8 @@ export function queueUnit(world: World, playerId: number, b: Building, unit: Uni
     return world.eraOf(playerId) < def.era ? `${def.label}: you need the ${eraLabel(def.era)}` : `${def.label} is no longer trained in this age`;
   if (def.hero && hasGeneral(world, playerId)) return 'You already have a General (only one per player)';
   if (b.queue.length >= MAX_QUEUE) return `The queue is full (maximum ${MAX_QUEUE})`;
-  const cost = unitCost(unit, world.techsOf(playerId));
+  // Un encargo de soldados es un regimiento entero (con descuento); trabajadores y máquinas, de a uno.
+  const cost = trainCost(unit, world.techsOf(playerId));
   if (!world.spend(playerId, cost)) return 'Not enough resources';
   b.queue.push({ unit, progress: 0, paid: cost });
   return null;
@@ -120,17 +121,18 @@ export function updateProduction(world: World, dt: number): void {
     }
     const def = UNIT_DEFS[item.unit!];
     const pop = popOf(b.owner);
-    if (pop.pop + def.pop > pop.popCap) {
+    const count = trainCount(item.unit!);
+    if (pop.pop + def.pop * count > pop.popCap) {
       if (!b.needsHouses) world.notify(b.owner, 'Population limit reached: build more houses');
       b.needsHouses = true;
       continue;
     }
     b.needsHouses = false;
-    item.progress = Math.min(1, item.progress + (dt * trainSpeed(world.factionOf(b.owner), item.unit!)) / def.trainTime);
+    item.progress = Math.min(1, item.progress + (dt * trainSpeed(world.factionOf(b.owner), item.unit!)) / trainTime(item.unit!));
     // Terminada: sale si hay dónde ponerla (si está rodeado, espera).
-    if (item.progress < 1 || !spawn(world, b, item.unit!)) continue;
+    if (item.progress < 1 || !spawn(world, b, item.unit!, count)) continue;
     b.queue.shift();
-    pop.pop += def.pop;
+    pop.pop += def.pop * count;
   }
 }
 
@@ -166,8 +168,8 @@ export function completeTech(world: World, playerId: number, tech: TechId): void
   }
 }
 
-/** La unidad nueva aparece junto al edificio, del lado del punto de reunión. */
-function spawn(world: World, b: Building, type: UnitType): boolean {
+/** La unidad nueva (o el regimiento entero) aparece junto al edificio, del lado del punto de reunión. */
+function spawn(world: World, b: Building, type: UnitType, count = 1): boolean {
   const cx = b.tx + b.size / 2, cy = b.ty + b.size / 2;
   const toward = b.rally ?? { x: cx, y: cy + b.size };
   const dx = toward.x - cx, dy = toward.y - cy;
@@ -176,12 +178,21 @@ function spawn(world: World, b: Building, type: UnitType): boolean {
   const ex = Math.floor(cx + (dx / len) * (b.size / 2 + 0.6));
   const ey = Math.floor(cy + (dy / len) * (b.size / 2 + 0.6));
   world.walker = 0;
-  const spot = freeTilesAround(world, ex, ey, 1)[0];
-  if (!spot) return false;
+  const spots = freeTilesAround(world, ex, ey, count);
+  if (spots.length < count) return false;
+  if (count > 1) {
+    // Regimiento: salen todos juntos, con el mismo número, y se forman en línea.
+    const reg = world.newId();
+    const men = spots.map((s) => {
+      const m = world.addUnit(type, b.owner, s.x + 0.5, s.y + 0.5);
+      m.reg = reg;
+      return m;
+    });
+    formRegiment(world, b, men);
+    return true;
+  }
+  const spot = spots[0];
   const u = world.addUnit(type, b.owner, spot.x + 0.5, spot.y + 0.5);
-  // Regimiento: se suma al que se está llenando y se forma con sus compañeros.
-  const mates = joinRegiment(world, b, u);
-  if (formAtRally(world, b, u, mates)) return true;
   if (!b.rally) return true;
   const node = b.rally.targetId ? world.nodes.get(b.rally.targetId) : undefined;
   if (node && type === 'worker') assignGather(world, u, node);

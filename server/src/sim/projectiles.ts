@@ -24,20 +24,25 @@ import {
   SHIELD_BLOCK,
   TICK_RATE,
   UNIT_DEFS,
+  FOREST_COVER,
+  SHIELD_WALL_RANGED,
   rankOf,
+  shieldBearer,
   type UnitType,
 } from '../../../shared/data.ts';
 import { isEnemy } from './diplomacy.ts';
 import { hitMorale } from './morale.ts';
 import type { Unit, World } from './world.ts';
 
-/** Tipos que pelean sin escudo (armas a dos manos, sin armadura o de otra época). */
-const NO_SHIELD = new Set<UnitType>(['worker', 'fanatic', 'berserker', 'chosen_axeman', 'gothic_warband', 'ulfhednar', 'axe_thrower']);
+/** ¿Lleva escudo? (ver shieldBearer en data.ts). */
+export const hasShield = (type: UnitType): boolean => shieldBearer(type);
 
-/** ¿Lleva escudo? Infantería cuerpo a cuerpo de las eras antiguas (no los de dos manos). */
-export function hasShield(type: UnitType): boolean {
-  const def = UNIT_DEFS[type];
-  return def.category === 'infantry' && def.attack.type === 'melee' && def.era <= 2 && !NO_SHIELD.has(type) && !def.shot;
+/** ¿Está dentro o junto a un bosque? (árboles en las casillas vecinas) */
+export function inForest(world: World, x: number, y: number): boolean {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) if (world.nodeAt(tx + dx, ty + dy)?.type === 'tree') return true;
+  return false;
 }
 
 /** Velocidad de vuelo según lo que se tira. */
@@ -89,6 +94,9 @@ export function updateProjectiles(world: World): void {
     let dmg = p.damage;
     // Fuego amigo: los propios reciben menos (el tirador no les apuntaba).
     if (!isEnemy(world, p.owner, victim.owner)) dmg = Math.max(1, Math.round(dmg * 0.5));
+    // Bosque: los árboles cubren. Muro de escudos: casi inmune a los proyectiles.
+    if (inForest(world, victim.x, victim.y)) dmg = Math.max(1, Math.round(dmg * FOREST_COVER));
+    if (victim.wall) dmg = Math.max(1, Math.round(dmg * SHIELD_WALL_RANGED));
     // Escudo: si mira hacia de donde viene el tiro, para buena parte.
     let blocked = false;
     if (hasShield(victim.type) && victim.routing === 0) {
@@ -150,6 +158,8 @@ function knockDown(world: World, u: Unit, dx: number, dy: number): void {
 export function chargeImpact(world: World, attacker: Unit, target: Unit, damage: number): void {
   const dx = target.x - attacker.x, dy = target.y - attacker.y, len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;
+  // Un muro de escudos de frente no se deja derribar ni arrollar.
+  if (target.wall && target.fx * -ux + target.fy * -uy > 0.3) return;
   knockDown(world, target, ux, uy);
   let trampled = 0;
   for (const o of world.units.values()) {

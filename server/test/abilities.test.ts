@@ -1,5 +1,7 @@
 // Upgrades (AoE-style unit lines and elites), people's abilities (Total War style)
 // and the mid-game economy (storehouse technologies and the Market).
+import { trainCost } from '../../shared/stats.ts';
+import { REGIMENT_COST, REGIMENT_SIZE } from '../../shared/data.ts';
 import { describe, expect, it } from 'vitest';
 import {
   BUILDING_DEFS,
@@ -239,7 +241,9 @@ describe('cost technologies (units and buildings get cheaper)', () => {
     const metal = p.resources.metal;
     g.enqueue(1, { kind: 'train', buildingId: stable.id, unit: 'knight' });
     g.step();
-    expect(p.resources.metal).toBe(metal - Math.round(UNIT_DEFS.knight.cost.metal! * 0.8));
+    // Un encargo es un regimiento entero: el precio rebajado de cada jinete, con el descuento del regimiento.
+    expect(p.resources.metal).toBe(metal - trainCost('knight', p.techs).metal!);
+    expect(trainCost('knight', p.techs).metal).toBe(Math.round(Math.round(UNIT_DEFS.knight.cost.metal! * 0.8) * REGIMENT_SIZE.cavalry! * REGIMENT_COST));
     g.enqueue(1, { kind: 'cancelTrain', buildingId: stable.id, index: 0 });
     g.step();
     expect(p.resources.metal).toBe(metal);

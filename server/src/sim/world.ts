@@ -151,6 +151,10 @@ export interface Unit {
   down: number;
   /** Disparos que le quedan (solo soldados a distancia; Infinity = sin límite). */
   ammo: number;
+  /** En muro de escudos (lento, casi inmune a las flechas, más armadura). */
+  wall: boolean;
+  /** Veces que huyó (desde SHATTER_AFTER queda destrozada). */
+  routs: number;
 }
 
 /** Proyectil en vuelo: el daño se decide al caer, donde esté el objetivo en ese momento. */
@@ -590,6 +594,8 @@ export class World {
       orders: [],
       down: 0,
       ammo: ammoFor(type),
+      wall: false,
+      routs: 0,
     };
     this.units.set(u.id, u);
     return u;

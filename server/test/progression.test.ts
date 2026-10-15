@@ -3,7 +3,7 @@
 // and train every unit.
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS, BUILD_MENU, FACTION_ORDER, TECH_DEFS, UNIT_DEFS, unitAvailable, type BuildingType, type TechId, type UnitType } from '../../shared/data.ts';
-import { hasTech, maskOf } from '../../shared/stats.ts';
+import { hasTech, maskOf, trainTime } from '../../shared/stats.ts';
 import type { Building } from '../src/sim/world.ts';
 import { newGame, runUntil, workersOf } from './helpers.ts';
 
@@ -68,9 +68,11 @@ describe('full progression on a generated map', () => {
           if (UNIT_DEFS[unit].hero) for (const u of w.units.values()) if (u.owner === 1 && u.type === unit) w.units.delete(u.id);
           const before = [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length;
           g.enqueue(1, { kind: 'train', buildingId: b.id, unit });
-          const secs = runUntil(g, () => [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length > before, UNIT_DEFS[unit].trainTime + 5);
+          const secs = runUntil(g, () => [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length > before, trainTime(unit) + 5);
           expect(secs, `${unit} trained at ${type}: ${g.takeNotices(1).join(' / ')}`).toBeLessThan(Infinity);
           trained.add(unit);
+          // Los soldados salen en regimientos enteros: se licencian para no llenar la población.
+          if (!UNIT_DEFS[unit].hero && unit !== 'worker') for (const u of [...w.units.values()]) if (u.owner === 1 && u.type === unit) w.units.delete(u.id);
         }
       }
     };

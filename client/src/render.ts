@@ -660,12 +660,14 @@ export class Renderer {
    * color del dueño, cuántos quedan, y barras de vida y moral del conjunto. Bandera blanca si huye.
    */
   private drawStandards(ctx: CanvasRenderingContext2D, state: ClientState, list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[], sel: { units: Set<number> }, now: number): void {
-    const regs = new Map<number, { xs: number; ys: number; top: number; n: number; hp: number; mo: number; rout: number; owner: number; chosen: boolean; type: UnitView['type'] }>();
+    const regs = new Map<number, { xs: number; ys: number; top: number; n: number; hp: number; mo: number; rout: number; owner: number; chosen: boolean; type: UnitView['type']; wall: boolean; shattered: boolean }>();
     for (const d of list) {
       if (d.k !== 'unit' || !d.u?.rg) continue;
       const u = d.u, rg = d.u.rg, p = worldToPx(d.x!, d.y!);
       const top = p.py - (d.lift ?? 0) - unitTop(u.type, state.faction(u.owner));
-      const r = regs.get(rg) ?? { xs: 0, ys: 0, top: Infinity, n: 0, hp: 0, mo: 0, rout: 0, owner: u.owner, chosen: false, type: u.type };
+      const r = regs.get(rg) ?? { xs: 0, ys: 0, top: Infinity, n: 0, hp: 0, mo: 0, rout: 0, owner: u.owner, chosen: false, type: u.type, wall: false, shattered: false };
+      if (u.sw) r.wall = true;
+      if (u.sh) r.shattered = true;
       r.xs += p.px;
       r.ys += p.py;
       r.top = Math.min(r.top, top);
@@ -711,6 +713,25 @@ export class Renderer {
       };
       bar(y + 3, r.hp / r.n, '#3fb04f');
       bar(y + 6, r.mo / r.n, r.mo / r.n < 0.45 ? '#ff9f43' : '#5ab0ff');
+      // Muro de escudos: un escudo junto al asta. Destrozado: el paño rasgado (una muesca oscura).
+      if (r.wall) {
+        ctx.fillStyle = '#c9a24a';
+        ctx.strokeStyle = '#3b2a1a';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.ellipse(x - 5, y - 10, 3, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      if (r.shattered) {
+        ctx.fillStyle = 'rgba(30,20,10,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(x + 15, y - 15 + wave);
+        ctx.lineTo(x + 9, y - 11 + wave);
+        ctx.lineTo(x + 15, y - 7 + wave);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
   }
 

@@ -82,6 +82,10 @@ export interface UnitView {
   am?: number;
   /** 1 = derribado por una carga (en el suelo un momento). */
   dn?: 1;
+  /** 1 = en muro de escudos. */
+  sw?: 1;
+  /** 1 = destrozado (huyó varias veces: solo se reagrupa en su ciudad). */
+  sh?: 1;
   /** Solo en el cliente: velocidad real (casillas/s), para animar el paso. */
   sp?: number;
   /** Solo en el cliente: destello al recibir un golpe (1 = recién golpeado … 0). */
@@ -363,6 +367,8 @@ export type Command =
   | { kind: 'march'; unitIds: number[]; target: number }
   | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
   | { kind: 'stance'; unitIds: number[]; guard: boolean }
+  /** Muro de escudos (solo la infantería con escudo). */
+  | { kind: 'shieldwall'; unitIds: number[]; on: boolean }
   /** El atacante se retira de una batalla: sus soldados vuelven a casa. */
   | { kind: 'retreat'; battleId: number }
   | { kind: 'stop'; unitIds: number[] }
@@ -739,6 +745,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
       return isId(c.target) ? { kind: 'march', unitIds, target: c.target } : null;
     case 'stance':
       return typeof c.guard === 'boolean' ? { kind: 'stance', unitIds, guard: c.guard } : null;
+    case 'shieldwall':
+      return typeof c.on === 'boolean' ? { kind: 'shieldwall', unitIds, on: c.on } : null;
     case 'ability':
       return (ABILITY_IDS as readonly unknown[]).includes(c.ability) ? { kind: 'ability', unitIds, ability: c.ability as AbilityId } : null;
     case 'gather':

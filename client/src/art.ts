@@ -282,8 +282,12 @@ function rowOf(u: UnitView, sheet: SheetMeta, dirs: number, face: number): numbe
 }
 
 /** Qué animación corresponde a lo que está haciendo la unidad. */
-function animName(u: UnitView): string {
-  if (u.walk === 1) return 'walk';
+/** Velocidad (casillas/s) desde la que un jinete pasa del trote al galope. */
+const GALLOP_FROM = 1.9;
+
+function animName(u: UnitView, sheet?: SheetMeta): string {
+  // Jinetes: trote al marchar, galope al correr o cargar.
+  if (u.walk === 1) return sheet?.anims.run && (u.sp ?? 0) >= GALLOP_FROM ? 'run' : 'walk';
   switch (u.state) {
     case 'attacking':
       return u.type === 'worker' ? 'chop' : 'attack';
@@ -323,11 +327,13 @@ export function drawSpriteUnit(
   const sheet = sheetMeta(id);
   const img = sourceFor(ctx, sheet, now);
   if (!img && !halves.get(sheet.file)) return null;
-  const name = animName(u);
+  const name = animName(u, sheet);
   const a = sheet.anims[name] ?? sheet.anims.idle;
   const t = now / 1000 + u.id * 0.37;
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
-  const pace = name === 'walk' && u.sp ? Math.min(1.5, Math.max(0.45, u.sp / 1.4)) : 1;
+  // El trote de un caballo se calcula para ~1,5 casillas/s y el galope para ~2,5.
+  const base = name === 'run' ? 2.5 : sheet.anims.run ? 1.5 : 1.4;
+  const pace = (name === 'walk' || name === 'run') && u.sp ? Math.min(1.4, Math.max(0.55, u.sp / base)) : 1;
   // Ataque: sincronizado con el golpe real del servidor (preparación, impacto, recuperación).
   const f =
     name === 'attack' && u.cool

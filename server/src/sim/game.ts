@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { AMMO, BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
+import { AMMO, SHATTER_AFTER, shieldBearer, BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -150,7 +150,7 @@ export class Game {
     if (units.length === 0) return;
     const workers = units.filter((u) => u.type === 'worker');
     // Una orden nueva borra el atacar-moviendo y la cola (salvo las que se agregan a la cola).
-    if (cmd.kind !== 'stance' && cmd.kind !== 'ability' && !(cmd.kind === 'move' && cmd.queue)) clearOrders(units);
+    if (cmd.kind !== 'stance' && cmd.kind !== 'ability' && cmd.kind !== 'shieldwall' && !(cmd.kind === 'move' && cmd.queue)) clearOrders(units);
     switch (cmd.kind) {
       case 'stop':
         for (const u of units) stopWork(u);
@@ -163,6 +163,16 @@ export class Game {
           u.post = cmd.guard ? (last ? { x: last.x, y: last.y } : { x: u.x, y: u.y }) : null;
         }
         break;
+      case 'shieldwall': {
+        // Solo los que llevan escudo; en muro marchan (no corren).
+        const shields = units.filter((u) => shieldBearer(u.type));
+        if (!shields.length) return w.notify(playerId, 'Only infantry with shields can form a shield wall');
+        for (const u of shields) {
+          u.wall = cmd.on;
+          if (cmd.on) u.walking = true;
+        }
+        break;
+      }
       case 'ability': {
         const error = useAbility(w, units, cmd.ability);
         if (error) w.notify(playerId, error);
@@ -463,6 +473,8 @@ function unitView(u: Unit, tick: number): UnitView {
   if (u.reg) v.rg = u.reg;
   if (Number.isFinite(u.ammo)) v.am = Math.round((100 * u.ammo) / AMMO);
   if (u.down > 0) v.dn = 1;
+  if (u.wall) v.sw = 1;
+  if (u.routs >= SHATTER_AFTER) v.sh = 1;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }

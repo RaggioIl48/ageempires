@@ -133,9 +133,9 @@ export class GuidePanel {
         <p><b>Cavalry charge:</b> a mounted melee unit that has not fought for ${CHARGE_READY_SEC} s hits ×${CHARGE_BONUS} on its first strike
         (${esc(f.name)}: ×${charge}). Attack, pull back, and charge again! The charge <b>knocks down</b> the soldier it hits
         and tramples the ones right behind him: they lie on the ground for a moment, unable to fight.</p>
-        <p><b>Regiments 🚩:</b> soldiers of the same type that leave the same building form a regiment (8 infantry, 6 ranged,
-        4 cavalry), with its own standard. Click one soldier to select the whole regiment; <b>Shift + click</b> the train
-        button to order a whole regiment at once. When part of a regiment flees, the rest waver.</p>
+        <p><b>Regiments 🚩:</b> you train whole regiments, not single soldiers: one order brings 6 infantry or ranged
+        soldiers, or 4 riders, together and in formation (40 % cheaper than one by one). Each has its own standard.
+        Click one soldier to select the whole regiment. When part of a regiment flees, the rest waver.</p>
         <p><b>Arrows fly:</b> they land where the target <i>was</i>, so moving troops dodge some — and an arrow can hit a
         friend in a melee. Shields stop much of the damage from the front: shoot at flanks and backs. Archers carry
         limited ammunition (yellow bar on the regiment card); they refill near your own Town Center or barracks.</p>

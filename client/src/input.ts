@@ -22,9 +22,7 @@ import {
   type TechId,
   type TradeResource,
   type UnitType,
-  TRADE_RESOURCES,
-  regimentSize,
-} from '../../shared/data.ts';
+  TRADE_RESOURCES, shieldBearer } from '../../shared/data.ts';
 import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
 import { dragFacing, formationLayout, rankOf } from '../../shared/formation.ts';
@@ -275,6 +273,22 @@ export class Input {
     this.net.command({ kind: 'stance', unitIds: ids, guard: !all });
   }
 
+  /** Soldados propios elegidos que llevan escudo (pueden formar el muro de escudos). */
+  ownShields(): number[] {
+    return this.ownSelected().filter((id) => {
+      const t = this.state.units.get(id)?.v.type;
+      return t !== undefined && shieldBearer(t);
+    });
+  }
+
+  /** Muro de escudos (F): lo forman o lo deshacen los que llevan escudo. */
+  toggleShieldWall(): void {
+    const ids = this.ownShields();
+    if (!ids.length) return;
+    const all = ids.every((id) => this.state.units.get(id)?.v.sw);
+    this.net.command({ kind: 'shieldwall', unitIds: ids, on: !all });
+  }
+
   /** Generales propios seleccionados. */
   ownGenerals(): number[] {
     return this.ownSelected().filter((id) => this.state.units.get(id)?.v.type === 'general');
@@ -291,11 +305,10 @@ export class Input {
     const b = this.ownBuilding();
     if (!b || b.progress < 1) return;
     const a = this.buildingActions(b)[index];
+    // Soldados: cada encargo es un regimiento entero (sale formado). Shift: cinco encargos seguidos.
     if (a?.kind === 'train') {
-      // Shift: el regimiento entero de una vez (se llena con los soldados que van saliendo).
       const shift = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-      const n = shift ? Math.max(1, regimentSize(a.unit)) : 1;
-      for (let k = 0; k < n; k++) this.net.command({ kind: 'train', buildingId: b.id, unit: a.unit });
+      for (let k = 0; k < (shift ? 5 : 1); k++) this.net.command({ kind: 'train', buildingId: b.id, unit: a.unit });
     }
     else if (a?.kind === 'research') this.net.command({ kind: 'research', buildingId: b.id, tech: a.tech });
     else if (a?.kind === 'trade') this.net.command({ kind: 'trade', buildingId: b.id, resource: a.resource, buy: a.buy });
@@ -781,6 +794,11 @@ export class Input {
     // R: caminar / correr.
     if (e.code === 'KeyR' && this.ownWorkersSelected().length === 0 && !this.ownBuilding() && this.ownSoldiers().length > 0) {
       this.togglePace();
+      return;
+    }
+    // F: muro de escudos de la infantería con escudo elegida.
+    if (e.code === 'KeyF' && this.ownWorkersSelected().length === 0 && !this.ownBuilding() && this.ownShields().length > 0) {
+      this.toggleShieldWall();
       return;
     }
     // G: modo guardia de los soldados elegidos.

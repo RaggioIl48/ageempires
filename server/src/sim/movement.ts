@@ -1,7 +1,7 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
-import { CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category } from '../../../shared/data.ts';
+import { CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category, SHIELD_WALL_SPEED } from '../../../shared/data.ts';
 import { fatigueOf, spend } from './fatigue.ts';
 import type { Formation } from '../../../shared/protocol.ts';
 import { formationLayout, rankOf } from '../../../shared/formation.ts';
@@ -22,7 +22,7 @@ export function moveUnits(world: World, dt: number): void {
     const wallMode = world.onWall(u);
     const wallSpeed = wallMode === 1 || wallMode === 3 ? WALL_SPEED_DEFENDER : wallMode === 2 ? WALL_SPEED_CLIMBER : 1;
     const wasOnWall = wallMode !== 0;
-    const pace = u.walking && u.state === 'moving' ? WALK_SPEED : 1;
+    const pace = (u.walking && u.state === 'moving' ? WALK_SPEED : 1) * (u.wall ? SHIELD_WALL_SPEED : 1);
     let budget = speed * dt * slope * fatigueOf(u.stamina).speed * wallSpeed * pace;
     const walked = budget;
     while (budget > 0 && u.path.length > 0) {

@@ -1568,3 +1568,11 @@ img.portrait {
   font-weight: 400;
   color: var(--text, #eee);
 }
+/* Cuántos soldados trae un encargo (un regimiento entero). */
+.act .squad {
+  font-size: 10px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: #3b2a1a;
+  color: #f3d58a;
+}

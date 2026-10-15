@@ -16,5 +16,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // El visor de animaciones (preview.html) también se publica: sirve para revisar unidades y medir fluidez.
+    rollupOptions: { input: { main: 'client/index.html', preview: 'client/preview.html' } },
   },
 });

@@ -13,7 +13,7 @@ import {
   type UnitType,
 } from '../../../shared/data.ts';
 import type { BotLevel, Command } from '../../../shared/protocol.ts';
-import { buildingCost, hasTech, unitCost } from '../../../shared/stats.ts';
+import { buildingCost, hasTech, trainCost, trainCount as trainCountOf, unitCost } from '../../../shared/stats.ts';
 import { isEnemy } from './diplomacy.ts';
 import type { Game } from './game.ts';
 import type { Building, Point, Unit, World } from './world.ts';
@@ -202,8 +202,8 @@ export class AiPlayer {
       if (b.progress < 1 || b.queue.length >= 2 || !military) continue;
       const choice = this.pickUnit(BUILDING_DEFS[b.type].trains, era);
       if (!choice) continue;
-      const cost = unitCost(choice, me.techs);
-      if (pop >= popCap || !afford(cost)) continue;
+      const cost = trainCost(choice, me.techs);
+      if (pop + trainCountOf(choice) > popCap || !afford(cost)) continue;
       pay(cost);
       cmd({ kind: 'train', buildingId: b.id, unit: choice });
     }

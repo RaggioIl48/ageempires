@@ -1,9 +1,10 @@
 // Batallas a lo Total War: regimientos, proyectiles que vuelan (escudos, fuego amigo, munición),
 // choque de la carga, atacar-moviendo y cola de órdenes.
 import { describe, expect, it } from 'vitest';
-import { AMMO, KNOCKDOWN_SECONDS, REGIMENT_SIZE, TICK_RATE } from '../../shared/data.ts';
+import { AMMO, KNOCKDOWN_SECONDS, REGIMENT_SIZE, SHATTER_AFTER, TICK_RATE } from '../../shared/data.ts';
 import { decodeUnit, encodeUnit } from '../../shared/codec.ts';
 import { strike } from '../src/sim/combat.ts';
+import { trainCost, trainCount } from '../../shared/stats.ts';
 import { hasShield, updateProjectiles } from '../src/sim/projectiles.ts';
 import { regimentMembers, regimentPanic } from '../src/sim/regiment.ts';
 import { flatGame, run, runUntil } from './helpers.ts';
@@ -25,17 +26,28 @@ describe('regiments', () => {
     return { g, w, b };
   }
 
-  it('soldiers of the same type from one barracks fill a regiment, then a new one opens', () => {
+  it('one order trains a whole regiment at once, which comes out together and in formation', () => {
     const { g, w, b } = barracksGame();
     const size = REGIMENT_SIZE.infantry!;
-    for (let i = 0; i < size + 1; i++) g.enqueue(1, { kind: 'train', buildingId: b.id, unit: 'warrior' });
-    runUntil(g, () => [...w.units.values()].filter((u) => u.type === 'warrior').length >= size + 1, 600);
-    const warriors = [...w.units.values()].filter((u) => u.type === 'warrior').sort((a, b2) => a.id - b2.id);
-    expect(warriors.length).toBe(size + 1);
-    const first = warriors[0].reg;
-    expect(first).toBeGreaterThan(0);
-    expect(regimentMembers(w, first)).toHaveLength(size);
-    expect(warriors[size].reg).not.toBe(first); // el noveno abre otro regimiento
+    const p = w.players.get(1)!;
+    const food = p.resources.food;
+    g.enqueue(1, { kind: 'train', buildingId: b.id, unit: 'warrior' });
+    g.enqueue(1, { kind: 'train', buildingId: b.id, unit: 'warrior' });
+    g.step();
+    // Se cobra el regimiento entero (con su descuento), no un soldado.
+    expect(food - p.resources.food).toBe(2 * trainCost('warrior').food!);
+    runUntil(g, () => [...w.units.values()].filter((u) => u.type === 'warrior').length >= 2 * size, 600);
+    const warriors = [...w.units.values()].filter((u) => u.type === 'warrior');
+    expect(warriors.length).toBe(2 * size);
+    const regs = new Set(warriors.map((u) => u.reg));
+    expect(regs.size).toBe(2); // dos encargos = dos regimientos de 6
+    for (const r of regs) expect(regimentMembers(w, r)).toHaveLength(size);
+  });
+
+  it('workers still come out one by one; cavalry regiments are of 4', () => {
+    expect(trainCount('worker')).toBe(1);
+    expect(trainCount('knight')).toBe(REGIMENT_SIZE.cavalry);
+    expect(trainCount('archer')).toBe(REGIMENT_SIZE.ranged);
   });
 
   it('the regiment number travels to the client', () => {
@@ -207,5 +219,110 @@ describe('attack-move and queued orders', () => {
     run(g, 0.2);
     expect(u.orders).toHaveLength(0);
     expect(TICK_RATE).toBe(10);
+  });
+});
+
+describe('shield wall, forests, shattered and surrounded troops', () => {
+  /** Daño que le hace una flecha (que cae justo en él) a `foe`. */
+  function arrowDamage(setup: (w: ReturnType<typeof flatGame>['world'], foe: ReturnType<ReturnType<typeof flatGame>['world']['addUnit']>) => void) {
+    const g = flatGame();
+    const w = g.world;
+    const archer = w.addUnit('archer', 1, 10.5, 10.5);
+    const foe = w.addUnit('spearman', 2, 15.5, 10.5);
+    [foe.fx, foe.fy] = [1, 0]; // de espaldas al tirador: el escudo no tapa por sí solo
+    setup(w, foe);
+    const st = w.statsOf(archer);
+    const hp0 = foe.hp;
+    strike(w, 1, st.attack, st.category, archer, { kind: 'unit', unit: foe }, archer);
+    w.projectiles[0].x = foe.x;
+    w.projectiles[0].y = foe.y;
+    land(w);
+    return hp0 - foe.hp;
+  }
+
+  it('a shield wall takes much less damage from arrows', () => {
+    const open = arrowDamage(() => {});
+    const wall = arrowDamage((_, foe) => (foe.wall = true));
+    expect(wall).toBeLessThan(open);
+  });
+
+  it('the shield wall order only applies to shield-bearers, and they march slower', () => {
+    const g = flatGame();
+    const w = g.world;
+    const sp = w.addUnit('spearman', 1, 10.5, 10.5);
+    const ar = w.addUnit('archer', 1, 10.5, 12.5);
+    g.enqueue(1, { kind: 'shieldwall', unitIds: [sp.id, ar.id], on: true });
+    g.step();
+    expect(sp.wall).toBe(true);
+    expect(ar.wall).toBe(false);
+    const free = w.addUnit('spearman', 1, 10.5, 20.5);
+    g.enqueue(1, { kind: 'move', unitIds: [sp.id], x: 25, y: 10.5, walk: true });
+    g.enqueue(1, { kind: 'move', unitIds: [free.id], x: 25, y: 20.5, walk: true });
+    run(g, 3);
+    expect(sp.x - 10.5).toBeLessThan((free.x - 10.5) * 0.7);
+  });
+
+  it('trees give cover from arrows and stop cavalry charges', () => {
+    const open = arrowDamage(() => {});
+    const forest = arrowDamage((w, foe) => void w.addNode('tree', Math.floor(foe.x) + 1, Math.floor(foe.y)));
+    expect(forest).toBeLessThan(open);
+    // Carga en el bosque: no derriba.
+    const g = flatGame();
+    const w = g.world;
+    expect(w.addNode('tree', 11, 11)).not.toBeNull(); // pegado al objetivo
+    const rider = w.addUnit('knight', 1, 10, 10);
+    const foe = w.addUnit('swordsman', 2, 10.8, 10);
+    const st = w.statsOf(rider);
+    w.tick = 1000;
+    strike(w, 1, st.attack, st.category, rider, { kind: 'unit', unit: foe }, rider);
+    expect(foe.down).toBe(0);
+  });
+
+  it('a shield wall facing the charge is not knocked down', () => {
+    const g = flatGame();
+    const w = g.world;
+    const rider = w.addUnit('knight', 1, 10, 10);
+    const foe = w.addUnit('spearman', 2, 10.8, 10);
+    foe.wall = true;
+    [foe.fx, foe.fy] = [-1, 0]; // mira al jinete
+    const st = w.statsOf(rider);
+    w.tick = 1000;
+    strike(w, 1, st.attack, st.category, rider, { kind: 'unit', unit: foe }, rider);
+    expect(foe.down).toBe(0);
+  });
+
+  it('a regiment that routs a second time is shattered: it only rallies back at its city', () => {
+    const g = flatGame();
+    const w = g.world;
+    const u = w.addUnit('swordsman', 1, 30.5, 10.5); // lejos de su Centro Urbano (4,4)
+    u.routs = SHATTER_AFTER; // ya huyó dos veces
+    u.routing = 1;
+    u.morale = 90;
+    u.path = [];
+    run(g, 1);
+    expect(u.routing).toBeGreaterThan(0); // lejos de casa: sigue huyendo
+    const v = w.addUnit('swordsman', 1, 7.5, 8.5); // junto a su ciudad
+    v.routs = SHATTER_AFTER;
+    v.routing = 1;
+    v.morale = 90;
+    run(g, 1);
+    expect(v.routing).toBe(0);
+  });
+
+  it('surrounded soldiers lose morale faster', () => {
+    const lossWith = (around: boolean) => {
+      const g = flatGame();
+      const w = g.world;
+      const u = w.addUnit('swordsman', 1, 20.5, 20.5);
+      u.morale = 80;
+      const spots = around ? [[1, 0], [-1, 0], [0, 1], [0, -1]] : [[1, 0], [1.2, 0.5]];
+      for (const [dx, dy] of spots) {
+        const e = w.addUnit('swordsman', 2, 20.5 + dx, 20.5 + dy);
+        e.down = 1e9; // quietos: solo cuenta la presencia
+      }
+      run(g, 2);
+      return 80 - u.morale;
+    };
+    expect(lossWith(true)).toBeGreaterThan(lossWith(false));
   });
 });

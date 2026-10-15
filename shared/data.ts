@@ -1040,11 +1040,15 @@ export function uniquesOf(faction: FactionId): { units: UnitType[]; building: Bu
 
 // ---------- Regimientos (Total War): los soldados se mandan en bloque ----------
 /**
- * Soldados por regimiento según su categoría. Los soldados nuevos de un mismo tipo que salen de un
- * mismo edificio se suman al regimiento abierto hasta llenarlo; el regimiento se selecciona con un
- * clic, marcha en formación y comparte la moral. Chicos a propósito: la clase juega en un servidor modesto.
+ * Soldados por regimiento según su categoría. Se entrena el regimiento entero de una vez (un
+ * encargo = todos sus soldados), sale formado, se selecciona con un clic, marcha en formación y
+ * comparte la moral. Chicos a propósito: la clase juega en un servidor modesto.
  */
-export const REGIMENT_SIZE: Partial<Record<Category, number>> = { infantry: 8, ranged: 6, cavalry: 4 };
+export const REGIMENT_SIZE: Partial<Record<Category, number>> = { infantry: 6, ranged: 6, cavalry: 4 };
+/** Un regimiento cuesta esta fracción de lo que costarían sus soldados de a uno. */
+export const REGIMENT_COST = 0.6;
+/** Tiempo de entrenamiento: el de un soldado + esta fracción por cada soldado más. */
+export const REGIMENT_TIME_PER_EXTRA = 0.25;
 /** Moral por segundo que pierden los que siguen firmes cuando huye una parte del regimiento (× fracción que huye). */
 export const REGIMENT_PANIC = 10;
 /** Fracción del regimiento que tiene que huir para que cunda el pánico. */
@@ -1055,6 +1059,27 @@ export function regimentSize(type: UnitType): number {
   const def = UNIT_DEFS[type];
   if (def.hero) return 0;
   return REGIMENT_SIZE[def.category] ?? 0;
+}
+
+// ---------- Muro de escudos, bosques, moral destrozada y rodeados (Total War) ----------
+/** Muro de escudos: velocidad, daño de proyectiles que recibe y armadura extra cuerpo a cuerpo. */
+export const SHIELD_WALL_SPEED = 0.5;
+export const SHIELD_WALL_RANGED = 0.35;
+export const SHIELD_WALL_ARMOR = 2;
+/** Dentro o junto a un bosque: los proyectiles hacen esta fracción del daño, y no se puede cargar. */
+export const FOREST_COVER = 0.6;
+/** Moral por segundo que pierde un soldado rodeado (enemigos por tres lados o más). */
+export const SURROUND_MORALE = 6;
+/** Tras huir esta cantidad de veces, la tropa queda destrozada: solo se reagrupa junto a su ciudad. */
+export const SHATTER_AFTER = 2;
+export const SHATTER_RALLY_RADIUS = 9;
+
+/** Tipos que pelean sin escudo (armas a dos manos, sin armadura o de otra época). */
+const NO_SHIELD = new Set<UnitType>(['worker', 'fanatic', 'berserker', 'chosen_axeman', 'gothic_warband', 'ulfhednar', 'axe_thrower', 'warrior']);
+/** ¿Lleva escudo? Infantería cuerpo a cuerpo de las eras antiguas (no los de dos manos ni los guerreros). */
+export function shieldBearer(type: UnitType): boolean {
+  const def = UNIT_DEFS[type];
+  return def.category === 'infantry' && def.attack.type === 'melee' && def.era <= 2 && !NO_SHIELD.has(type) && !def.shot;
 }
 
 // ---------- Proyectiles y munición (Total War) ----------

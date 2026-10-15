@@ -58,6 +58,8 @@ export function encodeUnit(u: UnitView): UnitTuple {
     u.rg ?? 0,
     u.am ?? -1,
     u.dn ? 1 : 0,
+    u.sw ? 1 : 0,
+    u.sh ? 1 : 0,
   ];
 }
 
@@ -93,6 +95,8 @@ export function decodeUnit(t: UnitTuple): UnitView {
   if (t[25]) v.rg = t[25];
   if (t[26] >= 0) v.am = t[26];
   if (t[27]) v.dn = 1;
+  if (t[28]) v.sw = 1;
+  if (t[29]) v.sh = 1;
   return v;
 }
 

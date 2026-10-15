@@ -746,6 +746,23 @@ Total War: Napoleon:
   ground for 9 s: battlefields look like battlefields.
 - Still 4-direction LPC: the Gaul naked fanatic and the Industrial/Modern units.
 
+## Train whole regiments, shield wall, forest cover, shattered troops, clearer units, better horses (2026-10-15)
+
+- **One order = one regiment**: 6 infantry or ranged soldiers, or 4 riders, come out together and in formation
+  (`trainCount`, `trainCost` = 60 % of the single-soldier price × size, `trainTime` = one soldier + 25 % per extra
+  man). Workers, the General and machines still come one by one. The computer rival uses the same prices.
+- **Shield wall** (F or the 🛡 button, shield-bearing infantry only): arrows do 35 %, +2 melee armour, a frontal
+  charge does not knock them down, half speed. Shown with a shield on the regiment standard.
+- **Forests**: next to trees, arrows do 60 % and cavalry cannot charge.
+- **Shattered**: a regiment that routs a second time only rallies back at its own city (torn standard).
+- **Surrounded** soldiers (enemies on 3+ sides) lose morale fast.
+- **Clearer units**: warriors carry an axe or mace, no shield or helmet (vs. spear-and-shield spearmen); knights and
+  heavy riders ride armoured horses (iron), Generals a white horse with bronze armour; scouts stay light.
+  New 3D **Gaul naked fanatic** (bare-chested Celt with long sword and a player-colour cape).
+- **Horses**: trot when marching, gallop when running or charging (chosen by real speed), a steady horse while
+  the rider strikes (no rearing on every blow), 12-frame gallop.
+- Tests: `totalwar.test.ts` (19).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

@@ -25,9 +25,9 @@ import {
   type FactionId,
   type ResourceType,
   type TechId,
-  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId, regimentSize } from '../../shared/data.ts';
+  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId, regimentSize, shieldBearer, SHIELD_WALL_ARMOR } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
-import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
+import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost, trainCost, trainTime } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
 import { unitPortrait } from './art.ts';
 import { ACTION_KEYS, ARMY_GROUPS, type ArmyGroup, type Input } from './input.ts';
@@ -206,6 +206,8 @@ export class Hud {
         case 'amove':
           this.input.toggleAttackMove();
           return this.update();
+        case 'shieldwall':
+          return this.input.toggleShieldWall();
       }
     });
     el('army-bar').addEventListener('click', (e) => {
@@ -496,7 +498,8 @@ export class Hud {
       const routing = list.filter((m) => m.rout).length;
       const ammo = list.some((m) => m.am !== undefined) ? list.reduce((s, m) => s + (m.am ?? 100), 0) / list.length / 100 : null;
       const size = regimentSize(u.type);
-      const state = routing * 2 >= list.length ? '🏳 Routing' : morale < 0.45 ? '⚠ Wavering' : '';
+      const shattered = list.some((m) => m.sh);
+      const state = routing * 2 >= list.length ? (shattered ? '💔 Shattered' : '🏳 Routing') : morale < 0.45 ? '⚠ Wavering' : list.some((m) => m.sw) ? '🛡 Shield wall' : '';
       const tip = `${this.state.labelOf(u.owner, u.type)} regiment: ${list.length}/${size} men · health ${Math.round(hp * 100)}% · morale ${Math.round(morale * 100)}%${ammo !== null ? ` · ammo ${Math.round(ammo * 100)}%` : ''}${state ? ` · ${state}` : ''}`;
       return `<div class="card reg ${state ? 'warn' : ''}" data-id="${u.id}" title="${esc(tip)}" style="color:${this.state.color(u.owner)}">
         ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<span class="count">${list.length}</span>
@@ -601,8 +604,13 @@ export class Hud {
       const amove = soldiers > 0
         ? `<button class="act small ${this.input.attackMove ? 'on' : ''}" data-action="amove" title="Attack-move: they advance to the point you right click next and fight every enemy they meet on the way. Shortcut: Ctrl + right click. Shift + right click: add the order to a queue (one after the other).">⚔ Attack-move</button>`
         : '';
+      const shieldIds = own.filter((id) => { const t = this.state.units.get(id)?.v.type; return t !== undefined && shieldBearer(t); });
+      const wallOn = shieldIds.length > 0 && shieldIds.every((id) => this.state.units.get(id)?.v.sw);
+      const wall = shieldIds.length
+        ? `<button class="act small ${wallOn ? 'on' : ''}" data-action="shieldwall" title="Shield wall (F): the infantry with shields locks shields. Arrows do 35 % damage, +${SHIELD_WALL_ARMOR} melee armor and a cavalry charge from the front does not knock them down, but they march at half speed. Good against archers and charges.">🛡 Shield wall: ${wallOn ? 'ON' : 'off'} <span class="key">F</span></button>`
+        : '';
       const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${abilities}${formation}${pace}${amove}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
+      return `${abilities}${formation}${pace}${amove}${wall}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it, face forward and hold their spot.
@@ -634,14 +642,14 @@ export class Hud {
     const u = UNIT_DEFS[type];
     const st = this.state.statsOf(this.state.you, type);
     const name = this.state.labelOf(this.state.you, type);
-    const cost = unitCost(type, this.state.techsOf(this.state.you));
+    const cost = trainCost(type, this.state.techsOf(this.state.you));
     const ok = !have || canAfford(have, cost);
-    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s${regimentSize(type) ? `\nShift + click: a whole regiment (${regimentSize(type)} soldiers)` : ''}`;
+    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${Math.round(trainTime(type))} s${regimentSize(type) ? `\nOne order = a regiment of ${regimentSize(type)} soldiers (40 % cheaper than one by one). Shift + click: 5 orders.` : ''}`;
     const icon = iconOf(type, this.state.faction(this.state.you), this.state.color(this.state.you));
     const portrait = icon.startsWith('<img');
     return `<button class="act with-icon ${portrait ? 'with-portrait' : ''}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${icon}</span>
-      <b>${esc(name)}${u.faction ? ' ⚜' : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
+      <b>${esc(name)}${u.faction ? ' ⚜' : ''}${regimentSize(type) ? ` <span class="squad">×${regimentSize(type)}</span>` : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
   }
 
   /** Botón del Mercado: comprar o vender un lote. */

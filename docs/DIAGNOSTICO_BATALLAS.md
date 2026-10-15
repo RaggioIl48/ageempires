@@ -15,8 +15,12 @@ Escala: impacto ★ a ★★★; esfuerzo **S** (días), **M** (1–2 semanas), 
 | 9. Sonido | Choque de armas, golpe en el escudo, flechas, carga, caídas y cuerno de batalla, generados con Web Audio (sin archivos). Ubicados según la cámara; M = silencio. | `client/src/sound.ts` |
 | 11. Caballería en 3D | Las 26 hojas de jinetes (7 pueblos × explorador, caballero y General, más los 5 jinetes únicos): caballo y jinete con sus esqueletos y animaciones, sincronizados. | `tools/art/soldiers.mjs` |
 
-Siguen pendientes: 5 (habilidades por unidad), 6 (bosques y ríos), 7 (estados de moral más ricos), 8 (cámara
-lenta, seguir a una unidad), 10 (animaciones por pares), 12 (asedio avanzado), 13 (clima).
+Agregado después (2026-10-15, segunda tanda): entrenamiento de regimientos enteros (6 infantes o tiradores, 4 jinetes),
+**muro de escudos** (parte del punto 5), **bosques** que cubren de flechas e impiden cargar (parte del 6), moral **destrozada**
+y soldados **rodeados** (punto 7).
+
+Siguen pendientes: más habilidades por unidad (cuña, disparo a discreción), ríos y vados, 8 (cámara lenta, seguir a
+una unidad), 10 (animaciones por pares), 12 (asedio avanzado), 13 (clima).
 
 ## 1. Lo que ya está y se parece a Attila
 
