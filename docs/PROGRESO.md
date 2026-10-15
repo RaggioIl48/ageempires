@@ -736,6 +736,16 @@ Total War: Napoleon:
 - **3D cavalry**: horse and rider skeletons posed with their own synchronised animations (26 sheets).
 - Tests: `totalwar.test.ts` (12). Server step with 800 fighting soldiers: 6.45 ms, unchanged.
 
+## 3D workers, lasting battlefields (2026-10-15)
+
+- **Workers in 3D** for all seven peoples (0 A.D. female citizens, 8 directions): each task uses its own
+  0 A.D. variant and tool (axe to chop, hoe to farm, pick to mine, mallet to build). The resolver now picks
+  variants by the name declared in their file, and later variant groups replace props at the same attach
+  point (an empty one removes it), as in 0 A.D.
+- **Fallen soldiers stay 25 s** (fading in the last 3 s, up to 220), and **missed arrows stay stuck** in the
+  ground for 9 s: battlefields look like battlefields.
+- Still 4-direction LPC: the Gaul naked fanatic and the Industrial/Modern units.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

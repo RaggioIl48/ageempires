@@ -306,7 +306,7 @@ export class ClientState {
       // Si cayó en combate (hay un evento de muerte donde estaba), queda en el suelo un momento.
       if (cu && deaths.some((e) => Math.abs(e.x - cu.v.x) < 0.8 && Math.abs(e.y - cu.v.y) < 0.8)) {
         this.corpses.push({ v: cu.v, face: cu.face, t0: now });
-        if (this.corpses.length > 150) this.corpses.shift();
+        if (this.corpses.length > 220) this.corpses.shift();
       }
       this.units.delete(id);
     }

@@ -63,8 +63,8 @@ Germans, Visigoths).
   its own skeleton and animations, posed at the same phase and mounted on the horse's `prop_rider` bone
   (`posedParts`, `loadRiderClips`). Scale comes from an infantry reference (`scaleFrom`) so riders and foot
   soldiers match. Rider capes are skipped (the rider clips do not move their bones). Coat colour per people.
-- **Still LPC (4 directions)**: workers, the Gaul naked fanatic (no 0 A.D. model) and the Industrial/Modern units.
-- **Workers**: 0 A.D. citizens have gather/build animations (`gather_tree`, `build`…) matching the game's
-  `chop`/`farm`/`mine`/`build`.
+- **Workers (done 2026-10-15)**: `citizen()` recipes; each task animation names its 0 A.D. variant
+  (`variant: 'gather_tree'` …) so the body is resolved with that variant's tool props.
+- **Still LPC (4 directions)**: the Gaul naked fanatic (no 0 A.D. model) and the Industrial/Modern units.
 - **Weight**: 40 sheets, ~21.7 MB in total (~550 KB each), loaded only when the unit appears;
   `FIGURE_PX` 72 would save ~25 %, WebP ~40 %. Drawing cost: see `FLUIDEZ_Y_RENDIMIENTO.md`.

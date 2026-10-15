@@ -62,6 +62,26 @@ const foot = (unit, actor, { attack, choose = [] } = {}) => ({ units: [unit], ac
  * El impacto del ataque sale del propio 0 A.D. (atributo "event" de la animación).
  */
 /**
+ * Trabajador: ciudadana de 0 A.D. Cada tarea usa su variante (y su herramienta): hacha al talar,
+ * azada en la granja, pico en la mina, mazo al construir. Misma escala que los soldados.
+ */
+const citizen = (unit, actor) => ({
+  units: [unit],
+  actor: `units/${actor}.xml`,
+  choose: [],
+  scaleFrom: 'units/romans/infantry_swordsman_b.xml',
+  anims: {
+    idle: { from: 'idle', frames: 6, fps: 4 },
+    walk: { from: 'walk', frames: 10, fps: 12 },
+    chop: { from: 'gather_tree', variant: 'gather_tree', frames: 8, fps: 10 },
+    farm: { from: 'gather_grain', variant: 'gather_grain', frames: 8, fps: 9 },
+    mine: { from: 'gather_rock', variant: 'gather_rock', frames: 8, fps: 10 },
+    build: { from: 'build', variant: 'Build', frames: 8, fps: 10 },
+    die: { from: 'death', frames: 8, fps: 10, loop: false },
+  },
+});
+
+/**
  * Jinete: unidad del juego y actor del CABALLO de 0 A.D. (`…_m`; el jinete `…_r` va montado).
  * `ranged`: el jinete tira (jabalina, arco) mientras el caballo queda en reposo.
  * La escala sale de un soldado de a pie (jinete e infante miden lo mismo).
@@ -164,6 +184,15 @@ export const SOLDIERS = {
   'mongols-general-3d': horse('mongols/general', 'han/cavalry_swordsman_e_m', { coat: 'white' }),
   'mongols-horse_archer-3d': horse('mongols/horse_archer', 'persians/cavalry_archer_b_m', { ranged: true, coat: 'beige' }),
   'mongols-keshig-3d': horse('mongols/keshig', 'han/cavalry_spearman_e_m', { coat: 'beige' }),
+
+  // ---------- Trabajadores: ciudadanas de 0 A.D., con la herramienta de cada tarea ----------
+  'romans-worker-3d': citizen('romans/worker', 'romans/female_citizen'),
+  'gauls-worker-3d': citizen('gauls/worker', 'celts/female_citizen'),
+  'germans-worker-3d': citizen('germans/worker', 'celts/female_citizen'),
+  'visigoths-worker-3d': citizen('visigoths/worker', 'iberians/female_citizen'),
+  'ostrogoths-worker-3d': citizen('ostrogoths/worker', 'seleucids/female_citizen'),
+  'vikings-worker-3d': citizen('vikings/worker', 'athenians/female_citizen'),
+  'mongols-worker-3d': citizen('mongols/worker', 'persians/female_citizen'),
 };
 
 /** Altura de la figura en reposo (con casco) en la hoja, en px: da detalle para el zoom. */
@@ -231,9 +260,16 @@ async function resolve(rel, choose, anims, depth = 0) {
       own[name] = { file: a.attrs.file, event: Number(a.attrs.event ?? 0.5), picked };
     }
   };
+  // Accesorios por punto de enganche: un grupo posterior reemplaza lo de los anteriores (como 0 A.D.);
+  // vacío = se quita (p. ej. al talar, la mano derecha suelta la lanza y toma el hacha).
+  const slots = new Map();
   for (const group of kids(actor, 'group')) {
     const variants = kids(group, 'variant');
-    const pick = variants.find((x) => choose.includes(x.attrs.name)) ?? [...variants].sort((a, b) => Number(b.attrs.frequency ?? 1) - Number(a.attrs.frequency ?? 1))[0];
+    // El nombre de una variante puede estar en el archivo que hereda (variants/…).
+    const names = await Promise.all(variants.map(async (v) => v.attrs.name ?? (v.attrs.file ? (await variantFile(v.attrs.file))?.attrs.name : undefined)));
+    const chosen = variants.findIndex((_, i) => names[i] !== undefined && choose.includes(names[i]));
+    const pick = chosen >= 0 ? variants[chosen] : [...variants].sort((a, b) => Number(b.attrs.frequency ?? 1) - Number(a.attrs.frequency ?? 1))[0];
+    const groupSlots = new Map();
     for (const v of variants) {
       if (v === pick || /formations\//.test(v.attrs.file ?? '')) continue;
       for (let cur = v, n = 0; cur && n < 6; n++) {
@@ -245,16 +281,28 @@ async function resolve(rel, choose, anims, depth = 0) {
       collect(cur, true);
       meshRel ??= kid(cur, 'mesh')?.text.trim() ?? null;
       for (const t of kid(cur, 'textures')?.children ?? []) if (t.attrs.name === 'baseTex') baseTex ??= t.attrs.file;
+      // Lo propio de la variante manda sobre lo heredado de su archivo.
       for (const p of kid(cur, 'props')?.children ?? []) {
         const at = p.attrs.attachpoint ?? 'root';
-        if (!p.attrs.actor || node.props.some((q) => q.at === at)) continue;
+        if (groupSlots.has(at) && at !== 'root') continue;
         // Capas de jinete: las animaciones del jinete no mueven sus huesos y quedarían paradas hacia arriba.
-        if (/^props\/units\/capes\/rider\//.test(p.attrs.actor)) continue;
-        const child = await resolve(p.attrs.actor, choose, anims, depth + 1);
-        if (child) node.props.push({ at, node: child });
+        if (p.attrs.actor && /^props\/units\/capes\/rider\//.test(p.attrs.actor)) continue;
+        if (at === 'root') groupSlots.set(`root#${groupSlots.size}`, p.attrs.actor ?? '');
+        else groupSlots.set(at, p.attrs.actor ?? '');
       }
       cur = cur.attrs.file ? await variantFile(cur.attrs.file) : null;
     }
+    for (const [at, a] of groupSlots) {
+      if (at.startsWith('root#')) {
+        if (a) slots.set(`${at}@${slots.size}`, a);
+      } else slots.set(at, a);
+    }
+  }
+  for (const [key, a] of slots) {
+    if (!a) continue;
+    const at = key.startsWith('root#') ? 'root' : key;
+    const child = await resolve(a, choose, anims, depth + 1);
+    if (child) node.props.push({ at, node: child });
   }
   if (meshRel) node.mesh = fs.readFileSync(await file(`meshes/${meshRel}`), 'utf8');
   node.tex = await texture(baseTex);
@@ -369,9 +417,16 @@ function drawView(parts, r, k, box = { fs: FS, ax: AX, ay: AY }) {
 
 /** Hoja de un soldado: { packed, credits } (packed = imagen + datos de las animaciones). */
 export async function soldierSheet(r) {
-  const animsByName = {};
-  const body = await resolve(r.actor, r.choose ?? [], animsByName);
-  const skinned = loadSkinned(body.mesh);
+  // Un cuerpo por variante: la base, y la de cada tarea que la pida (`variant` en la animación).
+  const bodies = new Map();
+  const bodyFor = async (variant) => {
+    if (!bodies.has(variant)) {
+      const animsByName = {};
+      const body = await resolve(r.actor, variant ? [...(r.choose ?? []), variant] : (r.choose ?? []), animsByName);
+      bodies.set(variant, { body, animsByName, skinned: loadSkinned(body.mesh) });
+    }
+    return bodies.get(variant);
+  };
   const anims = {};
   // Jinetes: la escala sale de un soldado de a pie (si no, el caballo achicaría al jinete).
   let k = r.scaleFrom ? await scaleOf(r.scaleFrom) : undefined;
@@ -379,6 +434,7 @@ export async function soldierSheet(r) {
   for (const [name, a] of Object.entries(r.anims)) {
     // `body`: animación del cuerpo (el caballo) si es distinta de la del jinete (`from`).
     const bodyName = (a.body ?? a.from).toLowerCase();
+    const { body, animsByName, skinned } = await bodyFor(a.variant ?? '');
     const src = animsByName[bodyName];
     if (!src) throw new Error(`${r.actor}: no tiene la animación ${bodyName}`);
     const clip = loadAnimation(fs.readFileSync(await file(`animation/${src.file}`), 'utf8'));

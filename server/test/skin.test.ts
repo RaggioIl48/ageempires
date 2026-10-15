@@ -84,12 +84,13 @@ describe('hojas de soldados de 0 A.D. en el juego', () => {
   const units = JSON.parse(fs.readFileSync(path.join(ART, 'units.json'), 'utf8'));
 
   it('cada receta tiene su hoja en 8 direcciones y sus unidades la usan', () => {
-    for (const [id, r] of Object.entries(SOLDIERS as Record<string, { units: string[] }>)) {
+    for (const [id, r] of Object.entries(SOLDIERS as Record<string, { units: string[]; anims: Record<string, unknown> }>)) {
       const s = units.sheets[id];
       expect(s, id).toBeDefined();
       expect(s.o, id).toBe('oga8');
       expect(fs.existsSync(path.join(ART, s.file)), id).toBe(true);
-      for (const name of ['idle', 'walk', 'attack', 'die']) expect(s.anims[name]?.d, `${id} ${name}`).toBe(8);
+      // Todas las animaciones de la receta (los trabajadores: talar, cosechar, picar y construir en vez de atacar).
+      for (const name of Object.keys(r.anims)) expect(s.anims[name]?.d, `${id} ${name}`).toBe(8);
       for (const u of r.units) expect(units.units[u], u).toBe(id);
     }
   });
@@ -97,6 +98,7 @@ describe('hojas de soldados de 0 A.D. en el juego', () => {
   it('el impacto del ataque cae dentro de la animación (no en el primer ni el último cuadro)', () => {
     for (const id of Object.keys(SOLDIERS)) {
       const a = units.sheets[id].anims.attack;
+      if (!a) continue; // trabajadores: sin ataque propio
       expect(a.hit, id).toBeGreaterThan(0);
       expect(a.hit, id).toBeLessThan(a.n - 1);
     }

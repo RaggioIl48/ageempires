@@ -199,7 +199,12 @@ type Drawable =
 /** Destello al recibir un golpe (ms). */
 const HURT_MS = 160;
 /** Cuánto quedan los caídos en el suelo (ms). */
-const CORPSE_MS = 4000;
+const CORPSE_MS = 25_000;
+/** Los últimos segundos se desvanecen. */
+const CORPSE_FADE_S = 3;
+/** Flechas clavadas en el suelo: cuánto quedan (ms) y cuántas como mucho. */
+const STUCK_MS = 9000;
+const MAX_STUCK = 300;
 
 /** Duración de cada efecto (ms). */
 const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, rank: 1600, death: 900, destroyed: 1200, gain: 1600 } as const;
@@ -451,10 +456,11 @@ export class Renderer {
       const age = (now - c.t0) / 1000;
       const p = worldToPx(c.v.x, c.v.y);
       if (!inView(c.v.x, c.v.y)) continue;
-      ctx.globalAlpha = Math.min(1, (CORPSE_MS / 1000 - age) / 1.2);
+      ctx.globalAlpha = Math.min(1, (CORPSE_MS / 1000 - age) / CORPSE_FADE_S);
       drawDyingUnit(ctx, c.v, p.px, p.py, state.color(c.v.owner), state.faction(c.v.owner), c.face, age);
       ctx.globalAlpha = 1;
     }
+    this.drawStuckArrows(ctx, now, inView);
 
     this.drawPuffs(ctx, now, 'dust');
 
@@ -708,8 +714,36 @@ export class Renderer {
     }
   }
 
+  /** Flechas que cayeron: quedan clavadas un rato, inclinadas según de dónde vinieron. */
+  private stuck: { x: number; y: number; ang: number; t0: number }[] = [];
+  private drawStuckArrows(ctx: CanvasRenderingContext2D, now: number, inView: (x: number, y: number) => boolean): void {
+    if (!this.stuck.length) return;
+    this.stuck = this.stuck.filter((a) => now - a.t0 < STUCK_MS);
+    ctx.lineWidth = 1;
+    for (const a of this.stuck) {
+      if (!inView(a.x, a.y)) continue;
+      const p = worldToPx(a.x, a.y);
+      ctx.globalAlpha = Math.min(1, (STUCK_MS - (now - a.t0)) / 1500);
+      const dx = Math.cos(a.ang) * 4, dy = Math.sin(a.ang) * 2;
+      ctx.strokeStyle = '#4a3420';
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py);
+      ctx.lineTo(p.px - dx, p.py - 4 - dy);
+      ctx.stroke();
+      ctx.fillStyle = '#e8e1cc'; // plumas
+      ctx.fillRect(p.px - dx - 1, p.py - 5 - dy, 2, 1.5);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /** Flechas, golpes, muertes y derrumbes. Los efectos viejos se descartan. */
   private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number): void {
+    // Las flechas que terminan su vuelo quedan clavadas (algunas en el suelo, junto a quien alcanzaron).
+    for (const { e, t0 } of state.effects)
+      if (e.k === 'shot' && e.s !== 1 && e.s !== 2 && now - t0 >= effectMs(e)) {
+        this.stuck.push({ x: e.x2 + (Math.random() - 0.5) * 0.5, y: e.y2 + (Math.random() - 0.5) * 0.5, ang: Math.atan2(e.y2 - e.y1, e.x2 - e.x1), t0: now });
+        if (this.stuck.length > MAX_STUCK) this.stuck.shift();
+      }
     state.effects = state.effects.filter(({ e, t0 }) => now - t0 < effectMs(e));
     for (const item of state.effects) {
       const { e, t0 } = item;
