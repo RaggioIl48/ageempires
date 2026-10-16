@@ -84,6 +84,23 @@ describe('arte de unidades', () => {
     expect(trimmed).toBeGreaterThan(100);
   });
 
+  it('zancadas medidas (tools/art/stride.mjs): creíbles, y los jinetes la tienen al trote y al galope', () => {
+    let riders = 0;
+    for (const [id, s] of Object.entries<{ anims: Record<string, { st?: number }> }>(units.sheets)) {
+      const w = s.anims.walk?.st, r = s.anims.run?.st;
+      if (w !== undefined) expect(w >= 0.4 && w <= 1.05, `${id} walk ${w}`).toBe(true);
+      if (r !== undefined) expect(r >= 1.1 && r <= 2.5, `${id} run ${r}`).toBe(true);
+      if (s.anims.run && id.endsWith('-3d')) {
+        riders++;
+        expect(w, `${id} trot stride`).toBeDefined();
+        expect(r, `${id} gallop stride`).toBeDefined();
+        // Un ciclo de galope cubre bastante más suelo que uno de trote.
+        expect(r! / w!, id).toBeGreaterThan(1.5);
+      }
+    }
+    expect(riders).toBeGreaterThan(20);
+  });
+
   it('cada pueblo tiene sprites para sus unidades de las eras Tribal y Media', () => {
     for (const f of FACTION_ORDER)
       for (const type of Object.keys(UNIT_DEFS) as UnitType[]) {

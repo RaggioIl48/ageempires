@@ -865,6 +865,24 @@ New `preview.html?buildings=1&faction=…` shows every building of a people.
 - `DEMO_CODE=ABCD` (server env var, tests only): the first room gets that code, so REA can join as a
   student.
 
+## Both ways to join at once, riders that do not skate (2026-10-16)
+
+- **How students join** (top of the teacher panel, always): 🏫 classroom link (local network) with
+  a copy button, and 🌐 from home (internet) with "Turn on online play" / "Turn off". One server does
+  both at the same time. `Jugar online.bat` is now the classroom server with online play already on,
+  so the link shows up in the panel and in the window. The old `npm run online` started the server
+  in a mode that hid the button. Checked with REA: both links answer.
+- **Unit panel**: the one-line stats were drawn one value per line (they inherited a grid layout);
+  the panel is now 200 px wide with smaller text.
+- **Riders (Total War reference)**: measured with the pixels of the planted hooves. The trot played
+  2.4× too slowly for the speed the horse moved (it skated); the gallop was already right.
+  `tools/art/stride.mjs` measures each walk/run animation's stride (tiles per cycle) on its side and
+  diagonal views and stores it as `st`: horses trot 0.53–0.69 tiles per cycle and gallop 1.4–2.1;
+  infantry 0.45–1.0. The game plays each animation so the feet stay planted (clamped to 0.5–3× the
+  authored speed). Trot↔gallop now switches at 2.0 / 1.65 tiles/s (it used to flicker around 1.9).
+  Riders have a long shadow along the horse's facing instead of the round shadow of a soldier on
+  foot.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

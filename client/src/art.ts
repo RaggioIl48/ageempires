@@ -28,6 +28,8 @@ interface AnimMeta {
   /** Cuadro del impacto del ataque (corte, estocada, disparo); si falta, la mitad. */
   hit?: number;
   loop: boolean;
+  /** Zancada: casillas que avanza el cuerpo en un ciclo (tools/art/stride.mjs). */
+  st?: number;
   /** Atlas recortado (tools/art/trim.mjs): 6 números por cuadro [x, y, w, h, dx, dy] (dx, dy dentro de la celda). */
   r?: number[];
   /** Recortes de color de equipo: 6 números por cuadro [x, y, w, h, dx, dy]. */
@@ -344,12 +346,29 @@ function rowOf(u: UnitView, sheet: SheetMeta, dirs: number, face: number): numbe
 }
 
 /** Qué animación corresponde a lo que está haciendo la unidad. */
-/** Velocidad (casillas/s) desde la que un jinete pasa del trote al galope. */
-const GALLOP_FROM = 1.9;
+/**
+ * Velocidades (casillas/s) para pasar del trote al galope y volver. Con un solo umbral, un jinete
+ * que andaba justo en ese valor (frenando, apretado en formación) cambiaba de paso varias veces
+ * por segundo; con dos, se queda en el paso que traía hasta que la diferencia es clara.
+ */
+const GALLOP_FROM = 2.0;
+const TROT_BELOW = 1.65;
+const galloping = new Set<number>();
 
 function animName(u: UnitView, sheet?: SheetMeta): string {
   // Jinetes: trote al marchar, galope al correr o cargar.
-  if (u.walk === 1) return sheet?.anims.run && (u.sp ?? 0) >= GALLOP_FROM ? 'run' : 'walk';
+  if (u.walk === 1) {
+    if (!sheet?.anims.run) return 'walk';
+    const sp = u.sp ?? 0;
+    if (galloping.has(u.id) ? sp < TROT_BELOW : sp < GALLOP_FROM) {
+      galloping.delete(u.id);
+      return 'walk';
+    }
+    if (galloping.size > 5000) galloping.clear();
+    galloping.add(u.id);
+    return 'run';
+  }
+  galloping.delete(u.id);
   switch (u.state) {
     case 'attacking':
       return u.type === 'worker' ? 'chop' : 'attack';
@@ -397,11 +416,16 @@ export function drawSpriteUnit(
   const base = name === 'run' ? 2.5 : sheet.anims.run ? 1.5 : 1.4;
   const pace = (name === 'walk' || name === 'run') && u.sp ? Math.min(1.4, Math.max(0.55, u.sp / base)) : 1;
   // Ataque: sincronizado con el golpe real del servidor (preparación, impacto, recuperación).
+  // Con la zancada medida: los pies (o cascos) apoyados quedan quietos sobre el suelo. Sin ella, el
+  // ritmo de antes (proporcional a la velocidad). Acotado por si una medición quedó rara.
+  const marching = (name === 'walk' || name === 'run') && u.sp;
+  const fps = marching && a.st ? Math.min(a.fps * 3, Math.max(a.fps * 0.5, (u.sp! / a.st) * a.n)) : a.fps * pace;
   const f =
     name === 'attack' && u.cool
       ? attackFrame(now, u.ha, { n: a.n, fps: a.fps, hit: a.hit ?? defaultHit(a.n), cooldownMs: u.cool }).frame
-      : Math.floor(t * a.fps * pace) % a.n;
-  drawShadow(ctx, x, y, shadow);
+      : Math.floor(t * fps) % a.n;
+  if (sheet.anims.run) drawLongShadow(ctx, x, y, face, shadow);
+  else drawShadow(ctx, x, y, shadow);
   const row = rowOf(u, sheet, a.d, face);
   // Transición: al cambiar de animación (caminar → quieto → atacar), el cuadro anterior se
   // desvanece en unos 120 ms en vez de cortar de golpe.
@@ -467,6 +491,26 @@ export function drawShadow(ctx: CanvasRenderingContext2D, x: number, y: number, 
   // La luz viene de arriba a la izquierda: la sombra cae un poco a la derecha y hacia abajo.
   const w = half * 2.3, h = half * 1.15;
   ctx.drawImage(shadowImg, x - w / 2 + half * 0.28, y - h / 2 + half * 0.08, w, h);
+}
+
+/**
+ * Sombra de un jinete: alargada en el sentido en que mira el caballo (sobre el suelo, aplastada por
+ * la perspectiva). La sombra redonda de un soldado a pie hacía que el caballo pareciera flotar.
+ */
+export function drawLongShadow(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, half: number): void {
+  drawShadow(ctx, x, y, half); // la base, bajo las patas
+  ctx.save();
+  ctx.translate(x + half * 0.28, y + half * 0.1);
+  ctx.scale(1, 0.5);
+  ctx.rotate(face);
+  ctx.globalAlpha *= 0.85;
+  const w = half * 4.6, h = half * 1.5;
+  ctx.drawImage(shadowCanvas(), -w / 2, -h / 2, w, h);
+  ctx.restore();
+}
+function shadowCanvas(): HTMLCanvasElement {
+  if (!shadowImg) drawShadow(document.createElement('canvas').getContext('2d')!, 0, 0, 1);
+  return shadowImg!;
 }
 
 /** Cuadro de la animación de morir (para los caídos), o false si la unidad no tiene. */

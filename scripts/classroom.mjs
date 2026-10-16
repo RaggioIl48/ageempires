@@ -1,7 +1,9 @@
-// Jugar en el aula (red local): lo recomendado para las clases.
+// Jugar en el aula (red local) y, si se quiere, también desde la casa (internet).
 //
-//   npm run aula        (o doble clic en "Jugar en el aula.bat")
+//   npm run aula            (o doble clic en "Jugar en el aula.bat")
+//   npm run online          (o "Jugar online.bat"): lo mismo, con el modo online ya encendido
 //
+// El modo online también se enciende y apaga con el botón "🌐" del panel del profesor.
 // Prepara el juego si hace falta, arranca el servidor en esta computadora y abre el panel del
 // profesor. Los estudiantes entran desde el navegador con la dirección que aparece en "STUDENTS"
 // (misma red Wi-Fi o cable que esta computadora). No necesita internet ni cuentas.
@@ -11,6 +13,7 @@ import net from 'node:net';
 import { openBrowser, prepare, ROOT } from './prepare.mjs';
 
 const PORT = Number(process.env.PORT) || 8080;
+const ONLINE = process.argv.includes('--online');
 
 const inUse = await new Promise((resolve) => {
   const s = net.connect(PORT, '127.0.0.1');
@@ -24,7 +27,9 @@ if (inUse) {
 }
 
 prepare();
-const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], { cwd: ROOT, stdio: ['inherit', 'pipe', 'inherit'], env: process.env });
+const env = { ...process.env, ...(ONLINE ? { AUTO_TUNNEL: '1' } : {}) };
+delete env.PUBLIC_URL; // el enlace público lo maneja el propio servidor (modo online)
+const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], { cwd: ROOT, stdio: ['inherit', 'pipe', 'inherit'], env });
 let opened = false;
 server.stdout.on('data', (chunk) => {
   process.stdout.write(chunk);
@@ -33,6 +38,7 @@ server.stdout.on('data', (chunk) => {
     // Después del aviso completo del servidor (con la dirección para los estudiantes).
     setTimeout(() => {
       openBrowser(`http://localhost:${PORT}/teacher`);
+      console.log('  Students at home: press "🌐 Turn on online play" in the teacher panel' + (ONLINE ? ' (opening it now…)' : '') + '.');
       console.log('  If a student cannot open the STUDENTS link:');
       console.log('   · they must be on the same Wi-Fi (or cable network) as this computer;');
       console.log('   · if Windows asks whether Node.js may use the network, answer Allow;');

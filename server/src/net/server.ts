@@ -13,6 +13,7 @@ import { parseClientMessage, type ServerMessage } from '../../../shared/protocol
 import type { Conn } from '../lobby/conn.ts';
 import { Lobby } from '../lobby/lobby.ts';
 import { Tunnel } from './tunnel.ts';
+import type { TunnelView } from '../../../shared/protocol.ts';
 import type { Room } from '../lobby/room.ts';
 
 export interface GameServerOptions {
@@ -30,6 +31,10 @@ export interface GameServerOptions {
   seed?: number;
   /** Botón "modo online" del panel del profesor (index.ts lo activa; las pruebas no). */
   tunnel?: boolean;
+  /** Abrir el túnel apenas arranca (Jugar online.bat). */
+  autoTunnel?: boolean;
+  /** Avisa los cambios del modo online (para mostrar el enlace en la consola). */
+  onTunnel?: (v: TunnelView) => void;
 }
 
 export interface RunningServer {
@@ -104,7 +109,15 @@ export function viaProxy(headers: Record<string, string | string[] | undefined>)
 export function startGameServer(opts: GameServerOptions): Promise<RunningServer> {
   let port = opts.port;
   // Modo online: el enlace público va primero en las direcciones para los estudiantes.
-  const tunnel = opts.tunnel ? new Tunnel(() => port, () => lobby.tunnelChanged()) : null;
+  const tunnel = opts.tunnel
+    ? new Tunnel(
+        () => port,
+        (v) => {
+          lobby.tunnelChanged();
+          opts.onTunnel?.(v);
+        },
+      )
+    : null;
   const urls = () => {
     const base = opts.urls?.(port) ?? [`http://localhost:${port}`];
     return tunnel?.url ? [tunnel.url, ...base.filter((u) => u !== tunnel.url)] : base;
@@ -162,6 +175,7 @@ export function startGameServer(opts: GameServerOptions): Promise<RunningServer>
     http.once('error', reject);
     http.listen(opts.port, opts.host ?? '0.0.0.0', () => {
       port = (http.address() as AddressInfo).port;
+      if (opts.autoTunnel) tunnel?.start();
       resolvePromise({
         port,
         lobby,

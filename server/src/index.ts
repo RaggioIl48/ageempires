@@ -48,7 +48,14 @@ try {
     port,
     pin,
     staticDir,
-    tunnel: !publicUrl, // ya publicado (Render o npm run online): no hace falta el botón
+    // Modo online (túnel) desde el panel del profesor: siempre, salvo publicado en Render.
+    tunnel: !process.env.RENDER_EXTERNAL_URL,
+    autoTunnel: process.env.AUTO_TUNNEL === '1',
+    onTunnel: (v) => {
+      if (v.state === 'on') console.log(`\n  ONLINE (from home):  ${v.url}   (also in the teacher panel)\n`);
+      else if (v.state === 'missing') console.log('\n  Online play needs cloudflared:  winget install --id Cloudflare.cloudflared\n');
+      else if (v.state === 'error') console.log(`\n  Online play could not start: ${v.message}\n`);
+    },
     // Publicado en internet: solo ese enlace (las direcciones internas del servidor no le sirven a nadie).
     urls: (p) => (publicUrl ? [publicUrl] : lanAddresses().map((ip) => `http://${ip}:${p}`)),
   });

@@ -99,5 +99,5 @@ aleatorio. Se cuenta en cuántos cuadros (de 16 ms) el dibujo casi se frena o sa
   89 ms a 13 ms.
 - **Medir:** F3 muestra el peor cuadro, la cantidad de tirones y el peor paso del servidor. Para las
   pruebas de carga: `preview.html?stress=300&types=all&colors=8&zoomcycle=1`.
-- **Hojas nuevas:** después de `soldiers.mjs` correr `node tools/art/trim.mjs` (recorta y rehace la
-  copia liviana).
+- **Hojas nuevas:** después de `soldiers.mjs`, correr `node tools/art/trim.mjs` (recorta y rehace la
+  copia liviana) y después `node tools/art/stride.mjs` (mide la zancada para que los pies no patinen).

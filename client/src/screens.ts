@@ -363,19 +363,19 @@ export class TeacherScreen {
     const box = el('online-box');
     box.classList.remove('hidden');
     const btn = (on: boolean, label: string, cls = '') => (v.canToggle ? `<button data-tunnel="${on ? 1 : 0}" class="${cls}">${label}</button>` : '');
-    const lan = v.urls.filter((u) => u !== v.url);
-    const local = lan.length ? `<div class="muted">In the classroom (same Wi-Fi), students can also use: ${lan.map((u) => `<code>${esc(u)}</code>`).join(' ')}</div>` : '';
-    const body: Record<TunnelView['state'], string> = {
-      off: `<b>🌐 Online play: off</b> — students at home cannot join. ${btn(true, '🌐 Turn on online play', 'primary')}`,
-      starting: '<b>🌐 Opening the online link…</b> (a few seconds)',
-      on: `<b>🌐 Online play: ON</b> — send this link to your students: <code class="big-link">${esc(v.url ?? '')}</code>
-        <button data-copy="${esc(v.url ?? '')}">📋 Copy</button> ${btn(false, 'Turn off')}
-        <div class="muted">The link changes every time you turn it on. Keep this computer on while you play.</div>`,
-      missing: `<b>🌐 Online play needs a free program (cloudflared).</b> Install it once: open a terminal and run
-        <code>winget install --id Cloudflare.cloudflared</code>, then press ${btn(true, 'Try again')}`,
-      error: `<b>🌐 Online play could not start:</b> ${esc(v.message ?? '')} ${btn(true, 'Try again')}`,
+    const copy = (u: string) => `<code class="big-link">${esc(u)}</code> <button data-copy="${esc(u)}">📋 Copy</button>`;
+    const lan = v.urls.filter((u) => u !== v.url && !u.includes('trycloudflare.com'));
+    const classroom = `<div class="join-row">🏫 <b>In the classroom</b> (same Wi-Fi, fastest): ${lan.length ? lan.map(copy).join(' ') : '<span class="muted">no local network found</span>'}</div>`;
+    const online: Record<TunnelView['state'], string> = {
+      off: `🌐 <b>From home</b> (internet): off. ${btn(true, '🌐 Turn on online play', 'primary')}`,
+      starting: '🌐 <b>From home</b>: opening the online link… (a few seconds)',
+      on: `🌐 <b>From home</b> (internet): ${copy(v.url ?? '')} ${btn(false, 'Turn off')}
+        <div class="muted">The internet link changes every time you turn it on. Keep this computer on while you play.</div>`,
+      missing: `🌐 <b>From home</b> needs a free program (cloudflared). Install it once: open a terminal and run
+        <code>winget install --id Cloudflare.cloudflared</code>, then ${btn(true, 'Try again')}`,
+      error: `🌐 <b>From home</b>: could not start (${esc(v.message ?? '')}). ${btn(true, 'Try again')}`,
     };
-    box.innerHTML = body[v.state] + local;
+    box.innerHTML = `<h3>How students join</h3>${classroom}<div class="join-row">${online[v.state]}</div>`;
     box.dataset.state = v.state;
     this.render();
   }

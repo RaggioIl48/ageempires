@@ -438,7 +438,7 @@ export class Hud {
     const n = u.crew ?? 1;
     const crew =
       u.task && u.owner === this.state.you
-        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}% per trip</b>` : ` · ${CREW_SIZE - n} more nearby for +${CREW_PCT}%`}</div>`
+        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}%</b>` : ''}</div>`
         : '';
     // Compacto: lo que hace falta mirar en plena batalla. La descripción, contra quién sirve y quién
     // le gana van en el ⓘ (al pasar el mouse), en la pantalla de carga y en 📖 Army: antes el panel

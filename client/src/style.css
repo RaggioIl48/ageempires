@@ -1696,11 +1696,33 @@ img.portrait {
   font-size: 13px;
   opacity: 0.7;
 }
-.stats.compact {
-  font-size: 13px;
+#info .stats.compact {
+  display: block;
+  margin-top: 4px;
+  padding-top: 4px;
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Panel de selección chico: el campo de batalla es lo importante. */
+#info {
+  width: 200px !important;
+  padding: 6px 8px !important;
+  font-size: 12px;
+}
+#info h3 {
+  font-size: 14px !important;
+  margin-bottom: 2px !important;
+}
+#info .row {
+  margin-top: 2px !important;
+}
+#info .hpbar {
+  height: 10px;
+  margin: 3px 0;
+  font-size: 9px;
+  line-height: 10px;
 }
 
 /* Avisos de guerra al costado y chicos: el medio de la pantalla queda para jugar. */
@@ -1742,4 +1764,11 @@ img.portrait {
   font-size: 16px;
   padding: 2px 6px;
   user-select: all;
+}
+
+.online-box h3 {
+  margin: 0 0 4px;
+}
+.join-row {
+  margin: 4px 0;
 }
