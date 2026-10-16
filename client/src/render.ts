@@ -36,7 +36,7 @@ import { buildFogIndex, paintFog } from './fogmap.ts';
 import { Particles, puffAt, type PuffKind } from './particles.ts';
 import type { ClientState, ClientUnit } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
-import { MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
+import { KNOCKDOWN_SECONDS, MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
 
 export { RESOURCE_COLORS, shade } from './sprites.ts';
 
@@ -215,6 +215,19 @@ const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number; ms?: 
 
 /** Tiempo real entre golpes (ms), según la misma cuenta del servidor (guardado por espera). */
 const swingCache = new Map<number, number>();
+/**
+ * Derribado por una carga (dura KNOCKDOWN_SECONDS): la animación de caer hasta el suelo, quieto, y
+ * la misma al revés para levantarse. Antes quedaba congelado en un cuadro y se paraba de golpe.
+ * Devuelve el momento (s) de la animación de muerte que corresponde.
+ */
+const FALL_S = 0.45;
+export function fallTime(ms: number): number {
+  const total = KNOCKDOWN_SECONDS * 1000, down = 380, up = 420;
+  if (ms < down) return (ms / down) * FALL_S;
+  if (ms > total - up) return Math.max(0, ((total - ms) / up) * FALL_S);
+  return FALL_S;
+}
+
 const swingMs = (cooldown: number): number => {
   let ms = swingCache.get(cooldown);
   if (ms === undefined) swingCache.set(cooldown, (ms = strikeIntervalTicks(cooldown) * TICK_MS));
@@ -375,6 +388,9 @@ export class Renderer {
       const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
+      // Derribado: desde cuándo (cae, queda en el suelo y se levanta).
+      if (cu.v.dn) cu.downAt ??= now;
+      else cu.downAt = undefined;
       if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.hurtAt !== undefined && now - cu.hurtAt < HURT_MS ? { hf: 1 - (now - cu.hurtAt) / HURT_MS } : {}), ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
@@ -491,7 +507,7 @@ export class Renderer {
           p.py -= d.lift;
           if (d.u.buff) buffRing(ctx, p.px, p.py, d.u.buff, UNIT_LOOK[d.u.type].ring + 2, now);
           // Derribado por una carga: en el suelo (cuadro de la caída) hasta que se levanta.
-          if (d.u.dn && drawDyingUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), state.faction(d.u.owner), d.face, 0.45)) break;
+          if (d.u.dn && drawDyingUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), state.faction(d.u.owner), d.face, fallTime(now - (state.units.get(d.u.id)?.downAt ?? now)))) break;
           drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)), d.face);
           break;
         }

@@ -310,6 +310,12 @@ export class World {
   walker = 0;
   /** true si el que camina es un soldado de a pie (puede subir a la muralla). */
   walkerFoot = false;
+  /**
+   * Quien camina puede pisar murallas propias o aliadas: solo los que van a guarnecerlas (orden de
+   * subir a la muralla) o ya están arriba. Para el resto, la muralla es una pared: antes la
+   * infantería propia la usaba de pasillo y cruzaba al otro lado.
+   */
+  walkerWalls = false;
 
   constructor(size: number) {
     this.size = size;
@@ -339,8 +345,8 @@ export class World {
       if (this.walker === 0 || !this.walkerFoot) return false;
       const wall = this.buildings.get(this.occupant[i]);
       if (!wall) return false;
-      // Propia o aliada: se sube por las escaleras. Enemiga: solo con escalas, en una batalla por esa ciudad.
-      if (this.relation(this.walker, wall.owner) === 'ally') return true;
+      // Propia o aliada: solo quien la guarnece. Enemiga: solo con escalas, en una batalla por esa ciudad.
+      if (this.relation(this.walker, wall.owner) === 'ally') return this.walkerWalls;
       return this.rampFor(this.walker, i) || this.battles.some((b) => b.attacker === this.walker && b.defender === wall.owner);
     }
     if (s !== GATE || this.walker === 0) return false;
@@ -610,10 +616,12 @@ export class World {
   }
 
 /** Quién camina ahora (para murallas y puertas). */
-  setWalker(u: { owner: number; type: UnitType }): void {
+  setWalker(u: { owner: number; type: UnitType; x?: number; y?: number; post?: Point | null; hold?: boolean }): void {
     this.walker = u.owner;
     const c = UNIT_DEFS[u.type].category;
     this.walkerFoot = c === 'infantry' || c === 'ranged';
+    const wallAt = (p: { x: number; y: number }) => this.inBounds(Math.floor(p.x), Math.floor(p.y)) && this.solid[Math.floor(p.y) * this.size + Math.floor(p.x)] === WALL;
+    this.walkerWalls = this.walkerFoot && ((!!u.hold && !!u.post && wallAt(u.post)) || (u.x !== undefined && u.y !== undefined && wallAt({ x: u.x, y: u.y })));
   }
 
   /** ¿Está sobre una muralla? 1 = propia o aliada, 2 = enemiga trepando, 3 = enemiga ya arriba, 0 = no. */

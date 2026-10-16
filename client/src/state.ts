@@ -51,6 +51,8 @@ export interface ClientUnit {
   aimUntil?: number;
   /** Cuándo recibió el último golpe (ms): destello breve al dibujarla. */
   hurtAt?: number;
+  /** Cuándo lo derribó una carga (para animar la caída y el levantarse). */
+  downAt?: number;
 }
 
 /** Unidad recién caída (para animar su muerte unos segundos). */

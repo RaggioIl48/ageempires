@@ -361,10 +361,14 @@ function drawArt(ctx: CanvasRenderingContext2D, a: BuildingSprite): void {
 function drawWallTile(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction: FactionId): boolean {
   const c = worldToPx(b.tx + 0.5, b.ty + 0.5);
   const at = (dx: number, dy: number) => wallAt(b.tx + dx, b.ty + dy, b.owner);
+  const n = at(0, -1), w = at(-1, 0), e = at(1, 0), s = at(0, 1);
+  // Columna solo en extremos, esquinas y cruces; en un tramo recto, pared lisa (antes había una
+  // columna en cada casilla y la muralla parecía una fila de postes).
+  const straight = (n && s && !w && !e) || (w && e && !n && !s);
   const pieces: (keyof WallPieces)[] =
     b.type === 'gate'
-      ? [at(-1, 0) || at(1, 0) ? 'gateU' : 'gateV']
-      : [...(at(0, -1) ? ['n' as const] : []), ...(at(-1, 0) ? ['w' as const] : []), 'post', ...(at(1, 0) ? ['e' as const] : []), ...(at(0, 1) ? ['s' as const] : [])];
+      ? [w || e ? 'gateU' : 'gateV']
+      : [...(n ? ['n' as const] : []), ...(w ? ['w' as const] : []), ...(straight ? [] : ['post' as const]), ...(e ? ['e' as const] : []), ...(s ? ['s' as const] : [])];
   const arts = pieces.map((p) => wallPiece(faction, p, c.px, c.py, color));
   if (arts.some((a) => !a)) return false;
   for (const a of arts) drawArt(ctx, a!);

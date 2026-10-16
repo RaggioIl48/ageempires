@@ -24,8 +24,9 @@ export type PerfLevel = 'good' | 'warn' | 'bad';
 /** Veredicto: lo peor de las tres causas posibles (red, servidor, este computador). */
 export function perfVerdict(s: PerfSample): { level: PerfLevel; text: string } {
   const issues: { level: PerfLevel; text: string }[] = [];
-  if (s.ping > 250) issues.push({ level: 'bad', text: 'Slow connection: the internet or Wi-Fi is the problem' });
-  else if (s.ping > 120) issues.push({ level: 'warn', text: 'The connection is a bit slow' });
+  // Desde la casa (por el túnel) lo normal son 100–150 ms y se juega bien: se avisa recién más arriba.
+  if (s.ping > 300) issues.push({ level: 'bad', text: 'Slow connection: the internet or Wi-Fi is the problem' });
+  else if (s.ping > 180) issues.push({ level: 'warn', text: 'The connection is a bit slow' });
   if (s.serverMs > 60) issues.push({ level: 'bad', text: 'The server is overloaded (too much for its computer)' });
   else if (s.serverMs > 30) issues.push({ level: 'warn', text: 'The server is busy' });
   if ((s.serverMaxMs ?? 0) > 250) issues.push({ level: 'bad', text: 'The server froze for a moment (a slow step)' });

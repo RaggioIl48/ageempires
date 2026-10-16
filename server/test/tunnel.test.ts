@@ -2,7 +2,22 @@
 import { describe, expect, it } from 'vitest';
 import { parseClientMessage, type TunnelView } from '../../shared/protocol.ts';
 import { Lobby } from '../src/lobby/lobby.ts';
-import { parseTunnelUrl, Tunnel } from '../src/net/tunnel.ts';
+import { EventEmitter } from 'node:events';
+import { linkAlive, parseTunnelUrl, Tunnel } from '../src/net/tunnel.ts';
+
+/** cloudflared de mentira: escribe el enlace que se le pide. */
+function fakeSpawner(urls: string[]) {
+  const children: EventEmitter[] = [];
+  const spawner = (() => {
+    const c = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), kill: () => true });
+    children.push(c);
+    const url = urls[children.length - 1];
+    setTimeout(() => c.stderr.emit('data', Buffer.from(`INF |  ${url}  |`)), 1);
+    return c;
+  }) as never;
+  return { spawner, children };
+}
+const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type Msg = { t: string; [k: string]: unknown };
 function conn(isLocal: boolean) {
@@ -25,6 +40,38 @@ describe('online mode (tunnel)', () => {
     t.start();
     expect(seen.at(-1)?.state).toBe('missing');
     expect(t.url).toBeNull();
+  });
+
+  it('shows the link only once it answers (a fresh link takes a while to exist on the internet)', async () => {
+    const seen: TunnelView[] = [];
+    let answers = 0;
+    const { spawner } = fakeSpawner(['https://a-b-c.trycloudflare.com']);
+    const t = new Tunnel(() => 8080, (v) => seen.push(v), () => 'cloudflared', async () => ++answers >= 3, 5, spawner);
+    t.start();
+    await tick(60);
+    expect(answers).toBeGreaterThanOrEqual(3);
+    expect(seen.at(-1)).toEqual({ state: 'on', url: 'https://a-b-c.trycloudflare.com' });
+    expect(seen.filter((v) => v.state === 'on').length).toBe(1); // nunca antes de responder
+    t.stop();
+  });
+
+  it('if the link dies, it opens a new one by itself', async () => {
+    const seen: TunnelView[] = [];
+    let dead = false;
+    const { spawner, children } = fakeSpawner(['https://old-link.trycloudflare.com', 'https://new-link.trycloudflare.com']);
+    const t = new Tunnel(() => 8080, (v) => seen.push(v), () => 'cloudflared', async (u) => !(dead && u.includes('old')), 5, spawner);
+    t.start();
+    await tick(30);
+    expect(t.url).toBe('https://old-link.trycloudflare.com');
+    dead = true;
+    await tick(120);
+    expect(children.length).toBe(2);
+    expect(t.url).toBe('https://new-link.trycloudflare.com');
+    t.stop();
+  });
+
+  it('a link that does not exist is not alive', async () => {
+    expect(await linkAlive('http://127.0.0.1:1')).toBe(false);
   });
 
   it('only the teacher on the server computer can turn it on or off; the link goes first for students', () => {

@@ -5,7 +5,8 @@
 import { BUILD_MENU, BUILDING_DEFS, PLAYER_COLORS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { UnitView } from '../../shared/protocol.ts';
 import { drawDyingUnit, drawSpriteUnit, forceSheet, loadArt, preloadGame, setLod } from './art.ts';
-import { drawBuilding } from './sprites.ts';
+import { drawBuilding, setWallLookup } from './sprites.ts';
+import { wallLine } from '../../shared/wall.ts';
 import { worldToPx } from './view.ts';
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -180,7 +181,13 @@ async function buildings(faction: FactionId): Promise<void> {
   document.querySelector('header')!.innerHTML = `<b>Buildings</b> <span>${faction}</span>`;
   canvas.width = document.documentElement.clientWidth;
   canvas.height = innerHeight - 40;
-  const types = BUILD_MENU.filter((t) => !BUILDING_DEFS[t].faction || BUILDING_DEFS[t].faction === faction);
+  const types = BUILD_MENU.filter((t) => (!BUILDING_DEFS[t].faction || BUILDING_DEFS[t].faction === faction) && t !== 'wall' && t !== 'gate');
+  // Muralla de muestra: tramo recto, esquina, escalón en diagonal y una puerta.
+  const W0 = 30, H0 = 14;
+  const wallTiles = [...wallLine(W0, H0, W0 + 8, H0), ...wallLine(W0 + 8, H0, W0 + 8, H0 + 6), ...wallLine(W0 + 8, H0 + 6, W0 + 14, H0 + 12)];
+  const gateAt = `${W0 + 4},${H0}`;
+  const wallSet = new Set(wallTiles.map((t) => `${t.x},${t.y}`));
+  setWallLookup((tx, ty) => wallSet.has(`${tx},${ty}`));
   const draw = () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#5b6b3a';
@@ -191,6 +198,10 @@ async function buildings(faction: FactionId): Promise<void> {
     types.forEach((type, i) => {
       const tx = (i % 6) * 7, ty = Math.floor(i / 6) * 7;
       drawBuilding(ctx, { id: i + 1, owner: 1, type, tx, ty, hp: 1, progress: 1 }, COLOR, faction);
+    });
+    [...wallTiles].sort((a, b) => a.x + a.y - (b.x + b.y)).forEach((t, i) => {
+      const type = `${t.x},${t.y}` === gateAt ? 'gate' : 'wall';
+      drawBuilding(ctx, { id: 1000 + i, owner: 1, type, tx: t.x, ty: t.y, hp: 1, progress: 1 }, COLOR, faction);
     });
     requestAnimationFrame(draw);
   };

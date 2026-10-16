@@ -1,7 +1,7 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
-import { CAV_ACCEL_SECONDS, CAV_START_SPEED, CAV_TURN_DEG, CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category, SHIELD_WALL_SPEED } from '../../../shared/data.ts';
+import { CAV_ACCEL_SECONDS, CAV_BRAKE_TILES, CAV_START_SPEED, CAV_TURN_DEG, CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category, SHIELD_WALL_SPEED } from '../../../shared/data.ts';
 import { fatigueOf, spend } from './fatigue.ts';
 import type { Formation } from '../../../shared/protocol.ts';
 import { formationLayout, rankOf } from '../../../shared/formation.ts';
@@ -43,6 +43,17 @@ export function moveUnits(world: World, dt: number): void {
       u.momentum = Math.min(u.momentum, 1 - behind * 1.4);
       u.momentum = Math.min(1, Math.max(0, u.momentum) + dt / CAV_ACCEL_SECONDS);
       budget *= CAV_START_SPEED + (1 - CAV_START_SPEED) * u.momentum;
+      // Al llegar (marchando, no cargando) frena de a poco en vez de clavarse en el lugar.
+      if (u.state === 'moving') {
+        let left = 0, px = u.x, py = u.y;
+        for (const p of u.path) {
+          left += Math.hypot(p.x - px, p.y - py);
+          px = p.x;
+          py = p.y;
+          if (left >= CAV_BRAKE_TILES) break;
+        }
+        if (left < CAV_BRAKE_TILES) budget *= Math.max(0.4, left / CAV_BRAKE_TILES);
+      }
     }
     const walked = budget;
     while (budget > 0 && u.path.length > 0) {
@@ -184,6 +195,7 @@ export function moveGroup(
   world.walker = units[0].owner;
   // Los puestos pueden caer sobre la muralla solo si todos son de a pie.
   world.walkerFoot = units.every((u) => ['infantry', 'ranged'].includes(UNIT_DEFS[u.type].category));
+  world.walkerWalls = false; // un grupo en marcha no usa la muralla de pasillo
   // Al arrastrar un frente (face), siempre en filas.
   if (face && formation === 'loose') formation = 'line';
   const ranked = formation !== 'loose' && (units.length > 1 || face !== undefined);
@@ -264,12 +276,12 @@ export function manWalls(world: World, units: Unit[], tx: number, ty: number): b
   for (const { u, spot } of assignNearest(units, tiles, tiles[0])) {
     u.task = null;
     u.chaseGoal = null;
+    u.hold = true; // defienden su tramo (y con eso pueden subir a la muralla)
+    u.post = { ...spot };
     u.path = pathToPoint(world, u, spot.x, spot.y) ?? [];
     u.state = u.path.length ? 'moving' : 'idle';
     u.speedCap = 0;
     u.arriveFace = null;
-    u.hold = true; // defienden su tramo
-    u.post = { ...spot };
   }
   return true;
 }
@@ -348,6 +360,7 @@ export function uphill(world: World, u: Unit): number {
 export function freeSpot(world: World, p: Point, taken: Set<number>, owner = 0): Point | null {
   if (owner) world.walker = owner;
   world.walkerFoot = false; // los puestos sueltos, siempre en el suelo
+  world.walkerWalls = false;
   return freeNear(world, p, taken);
 }
 

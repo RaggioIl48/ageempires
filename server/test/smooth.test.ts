@@ -164,7 +164,8 @@ describe('smoothness meter', () => {
     expect(perfVerdict({ fps: 60, drawMs: 3, ping: 400, serverMs: 5 }).text).toMatch(/internet or Wi-Fi/);
     expect(perfVerdict({ fps: 60, drawMs: 3, ping: 40, serverMs: 90 }).text).toMatch(/server is overloaded/);
     expect(perfVerdict({ fps: 18, drawMs: 40, ping: 40, serverMs: 5 }).text).toMatch(/This computer/);
-    expect(perfVerdict({ fps: 60, drawMs: 3, ping: 150, serverMs: 5 }).level).toBe('warn');
+    expect(perfVerdict({ fps: 60, drawMs: 3, ping: 220, serverMs: 5 }).level).toBe('warn');
+    expect(perfVerdict({ fps: 60, drawMs: 3, ping: 130, serverMs: 5 }).level).toBe('good'); // desde la casa
   });
 
   it('measures the round trip of a ping and fps', () => {

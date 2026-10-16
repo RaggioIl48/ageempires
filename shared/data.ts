@@ -549,12 +549,12 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   },
   wall: {
     label: 'Wall', description: 'Blocks the way. Click where it starts and where it ends: one order builds the whole line.',
-    size: 1, hp: 700, cost: { stone: 5 }, buildTime: 6, popProvided: 0, dropoff: [], trains: [], researches: [],
+    size: 1, hp: 700, cost: { stone: 5 }, buildTime: 2, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: { melee: 5, ranged: 10 }, sight: 1, solid: true, buildable: true, era: 1,
   },
   gate: {
     label: 'Gate', description: 'Lets you and your allies through. Place it on your own wall to turn that section into a gate.',
-    size: 1, hp: 700, cost: { stone: 20 }, buildTime: 10, popProvided: 0, dropoff: [], trains: [], researches: [],
+    size: 1, hp: 700, cost: { stone: 20 }, buildTime: 5, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: { melee: 5, ranged: 10 }, sight: 2, solid: true, buildable: true, era: 1,
   },
   workshop: {
@@ -1288,6 +1288,8 @@ export const CAV_ACCEL_SECONDS = 1.2;
 export const CAV_START_SPEED = 0.35;
 /** Grados por segundo que puede girar un caballo (los giros cerrados cuestan impulso). */
 export const CAV_TURN_DEG = 220;
+/** Casillas antes del destino en las que un jinete que marcha (no carga) va frenando hasta parar. */
+export const CAV_BRAKE_TILES = 1.2;
 /** Casillas que sigue de largo un jinete tras el choque de su carga contra infantería sin lanzas. */
 export const CHARGE_THROUGH_TILES = 2;
 

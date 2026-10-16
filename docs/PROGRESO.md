@@ -919,6 +919,27 @@ Priority 2 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
   ~1.8 GB in that test). Now they are a quarter of that (flat cloth colour, it does not show), and
   the test is back to a steady 60 fps with no stutters after loading. Drawn sheets total 497 MB.
 
+## Walls that block, online that recovers, riders that brake (2026-10-16)
+
+- **Walls block everyone**: reproduced with a simulation: own infantry used its walls as a corridor
+  (walls were walkable for their owner and allies) and crossed to the other side. Now a wall is a
+  wall for everybody (own, allied and enemy troops, cavalry). Only soldiers ordered to man the wall
+  climb it, and attackers still use ladders and siege towers in a siege. Tests:
+  `server/test/walls-block.test.ts`.
+- **Faster walls**: 2 s per section with one worker (was 6), gates 5 s (was 10).
+- **Flat walls**: a column only at ends, corners and junctions; straight sections are a continuous
+  wall. The viewer (`preview.html?buildings=1`) shows a sample wall.
+- **Online from home**: the quick tunnel had died silently (cloudflared kept running but the link
+  no longer existed), and the panel kept showing it as on. Now the server checks its own public link
+  every 30 s and opens a new one after 3 failures (the new link appears in the panel). It also shows
+  a new link only once it answers: a fresh link takes 10–20 s to exist, and a student who opened it
+  too early got "not found" cached by their browser for minutes. Checked with REA: a student joining
+  through the internet link played at 60 fps, 125 ms ping. The F3 meter now warns from 180 ms (was
+  120) because 100–150 ms from home plays fine.
+- **Riders**: they brake over the last 1.2 tiles when marching (they used to stop dead). A soldier
+  knocked down by a charge now falls (~0.4 s), stays down and gets up (~0.4 s) instead of freezing
+  in one frame.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

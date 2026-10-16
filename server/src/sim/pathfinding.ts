@@ -22,8 +22,11 @@ const DC = Float64Array.from(DIRS, (d) => d[2]);
  */
 function useWalker(world: World, from: Point): void {
   const u = from as { owner?: number; type?: UnitType };
-  if (u.owner !== undefined && u.type !== undefined) world.setWalker({ owner: u.owner, type: u.type });
-  else if (u.owner !== undefined) world.walker = u.owner;
+  if (u.owner !== undefined && u.type !== undefined) world.setWalker(from as Parameters<World['setWalker']>[0]);
+  else if (u.owner !== undefined) {
+    world.walker = u.owner;
+    world.walkerWalls = false;
+  }
 }
 
 /** Límite de casillas exploradas por búsqueda (protege el tick del servidor). */
