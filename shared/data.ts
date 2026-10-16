@@ -193,8 +193,8 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   archer: {
     label: 'Archer', hp: 35, speed: 1.4, sight: 6, pop: 1, cost: { wood: 45, metal: 20 }, trainTime: 16,
-    attack: ranged(5, 5, 2), armor: { melee: 0, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2,
-    strong: 'Attacks from afar. Good against infantry', weak: 'Fragile against cavalry',
+    attack: ranged(7, 5, 2), armor: { melee: 0, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2,
+    strong: 'Shoots from behind your line: thins spearmen and light infantry before they arrive', weak: 'Cavalry rides them down; shielded swordsmen walk through the arrows',
   },
   knight: {
     label: 'Knight', hp: 110, speed: 2.3, sight: 5, pop: 1, cost: { food: 70, metal: 70 }, trainTime: 24,
@@ -281,7 +281,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   // Mongols
   horse_archer: {
     label: 'Horse Archer', hp: 70, speed: 2.6, sight: 7, pop: 1, cost: { food: 60, wood: 50, metal: 30 }, trainTime: 20,
-    attack: ranged(6, 5, 1.6), armor: { melee: 0, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'mongols',
+    attack: ranged(7, 5, 1.6), armor: { melee: 0, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'mongols',
     strong: 'Shoots from horseback: hit and run', weak: 'Fragile against spearmen and archers',
   },
   keshig: {
@@ -310,24 +310,24 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   axe_thrower: {
     label: 'Axe Thrower', hp: 50, speed: 1.5, sight: 5, pop: 1, cost: { food: 50, wood: 40 }, trainTime: 16,
-    attack: ranged(9, 3, 2), armor: { melee: 1, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2, faction: 'germans',
+    attack: ranged(9, 4, 2), armor: { melee: 1, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2, faction: 'germans',
     bonus: { infantry: 1.6 },
     strong: 'Thrown axes break infantry', weak: 'Very short range',
   },
   // Visigoths
   gothic_knight: {
-    label: 'Gothic Knight', hp: 130, speed: 2.2, sight: 5, pop: 1, cost: { food: 90, metal: 90 }, trainTime: 28,
+    label: 'Gothic Knight', hp: 130, speed: 2.2, sight: 5, pop: 1, cost: { food: 80, metal: 75 }, trainTime: 28,
     attack: melee(12, 1.8), armor: { melee: 3, ranged: 3 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
     strong: 'The heaviest cavalry', weak: 'Very expensive; loses to spearmen',
   },
   armored_archer: {
-    label: 'Armored Archer', hp: 55, speed: 1.3, sight: 6, pop: 1, cost: { wood: 50, metal: 40 }, trainTime: 18,
-    attack: ranged(6, 6, 2), armor: { melee: 2, ranged: 3 }, category: 'ranged', era: 2, untilEra: 2, faction: 'visigoths',
+    label: 'Armored Archer', hp: 55, speed: 1.3, sight: 6, pop: 1, cost: { wood: 50, metal: 30 }, trainTime: 18,
+    attack: ranged(9, 6, 2), armor: { melee: 2, ranged: 3 }, category: 'ranged', era: 2, untilEra: 2, faction: 'visigoths',
     strong: 'Armored: survives other archers', weak: 'Slow',
   },
   // Ostrogoths
   gothic_lancer: {
-    label: 'Gothic Lancer', hp: 110, speed: 2.6, sight: 5, pop: 1, cost: { food: 80, metal: 70 }, trainTime: 24,
+    label: 'Gothic Lancer', hp: 110, speed: 2.6, sight: 5, pop: 1, cost: { food: 80, metal: 85 }, trainTime: 24,
     attack: melee(10, 1.6), armor: { melee: 2, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'ostrogoths',
     bonus: { cavalry: 1.5 },
     strong: 'Fast shock cavalry: wins cavalry duels', weak: 'Loses to spearmen',
@@ -340,13 +340,13 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   // Vikings
   berserker: {
-    label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 70, wood: 30 }, trainTime: 18,
+    label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 85, wood: 35 }, trainTime: 18,
     attack: melee(14, 1.4), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
     bonus: { infantry: 1.3 }, regen: 1.5, weapon: 'blade',
     strong: 'Battle fury: the strongest attack on foot', weak: 'No armor',
   },
   huscarl: {
-    label: 'Huscarl', hp: 90, speed: 1.3, sight: 4, pop: 1, cost: { food: 80, metal: 50 }, trainTime: 22,
+    label: 'Huscarl', hp: 90, speed: 1.3, sight: 4, pop: 1, cost: { food: 80, metal: 65 }, trainTime: 22,
     attack: melee(11), armor: { melee: 3, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
     bonus: { infantry: 1.4, building: 2 }, weapon: 'blade',
     strong: 'Elite guard with a great axe', weak: 'Expensive',
@@ -366,7 +366,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     strong: 'Huge range: flattens walls and forts', weak: 'Almost useless against units; very slow',
   },
   war_chariot: {
-    label: 'War Chariot', hp: 140, speed: 2.4, sight: 6, pop: 1, cost: { food: 90, wood: 60, metal: 30 }, trainTime: 26,
+    label: 'War Chariot', hp: 140, speed: 2.4, sight: 6, pop: 1, cost: { food: 90, wood: 40, metal: 30 }, trainTime: 26,
     attack: melee(10, 1.6), armor: { melee: 2, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'gauls',
     bonus: { infantry: 1.5, ranged: 1.5, worker: 1.5 },
     strong: 'Scythed wheels crash through infantry and archers', weak: 'Loses to spearmen',
@@ -379,7 +379,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   javelin_rider: {
     label: 'Javelin Rider', hp: 85, speed: 2.5, sight: 6, pop: 1, cost: { food: 70, wood: 40, metal: 30 }, trainTime: 22,
-    attack: ranged(8, 4, 2), armor: { melee: 1, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
+    attack: ranged(9, 4, 2), armor: { melee: 1, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
     bonus: { cavalry: 1.5, ranged: 1.5 },
     strong: 'Mounted skirmisher: javelins hurt other riders', weak: 'Short range; loses to spearmen',
   },
@@ -440,7 +440,9 @@ export type BuildingType =
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
   | 'workshop' | 'factory' | 'market' | 'fortress'
   // Edificio único de cada pueblo (Edad Media)
-  | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall';
+  | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall'
+  // Monumento: si queda en pie terminado WONDER_HOLD_SECONDS, ese imperio gana (como en Age of Empires)
+  | 'wonder';
 
 export interface BuildingDef {
   label: string;
@@ -622,11 +624,17 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     trains: ['berserker', 'huscarl', 'ulfhednar'], researches: ['elite_berserker', 'elite_huscarl', 'elite_ulfhednar'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'vikings',
   },
+  // Al final de la lista: los índices de los demás (codec) no cambian.
+  wonder: {
+    label: 'Wonder', description: 'A great monument to your people. If it stands finished for 5 minutes, your empire wins. Everyone is warned when it is finished: they will come for it. Only one per empire; use many workers.',
+    size: 5, hp: 6000, cost: { food: 600, wood: 600, stone: 600, metal: 600 }, buildTime: 900, popProvided: 0, dropoff: [], trains: [], researches: [],
+    armor: { melee: 4, ranged: 12 }, sight: 6, solid: true, buildable: true, era: 2,
+  },
 };
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
   'house', 'storehouse', 'farm', 'quarry', 'mine', 'woodlot', 'barracks', 'tower', 'wall', 'gate',
-  'archery_range', 'stable', 'tech_center', 'market', 'fortress',
+  'archery_range', 'stable', 'tech_center', 'market', 'fortress', 'wonder',
   'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',
 ];
@@ -965,13 +973,13 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     name: 'Mongols',
     hero: 'Khan',
     motto: 'The steppe is our home, the horse our wall',
-    units: { cavalry: { speed: 1.15, attack: 1.1 }, infantry: { hp: 0.8 } },
+    units: { cavalry: { speed: 1.15 }, infantry: { hp: 0.8 } },
     gather: { food: 1.1 },
     buildingHp: 0.85,
-    strengths: ['Cavalry: +15% speed and +10% attack', 'Food: +10% gathering'],
+    strengths: ['Cavalry: +15% speed', 'Food: +10% gathering'],
     weaknesses: ['Infantry: −20% health', 'Buildings: −15% health'],
-    traits: { trainSpeed: { cavalry: 1.25 }, fear: 1.2 },
-    abilities: ['Steppe riders: cavalry trains 25% faster', 'Terror of the steppe: their attacks break enemy morale 20% faster', 'The Ordu gives +10 population'],
+    traits: { trainSpeed: { cavalry: 1.15 }, fear: 1.1 },
+    abilities: ['Steppe riders: cavalry trains 15% faster', 'Terror of the steppe: their attacks break enemy morale 10% faster', 'The Ordu gives +10 population'],
   },
   gauls: {
     name: 'Gauls',
@@ -1001,7 +1009,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     hero: 'Dux',
     motto: 'Heirs of Rome, masters of Hispania',
     units: { cavalry: { hp: 1.15 }, ranged: { range: 1 }, infantry: { attack: 0.9 } },
-    strengths: ['Cavalry: +15% health', 'Ranged: +1 range'],
+    gather: { metal: 1.15 },
+    strengths: ['Cavalry: +15% health', 'Ranged: +1 range', 'Metal: +15% gathering (the mines of Hispania)'],
     weaknesses: ['Infantry: −10% attack'],
     traits: { charge: 1.8, resolve: 1.15 },
     abilities: ['Heavy charge: cavalry charges deal ×1.8 damage', 'Nobles of Toledo: soldiers lose 15% less morale', 'The Royal Hall is a drop-off for all resources'],
@@ -1095,8 +1104,12 @@ export function ammoFor(type: UnitType): number {
   if (def.attack.type !== 'ranged' || def.shot) return Infinity;
   return def.category === 'ranged' || def.category === 'cavalry' ? AMMO : Infinity;
 }
-/** Si el objetivo mira hacia el tirador y lleva escudo, el daño se multiplica por esto. */
-export const SHIELD_BLOCK = 0.45;
+/**
+ * Si el objetivo mira hacia el tirador y lleva escudo, el daño se multiplica por esto. Con 0,45 los
+ * arqueros no le ganaban a nada a igual costo (medido: perdían incluso apostados contra lanceros);
+ * con 0,6 (y flechas de 7) le ganan a los lanceros y siguen perdiendo con espadas y caballería.
+ */
+export const SHIELD_BLOCK = 0.6;
 /** Disparos por soldado a distancia (las máquinas y las armas de fuego no se quedan sin munición). */
 export const AMMO = 24;
 /** Munición que se recupera por segundo cerca de un edificio propio que entrena tropas. */
@@ -1221,6 +1234,8 @@ export const HILL_RADIUS = 3;
 export const HILL_HOLD_SECONDS = 300;
 export const HILL_MIN_SOLDIERS = 3;
 export const HILL_MIN_ERA = 2;
+/** Maravilla: segundos que debe quedar en pie, terminada, para ganar. */
+export const WONDER_HOLD_SECONDS = 300;
 /** Gloria (desempate al acabarse el tiempo). */
 export const GLORY = { kill: 3, city: 250, hillSecond: 1, era: 50, gathered: 0.02, alive: 100 } as const;
 

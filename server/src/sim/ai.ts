@@ -5,6 +5,7 @@
 
 import {
   BUILDING_DEFS,
+  MARKET_LOT,
   TECH_DEFS,
   UNIT_DEFS,
   type BuildingType,
@@ -153,7 +154,23 @@ export class AiPlayer {
     // Granjas cuando se acaban las bayas cerca.
     const foodWorkers = workers.filter((u) => u.task?.kind === 'gather' && u.task.resource === 'food').length;
     const farms = buildings.filter((b) => b.type === 'farm').length;
-    if (!nearestNode(w, 'berries', home, 22) && foodWorkers >= farms && farms < 12 && !building('farm')) build('farm', home);
+    // Hasta dos a la vez: la comida era lo que siempre le faltaba (medido: 20–40 de comida con miles de metal guardados).
+    const farmsBuilding = buildings.filter((b) => b.type === 'farm' && b.progress < 1).length;
+    if (!nearestNode(w, 'berries', home, 22) && foodWorkers >= farms && farms < 16 && farmsBuilding < 2) build('farm', home);
+
+    // Mercado (nivel normal): vende la piedra o la madera que sobra y compra comida con el metal guardado.
+    if (era >= 2 && this.level === 'normal') {
+      const market = buildings.find((b) => b.type === 'market' && b.progress >= 1);
+      if (!market) {
+        if (!building('market') && (purse.stone > 800 || purse.metal > 800 || purse.wood > 1200)) build('market', home);
+      } else {
+        const surplus = (['stone', 'wood'] as const).find((r) => purse[r] > 900);
+        if (surplus) {
+          cmd({ kind: 'trade', buildingId: market.id, resource: surplus, buy: false });
+          purse[surplus] -= MARKET_LOT;
+        } else if (purse.food < 300 && purse.metal > 600) cmd({ kind: 'trade', buildingId: market.id, resource: 'food', buy: true });
+      }
+    }
 
     // Subir a la Edad Media (el rival no pasa de ahí: es la era central del juego).
     if (era === 1 && have('barracks', true) && workers.length >= this.def.workers * 0.7 && tc.queue.length === 0) {
@@ -213,6 +230,15 @@ export class AiPlayer {
     const idle = army.filter((u) => !u.task && u.routing === 0);
     if (threat) {
       if (idle.length) cmd({ kind: 'attack', unitIds: idle.map((u) => u.id), targetId: threat.id });
+      return;
+    }
+
+    // Una Maravilla enemiga terminada: todo el ejército va a destruirla (si no, ese imperio gana).
+    for (const id of w.wonders.keys()) {
+      const wonder = w.buildings.get(id);
+      if (!wonder || !isEnemy(w, this.playerId, wonder.owner)) continue;
+      const free = army.filter((u) => u.type !== 'general' && !(u.task?.kind === 'attack' && u.task.targetId === wonder.id));
+      if (free.length) cmd({ kind: 'attack', unitIds: free.map((u) => u.id), targetId: wonder.id });
       return;
     }
 

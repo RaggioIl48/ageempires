@@ -10,7 +10,14 @@ export interface PerfSample {
   ping: number;
   /** ms que tarda el servidor en simular un paso (de 100 ms disponibles). */
   serverMs: number;
+  /** Tirón más largo de los últimos segundos: el mayor hueco entre dos cuadros (ms). */
+  hitchMs?: number;
+  /** Paso más lento del servidor en los últimos segundos (ms). */
+  serverMaxMs?: number;
 }
+
+/** Desde cuántos ms entre dos cuadros se nota un tirón. */
+export const HITCH_MS = 150;
 
 export type PerfLevel = 'good' | 'warn' | 'bad';
 
@@ -21,6 +28,8 @@ export function perfVerdict(s: PerfSample): { level: PerfLevel; text: string } {
   else if (s.ping > 120) issues.push({ level: 'warn', text: 'The connection is a bit slow' });
   if (s.serverMs > 60) issues.push({ level: 'bad', text: 'The server is overloaded (too much for its computer)' });
   else if (s.serverMs > 30) issues.push({ level: 'warn', text: 'The server is busy' });
+  if ((s.serverMaxMs ?? 0) > 250) issues.push({ level: 'bad', text: 'The server froze for a moment (a slow step)' });
+  if ((s.hitchMs ?? 0) > 400) issues.push({ level: 'warn', text: 'This computer stuttered for a moment' });
   if (s.fps > 0 && s.fps < 25 && s.drawMs > 20) issues.push({ level: 'bad', text: 'This computer struggles to draw the game: zoom in or close other tabs' });
   else if (s.fps > 0 && s.fps < 45) issues.push({ level: 'warn', text: 'This computer draws the game a bit slowly' });
   if (issues.length === 0) return { level: 'good', text: 'Smooth' };
@@ -34,6 +43,13 @@ export class PerfMeter {
   drawMs = 0;
   ping = 0;
   serverMs = 0;
+  serverMaxMs = 0;
+  /** Tirones (huecos de más de HITCH_MS) desde que empezó la partida. */
+  hitches = 0;
+  private lastFrame = -1;
+  private hitchCur = 0;
+  private hitchPrev = 0;
+  private hitchSince = 0;
   private frames = 0;
   private since = -1;
   private sentAt = new Map<number, number>();
@@ -42,6 +58,18 @@ export class PerfMeter {
   /** Llamar cada cuadro con cuánto tardó en dibujarse. */
   frame(now: number, drawMs: number): void {
     this.drawMs = this.drawMs ? this.drawMs * 0.95 + drawMs * 0.05 : drawMs;
+    // Tirones: el mayor hueco entre cuadros, en ventanas de 5 s (se muestra la peor de las dos últimas).
+    if (this.lastFrame >= 0) {
+      const gap = now - this.lastFrame;
+      if (gap > HITCH_MS && gap < 60_000) this.hitches++;
+      this.hitchCur = Math.max(this.hitchCur, gap < 60_000 ? gap : 0);
+    }
+    this.lastFrame = now;
+    if (now - this.hitchSince >= 5000) {
+      this.hitchPrev = this.hitchCur;
+      this.hitchCur = 0;
+      this.hitchSince = now;
+    }
     this.frames++;
     if (this.since < 0) this.since = now;
     if (now - this.since >= 1000) {
@@ -60,16 +88,22 @@ export class PerfMeter {
   }
 
   /** Llegó la respuesta: ida y vuelta, y el tiempo de paso que informa el servidor. */
-  pong(n: number, serverMs: number, now: number): void {
+  pong(n: number, serverMs: number, now: number, serverMaxMs = 0): void {
     const t = this.sentAt.get(n);
     if (t === undefined) return;
     this.sentAt.delete(n);
     const rtt = now - t;
     this.ping = this.ping ? this.ping * 0.7 + rtt * 0.3 : rtt;
     this.serverMs = serverMs;
+    this.serverMaxMs = serverMaxMs;
+  }
+
+  /** Tirón más largo de los últimos 5–10 s (ms). */
+  get hitchMs(): number {
+    return Math.max(this.hitchCur, this.hitchPrev);
   }
 
   sample(): PerfSample {
-    return { fps: this.fps, drawMs: this.drawMs, ping: this.ping, serverMs: this.serverMs };
+    return { fps: this.fps, drawMs: this.drawMs, ping: this.ping, serverMs: this.serverMs, hitchMs: this.hitchMs, serverMaxMs: this.serverMaxMs };
   }
 }

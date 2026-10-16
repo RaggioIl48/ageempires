@@ -2,7 +2,7 @@
 // (fuerza de cada bando, caídos, reloj, "ir a la batalla" y "retirarse"), el menú para
 // marchar sobre una ciudad enemiga y el resultado de cada batalla.
 
-import { FACTIONS, HILL_MIN_ERA, HILL_MIN_SOLDIERS, RESOURCE_LABELS, RESOURCE_TYPES, UNIT_DEFS } from '../../shared/data.ts';
+import { FACTIONS, HILL_MIN_ERA, HILL_MIN_SOLDIERS, RESOURCE_LABELS, RESOURCE_TYPES, UNIT_DEFS, WONDER_HOLD_SECONDS } from '../../shared/data.ts';
 import type { BattleResultView, BattleView } from '../../shared/protocol.ts';
 import type { Input } from './input.ts';
 import type { Net } from './net.ts';
@@ -97,6 +97,7 @@ export class WarPanel {
     }
     const hill = this.hillHtml();
     if (hill) rows.unshift(hill);
+    rows.unshift(...this.wonderRows());
     const html = rows.join('');
     if (html !== this.lastHtml) {
       this.lastHtml = html;
@@ -104,6 +105,21 @@ export class WarPanel {
       el('war-panel').classList.toggle('hidden', html === '');
     }
     if (!this.showing && s.battleResults.length) this.showResult(s.battleResults.shift()!);
+  }
+
+  /** Maravillas terminadas: de quién y cuánto le falta para ganar (hay que destruirlas). */
+  private wonderRows(): string[] {
+    const s = this.state;
+    return (s.victory.wonders ?? []).map(([owner, left]) => {
+      const mine = owner === s.you;
+      const who = esc(s.players.get(owner)?.name ?? `Player ${owner}`);
+      const done = WONDER_HOLD_SECONDS - left;
+      return `<div class="war-row hill ${mine ? 'attack' : 'defend'}" title="A finished Wonder that stands for ${mmss(WONDER_HOLD_SECONDS)} wins the game">
+      <div class="war-title">🏛 Wonder of <i style="background:${s.color(owner)}"></i><b>${who}</b> <span class="war-time">⏱ ${mmss(left)}</span></div>
+      <div class="war-bar"><div style="width:${Math.round((done / WONDER_HOLD_SECONDS) * 100)}%;background:${s.color(owner)}"></div></div>
+      <div class="muted">${mine ? 'Defend it until the clock reaches zero to win' : 'Destroy it before the clock reaches zero!'}</div>
+    </div>`;
+    });
   }
 
   /** Colina Sagrada: quién la tiene y cuánto le falta para ganar. */

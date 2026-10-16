@@ -440,6 +440,8 @@ export interface HillView {
 /** Victoria: la Colina Sagrada (si el mapa la tiene) y los imperios caídos. */
 export interface VictoryView {
   hill?: HillView;
+  /** Maravillas terminadas: [dueño, segundos que le faltan para ganar]. */
+  wonders?: [number, number][];
   defeated: number[];
 }
 
@@ -503,7 +505,7 @@ export type ServerMessage =
   | DeltaMessage
   | { t: 'paused'; paused: boolean; /** Pausa táctica automática: segundos que dura. */ secs?: number; /** 1 si la causó una batalla que empieza. */ battle?: 1 }
   /** Respuesta a un ping: `ms` = cuánto tarda el servidor en cada paso de esta partida (promedio). */
-  | { t: 'pong'; n: number; ms: number }
+  | { t: 'pong'; n: number; ms: number; mx?: number }
   /** Pregunta para avanzar de era (las opciones ya vienen mezcladas). */
   | { t: 'quiz'; id: number; era: number; q: string; options: string[] }
   /** Resultado: si acertó, el avance empieza; si no, puede volver a intentar en `wait` segundos. */

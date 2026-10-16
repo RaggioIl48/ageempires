@@ -61,7 +61,7 @@ describe('performance budget and the smoothness meter', () => {
     const inbox: { t: string; n?: number; ms?: number }[] = [];
     const conn = { role: 'none', room: null, pinFails: 0, isLocal: true, send: (m: { t: string }) => inbox.push(m), congested: () => false, close: () => {} };
     lobby.handle(conn as never, { t: 'ping', n: 7 });
-    expect(inbox.at(-1)).toEqual({ t: 'pong', n: 7, ms: 0 });
+    expect(inbox.at(-1)).toEqual({ t: 'pong', n: 7, ms: 0, mx: 0 });
     // En una partida, informa el promedio de su paso.
     const teacher = { ...conn, send: () => {} };
     lobby.handle(teacher as never, { t: 'teacher' });
@@ -75,5 +75,8 @@ describe('performance budget and the smoothness meter', () => {
     const student = { ...conn, room, inbox: [] as unknown[] };
     lobby.handle(student as never, { t: 'ping', n: 8 });
     expect(inbox.at(-1)!.ms).toBeCloseTo(Math.round(room.stepMs * 10) / 10);
+    // Y el paso más lento de los últimos segundos (un tirón se ve aunque el promedio sea bajo).
+    expect(room.stepMax).toBeGreaterThanOrEqual(room.stepMs * 0.5);
+    expect((inbox.at(-1) as { mx?: number }).mx).toBe(Math.round(room.stepMax));
   });
 });

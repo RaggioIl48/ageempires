@@ -15,7 +15,8 @@ interface AnimMeta {
   /** Esquina del bloque (x: columna, si la hoja tiene las animaciones lado a lado; y: fila);
    *  w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
   x?: number;
-  y: number;
+  /** Sin `r`: fila del bloque. Con `r` (atlas recortado) no se usa. */
+  y?: number;
   w: number;
   h: number;
   n: number;
@@ -27,6 +28,8 @@ interface AnimMeta {
   /** Cuadro del impacto del ataque (corte, estocada, disparo); si falta, la mitad. */
   hit?: number;
   loop: boolean;
+  /** Atlas recortado (tools/art/trim.mjs): 6 números por cuadro [x, y, w, h, dx, dy] (dx, dy dentro de la celda). */
+  r?: number[];
   /** Recortes de color de equipo: 6 números por cuadro [x, y, w, h, dx, dy]. */
   m: number[];
 }
@@ -101,8 +104,15 @@ let manifest: Manifest | null = null;
 let experimental: Manifest | null = null;
 let buildingArt: BuildingArt | null = null;
 let loading: Promise<void> | null = null;
+/**
+ * Imagen ya decodificada, lista para dibujar. Se guarda como ImageBitmap: con imágenes comunes
+ * (<img>) el navegador tiene un tope de memoria de imágenes decodificadas (~400–500 MB) y al
+ * pasarlo vuelve a decodificar y subir a la GPU en CADA cuadro. Medido en este equipo: 300 dibujos
+ * desde 75 hojas = 3,7 s por cuadro (el juego "se congela"); con ImageBitmap, 22 ms con 100 hojas.
+ */
+export type ArtImage = HTMLImageElement | ImageBitmap;
 /** Imagen de cada hoja; null = falló (se usa el dibujo de formas). */
-const images = new Map<string, HTMLImageElement | null>();
+const images = new Map<string, ArtImage | null>();
 const ready = new Set<string>();
 const tints = new Map<string, HTMLCanvasElement>();
 /** Sube cada vez que termina de cargar una imagen o un retrato (para redibujar la interfaz). */
@@ -124,15 +134,24 @@ export function loadArt(): Promise<void> {
 }
 
 /** Imagen de un archivo de arte, o null si aún no cargó (y la pide). */
-function artImage(file: string): HTMLImageElement | null {
+function artImage(file: string): ArtImage | null {
   if (ready.has(file)) return images.get(file)!;
   if (!images.has(file)) {
     const img = new Image();
-    img.decoding = 'async';
     images.set(file, img);
-    img.onload = () => {
+    const done = (out: ArtImage) => {
+      if (images.get(file) !== img) {
+        if (out instanceof ImageBitmap) out.close(); // se liberó mientras cargaba
+        return;
+      }
+      images.set(file, out);
       ready.add(file);
       artVersion++;
+    };
+    img.onload = () => {
+      // Decodificar fuera del hilo del juego (sin tirón al aparecer una unidad nueva).
+      if (typeof createImageBitmap === 'function') createImageBitmap(img).then(done, () => done(img));
+      else done(img);
     };
     img.onerror = () => images.set(file, null);
     img.src = `${BASE}art/${file}`;
@@ -140,8 +159,16 @@ function artImage(file: string): HTMLImageElement | null {
   return null;
 }
 
+/** Libera una imagen (y su memoria de video, si es un ImageBitmap). */
+function dropImage(file: string): void {
+  const img = images.get(file);
+  if (img instanceof ImageBitmap) img.close();
+  images.delete(file);
+  ready.delete(file);
+}
+
 export interface BuildingSprite {
-  img: HTMLImageElement;
+  img: ArtImage;
   /** Zonas con el color del jugador, ya teñidas (si la imagen las tiene y cargaron). */
   tint?: HTMLCanvasElement | null;
   /** Rectángulo de dibujo en px del mundo. */
@@ -189,7 +216,7 @@ function placeSprite(sp: SpriteDef, cx: number, cy: number, k: number, color?: s
 }
 
 /** Imagen gris teñida con un color (se guarda por imagen y color). */
-function tintImage(key: string, img: HTMLImageElement, color: string): HTMLCanvasElement {
+function tintImage(key: string, img: ArtImage, color: string): HTMLCanvasElement {
   const k = `${key}|${color}`;
   let c = tints.get(k);
   if (!c) {
@@ -235,15 +262,29 @@ function sheetId(faction: FactionId, type: UnitType): string | undefined {
 const sheetMeta = (id: string): SheetMeta => experimental?.sheets[id] ?? manifest!.sheets[id];
 
 /** Imagen lista de una hoja, o null (y la pide si aún no se pidió). */
-function imageOf(_id: string, sheet: SheetMeta): HTMLImageElement | null {
+function imageOf(_id: string, sheet: SheetMeta): ArtImage | null {
   return artImage(sheet.file);
 }
 
 /** Recortes de equipo teñidos con el color del jugador (uno por hoja y color). */
-function tintOf(id: string, img: HTMLImageElement, sheet: SheetMeta, color: string, q = 1): HTMLCanvasElement {
+/**
+ * Cuánto tiempo por cuadro se puede gastar preparando máscaras de equipo nuevas. Al empezar una
+ * batalla aparecen de golpe decenas de tipos × colores (medido: 600 ms seguidos); así se reparten
+ * en varios cuadros y, mientras tanto, la unidad se dibuja sin su color un instante.
+ */
+const TINT_BUDGET_MS = 4;
+let tintWindow = 0, tintSpent = 0;
+
+function tintOf(id: string, img: ArtImage, sheet: SheetMeta, color: string, q = 1, force = false): HTMLCanvasElement | null {
   const key = `${id}|${color}|${q}`;
   let c = tints.get(key);
   if (!c) {
+    const t0 = performance.now();
+    if (t0 - tintWindow > 12) {
+      tintWindow = t0;
+      tintSpent = 0;
+    }
+    if (!force && tintSpent >= TINT_BUDGET_MS) return null;
     const top = Math.floor(sheet.maskY * q);
     c = document.createElement('canvas');
     c.width = img.width;
@@ -256,6 +297,7 @@ function tintOf(id: string, img: HTMLImageElement, sheet: SheetMeta, color: stri
     g.globalCompositeOperation = 'destination-in';
     g.drawImage(img, 0, top, c.width, c.height, 0, 0, c.width, c.height);
     tints.set(key, c);
+    tintSpent += performance.now() - t0;
   }
   return c;
 }
@@ -448,14 +490,19 @@ function drawFrame(
   const s = sheet.scale;
   const dx = x - a.ax * s, dy = y - a.ay * s;
   const { img, q } = pk;
-  ctx.drawImage(img, ((a.x ?? 0) + f * a.w) * q, (a.y + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
+  if (a.r) {
+    // Atlas recortado: cada cuadro guarda su rectángulo y dónde va dentro de la celda.
+    const k = (d * a.n + f) * 6;
+    const w = a.r[k + 2], h = a.r[k + 3];
+    if (w && h) ctx.drawImage(img, a.r[k] * q, a.r[k + 1] * q, w * q, h * q, dx + a.r[k + 4] * s, dy + a.r[k + 5] * s, w * s, h * s);
+  } else ctx.drawImage(img, ((a.x ?? 0) + f * a.w) * q, ((a.y ?? 0) + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
   if (a.m.length) {
     const k = (d * a.n + f) * 6;
     const mw = a.m[k + 2], mh = a.m[k + 3];
     if (mw && mh) {
       const tint = tintOf(id, img, sheet, color, q);
       const top = Math.floor(sheet.maskY * q);
-      ctx.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - top, mw * q, mh * q, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
+      if (tint) ctx.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - top, mw * q, mh * q, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
     }
   }
   return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
@@ -463,7 +510,7 @@ function drawFrame(
 
 /** Imagen elegida para dibujar una hoja y su escala respecto de la original (0,5 = la liviana). */
 interface Picked {
-  img: HTMLImageElement;
+  img: ArtImage;
   q: number;
 }
 
@@ -492,7 +539,7 @@ let lastEvict = 0;
  */
 function pick(ctx: CanvasRenderingContext2D, sheet: SheetMeta, now: number): Picked | null {
   if (now - lastEvict > 5000) evictIdle(now);
-  const full = (): HTMLImageElement | null => (ready.has(sheet.file) ? images.get(sheet.file)! : null);
+  const full = (): ArtImage | null => (ready.has(sheet.file) ? images.get(sheet.file)! : null);
   if (sheet.lo && lodEnabled) {
     const lo = artImage(sheet.lo);
     if (sheet.scale * zoomOf(ctx) <= LO_UNTIL) {
@@ -515,8 +562,7 @@ function evictIdle(now: number): void {
   const sheets = { ...(manifest?.sheets ?? {}), ...(experimental?.sheets ?? {}) };
   for (const [id, sh] of Object.entries(sheets)) {
     if (!sh.lo || !ready.has(sh.file) || now - (fullNeeded.get(sh.file) ?? 0) < EVICT_AFTER_MS) continue;
-    images.delete(sh.file);
-    ready.delete(sh.file);
+    dropImage(sh.file);
     for (const key of [...tints.keys()]) if (key.startsWith(`${id}|`) && key.endsWith('|1')) tints.delete(key);
   }
 }
@@ -565,10 +611,13 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   frame.width = a.w;
   frame.height = a.h;
   const g = frame.getContext('2d')!;
-  g.drawImage(img, (a.x ?? 0) * q, (a.y + d * a.h) * q, a.w * q, a.h * q, 0, 0, a.w, a.h);
+  if (a.r) {
+    const k = d * a.n * 6;
+    if (a.r[k + 2] && a.r[k + 3]) g.drawImage(img, a.r[k] * q, a.r[k + 1] * q, a.r[k + 2] * q, a.r[k + 3] * q, a.r[k + 4], a.r[k + 5], a.r[k + 2], a.r[k + 3]);
+  } else g.drawImage(img, (a.x ?? 0) * q, ((a.y ?? 0) + d * a.h) * q, a.w * q, a.h * q, 0, 0, a.w, a.h);
   const k = d * a.n * 6;
   if (a.m.length && a.m[k + 2]) {
-    const tint = tintOf(id, img, sheet, color, q);
+    const tint = tintOf(id, img, sheet, color, q, true)!;
     g.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - Math.floor(sheet.maskY * q), a.m[k + 2] * q, a.m[k + 3] * q, a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
   }
   // Recorte cuadrado: medio cuerpo (a pie) o la figura entera (jinetes y máquinas).

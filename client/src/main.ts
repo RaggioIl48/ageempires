@@ -240,7 +240,7 @@ function onMessage(msg: ServerMessage): void {
       game.hud.update();
       return;
     case 'pong':
-      game.perf.pong(msg.n, msg.ms, performance.now());
+      game.perf.pong(msg.n, msg.ms, performance.now(), msg.mx ?? 0);
       return;
     case 'quiz':
       showQuiz(msg.id, msg.era, msg.q, msg.options);

@@ -28,7 +28,7 @@ import { updateMorale } from './morale.ts';
 import { updateVision } from './vision.ts';
 import { tires, updateFatigue } from './fatigue.ts';
 import { updateSiege } from './siege.ts';
-import { pathToRect } from './pathfinding.ts';
+import { pathToRect, resetPathBudget } from './pathfinding.ts';
 import { gloryOf, updateVictory } from './victory.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
@@ -63,6 +63,7 @@ export class Game {
     w.tick++;
     w.events = [];
     w.walker = 0;
+    resetPathBudget();
     const dt = TICK_MS / 1000;
     for (const { playerId, cmd } of this.queue) this.apply(playerId, cmd);
     this.queue = [];
@@ -225,6 +226,8 @@ export class Game {
           }
         }
         if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
+        if (cmd.building === 'wonder' && [...w.buildings.values()].some((o) => o.owner === playerId && o.type === 'wonder'))
+          return w.notify(playerId, 'You already have a Wonder: only one per empire');
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
         if (error) return w.notify(playerId, error);
         if (!w.spend(playerId, buildingCost(cmd.building, w.techsOf(playerId)))) return w.notify(playerId, 'Not enough resources');

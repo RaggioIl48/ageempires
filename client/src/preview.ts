@@ -2,9 +2,11 @@
 // del juego (drawSpriteUnit, el ataque sincronizado con golpes simulados y la caída) en las 8
 // direcciones, para revisar una hoja nueva sin tener que llegar a esa unidad en una partida.
 
-import type { FactionId, UnitType } from '../../shared/data.ts';
+import { BUILD_MENU, BUILDING_DEFS, PLAYER_COLORS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { UnitView } from '../../shared/protocol.ts';
 import { drawDyingUnit, drawSpriteUnit, forceSheet, loadArt, setLod } from './art.ts';
+import { drawBuilding } from './sprites.ts';
+import { worldToPx } from './view.ts';
 
 const BASE = import.meta.env.BASE_URL ?? '/';
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -85,7 +87,12 @@ async function stress(n: number, art: string): Promise<void> {
   document.querySelector('header')!.innerHTML = '<b>Stress test</b> <span id="stats">measuring…</span>';
   // Por defecto, siempre las mismas unidades (romanos y galos), para comparar corridas entre sí.
   // types=all: todos los tipos 3D de todos los pueblos (como una partida real con muchos tipos a la vista).
-  const all = new URLSearchParams(location.search).get('types') === 'all';
+  const q = new URLSearchParams(location.search);
+  const all = q.get('types') === 'all';
+  // colors=n: soldados de n jugadores (cada color es una máscara teñida aparte, como en una partida).
+  const colors = PLAYER_COLORS.slice(0, Math.max(1, Number(q.get('colors')) || 1));
+  // zoomcycle=1: cada 3 s alterna entre zoom normal y muy cercano (fuerza a cargar las hojas completas).
+  const zoomCycle = q.get('zoomcycle') === '1';
   const keys = Object.keys(m.units).filter((k) => (all || /^(romans|gauls)\//.test(k)) && m.units[k].endsWith('-3d'));
   // Con art=lpc se fuerzan las hojas LPC de esas mismas unidades (mismo id sin "-3d").
   if (art === 'lpc')
@@ -99,14 +106,25 @@ async function stress(n: number, art: string): Promise<void> {
   const units = [...Array(n).keys()].map((i) => {
     const [f, t] = keys[i % keys.length].split('/') as [FactionId, UnitType];
     const kind = i % 3; // 0 = camina, 1 = pelea, 2 = quieto
-    return { f, t, x: 20 + Math.random() * (canvas.width - 40), y: 40 + Math.random() * (canvas.height - 60), face: (i % 8) * (Math.PI / 4), kind, id: i };
+    return { f, t, color: colors[i % colors.length], x: 20 + Math.random() * (canvas.width - 40), y: 40 + Math.random() * (canvas.height - 60), face: (i % 8) * (Math.PI / 4), kind, id: i };
   });
   const times: number[] = [];
   let frames = 0, since = performance.now();
+  // Tirones: el mayor hueco entre cuadros y cuántos pasaron de 100 ms (lo que se siente como "se trabó").
+  let last = -1, worst = 0, stutters = 0;
+  const start = performance.now();
   const loop = (now: number) => {
+    if (last >= 0) {
+      const gap = now - last;
+      worst = Math.max(worst, gap);
+      if (gap > 100) stutters++;
+    }
+    last = now;
     const t0 = performance.now();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#5b6b3a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (zoomCycle && Math.floor((now - start) / 3000) % 2 === 1) ctx.setTransform(2.5, 0, 0, 2.5, -canvas.width * 0.75, -canvas.height * 0.75);
     units.sort((a, b) => a.y - b.y);
     for (const s of units) {
       if (s.kind === 0) {
@@ -119,7 +137,7 @@ async function stress(n: number, art: string): Promise<void> {
         ...(s.kind === 0 ? { walk: 1, sp: 1.3 } : {}),
         ...(s.kind === 1 ? { cool: 1500, ha: now - ((now + s.id * 97) % 1500) } : {}),
       } as unknown as UnitView;
-      drawSpriteUnit(ctx, u, s.x, s.y, COLOR, now, s.f, s.face, 7);
+      drawSpriteUnit(ctx, u, s.x, s.y, s.color, now, s.f, s.face, 7);
     }
     times.push(performance.now() - t0);
     frames++;
@@ -127,7 +145,7 @@ async function stress(n: number, art: string): Promise<void> {
       const recent = times.slice(-60).sort((a, b) => a - b);
       const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
       const p95 = recent[Math.floor(recent.length * 0.95)] ?? avg;
-      const text = `art=${art} lod=${params.get('lod') ?? '1'} types=${keys.length} units=${n} fps=${Math.round((frames * 1000) / (now - since))} draw avg=${avg.toFixed(2)}ms p95=${p95.toFixed(2)}ms`;
+      const text = `art=${art} lod=${params.get('lod') ?? '1'} types=${keys.length} units=${n} fps=${Math.round((frames * 1000) / (now - since))} draw avg=${avg.toFixed(2)}ms p95=${p95.toFixed(2)}ms worst=${Math.round(worst)}ms stutters=${stutters}`;
       document.getElementById('stats')!.textContent = text;
       document.title = text;
       frames = 0;
@@ -138,7 +156,34 @@ async function stress(n: number, art: string): Promise<void> {
   requestAnimationFrame(loop);
 }
 
+/**
+ * Todos los edificios de un pueblo (?buildings=1&faction=romans), dibujados con el código del juego:
+ * para revisar un edificio nuevo (o su dibujo de respaldo) sin construirlo en una partida.
+ */
+async function buildings(faction: FactionId): Promise<void> {
+  await loadArt();
+  document.querySelector('header')!.innerHTML = `<b>Buildings</b> <span>${faction}</span>`;
+  canvas.width = document.documentElement.clientWidth;
+  canvas.height = innerHeight - 40;
+  const types = BUILD_MENU.filter((t) => !BUILDING_DEFS[t].faction || BUILDING_DEFS[t].faction === faction);
+  const draw = () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#5b6b3a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const o = worldToPx(0, 0);
+    ctx.translate(canvas.width / 2 - o.px, 60 - o.py);
+    // En filas de 6, separados para que no se tapen.
+    types.forEach((type, i) => {
+      const tx = (i % 6) * 7, ty = Math.floor(i / 6) * 7;
+      drawBuilding(ctx, { id: i + 1, owner: 1, type, tx, ty, hp: 1, progress: 1 }, COLOR, faction);
+    });
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
+}
+
 const params = new URLSearchParams(location.search);
 if (params.get('lod') === '0') setLod(false);
-if (params.get('stress')) void stress(Number(params.get('stress')) || 300, params.get('art') ?? '3d');
+if (params.get('buildings')) void buildings((params.get('faction') ?? 'romans') as FactionId);
+else if (params.get('stress')) void stress(Number(params.get('stress')) || 300, params.get('art') ?? '3d');
 else void main();

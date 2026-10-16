@@ -19,7 +19,7 @@ import { quantize } from './quantize.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'client/public/art');
 /** Desde cuántos píxeles vale la pena tener copia liviana. */
-const MIN_PX = 2_000_000;
+export const MIN_PX = 500_000;
 
 /** Nombre de la copia liviana de una hoja. */
 export const loName = (file) => file.replace(/\.png$/, '.lo.png');

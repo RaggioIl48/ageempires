@@ -410,6 +410,8 @@ export class World {
   battlesOpened = 0;
   /** Colina Sagrada (centro del mapa), resultado de la partida y versión para la red. */
   hill: { x: number; y: number; holder: number; contested: boolean } | null = null;
+  /** Maravillas terminadas: id del edificio → paso en que se terminó. */
+  wonders = new Map<number, number>();
   outcome: { winners: number[]; reason: string } | null = null;
   victoryVersion = 0;
 

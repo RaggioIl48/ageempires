@@ -86,6 +86,7 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('tools/art/repack.mjs')) {
   for (const [id, sheet] of Object.entries(manifest.sheets)) {
     if (only && id !== only) continue;
     const file = path.join(OUT, sheet.file);
+    if (Object.values(sheet.anims).some((a) => a.r)) continue; // atlas recortado (trim.mjs): ya entra
     const img = Img.read(file);
     if (!only && img.w <= MAX_W && img.h <= MAX_H) continue;
     const r = repackSheet(img, sheet);

@@ -14,7 +14,7 @@ import { stopWork } from './gather.ts';
 import { deathMorale, flankSide, hitMorale, isRouting } from './morale.ts';
 import { buffArmor, buffDamage } from './general.ts';
 import { fatigueOf, spend } from './fatigue.ts';
-import { clearLine, pathToPoint, pathToRect } from './pathfinding.ts';
+import { clearLine, pathBudgetLeft, pathToPoint, pathToRect } from './pathfinding.ts';
 import { distanceToRect, type Building, type Point, type Unit, type World } from './world.ts';
 import { chargeImpact, inForest, launch } from './projectiles.ts';
 
@@ -408,6 +408,8 @@ function skirmish(world: World, grid: UnitGrid, u: Unit, stats: ReturnType<World
   if (u.task && !(u.task.kind === 'attack' && u.task.auto)) return false; // el jugador le ordenó atacar: obedece
   if (world.tick < u.skirmishUntil || u.state === 'moving') return false;
   if (world.onWall(u) === 1) return false; // sobre su muralla está a salvo: no baja
+  // Primero dispara: solo retrocede mientras recarga (si no, retrocedía sin parar y nunca tiraba).
+  if (u.cooldown <= 0 && u.ammo > 0) return false;
   let threat: Unit | null = null, best = SKIRMISH_DIST ** 2;
   for (const o of grid.near(u.x, u.y, SKIRMISH_DIST)) {
     if (!isEnemy(world, u.owner, o.owner) || o.routing > 0) continue;
@@ -434,13 +436,23 @@ function chase(world: World, u: Unit, t: Target): void {
   const moved = !u.chaseGoal || Math.hypot(goal.x - u.chaseGoal.x, goal.y - u.chaseGoal.y) > 1.5;
   if (u.repathIn > 0) u.repathIn--;
   if (u.path.length > 0 && (!moved || u.repathIn > 0)) return;
+  const flies = world.statsOf(u).flies;
+  // Sin presupuesto de búsqueda en este paso: sigue con su camino (o espera) y prueba en el próximo.
+  if (!flies && t.kind === 'building' && !pathBudgetLeft()) {
+    u.repathIn = 1;
+    return;
+  }
   u.repathIn = REPATH_TICKS;
   u.chaseGoal = goal;
   let path: Point[] | null;
-  if (world.statsOf(u).flies) path = [goal];
+  if (flies) path = [goal];
   else if (t.kind === 'building') path = pathToRect(world, u, t.building.tx, t.building.ty, t.building.size);
   else if (clearLine(world, u, goal)) path = [goal];
-  else path = pathToPoint(world, u, goal.x, goal.y);
+  else if (!pathBudgetLeft()) {
+    u.repathIn = 1;
+    if (!u.path.length) u.path = [goal]; // hacia el objetivo en línea recta mientras tanto
+    return;
+  } else path = pathToPoint(world, u, goal.x, goal.y);
   if (!path) {
     stopWork(u); // no hay forma de llegar
     return;

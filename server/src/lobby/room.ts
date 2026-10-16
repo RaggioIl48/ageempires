@@ -7,6 +7,7 @@ import { spawnDemoArmies } from '../sim/demo.ts';
 import { FACTION_ORDER, PLAYER_COLORS, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
 import { QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
 import type {
+
   BotLevel,
   ChronicleEntry,
   HistorySample,
@@ -27,6 +28,9 @@ import { snapshot } from '../sim/history.ts';
 import { Game } from '../sim/game.ts';
 import { decideByGlory } from '../sim/victory.ts';
 import type { Conn } from './conn.ts';
+
+/** Un paso que tarda más que esto se anota en la consola del servidor (para encontrar tirones). */
+const SLOW_STEP_MS = 150;
 
 export interface Member {
   /** En la sala: número de llegada. Al iniciar la partida pasa a ser el id de jugador. */
@@ -80,6 +84,10 @@ export class Room {
   private nextQuizId = 1;
   /** Cuánto tarda cada paso (simulación + envío), promedio suave en ms. */
   stepMs = 0;
+  /** Paso más lento de los últimos ~10 s (ms): un tirón del servidor se ve aunque el promedio sea bajo. */
+  stepMax = 0;
+  private stepMaxCur = 0;
+  private stepMaxAt = 0;
   /** Profesores mirando la partida. */
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
@@ -431,6 +439,14 @@ export class Room {
     }
     const ms = performance.now() - t0;
     this.stepMs = this.stepMs ? this.stepMs * 0.9 + ms * 0.1 : ms;
+    this.stepMaxCur = Math.max(this.stepMaxCur, ms);
+    this.stepMax = Math.max(this.stepMax, ms);
+    if (game.world.tick - this.stepMaxAt >= 50) {
+      this.stepMax = this.stepMaxCur;
+      this.stepMaxCur = 0;
+      this.stepMaxAt = game.world.tick;
+    }
+    if (ms > SLOW_STEP_MS) console.warn(`Slow simulation step: ${ms.toFixed(0)} ms (tick ${game.world.tick}, ${game.world.units.size} units)`);
     const outcome = game.world.outcome;
     if (outcome) this.end(outcome.reason, outcome.winners);
     else if (limit > 0 && game.world.tick >= limit * TICK_RATE) {

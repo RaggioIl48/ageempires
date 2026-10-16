@@ -331,7 +331,7 @@ export function buildingHeight(type: BuildingView['type']): number {
   return {
     town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, woodlot: 40, barracks: 64, fortress: 110,
     archery_range: 40, stable: 50, tech_center: 66, market: 40, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
-    castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
+    castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62, wonder: 150,
   }[type];
 }
 
@@ -448,6 +448,9 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
   const look = lookOf(faction);
   if (look.arch !== 'hip' && drawCulture(ctx, b, s, color, look)) return;
   switch (b.type) {
+    case 'wonder':
+      wonder(ctx, b, s, color);
+      break;
     case 'town_center': {
       const k = corners(b, s, 0.25);
       const H = 30;
@@ -840,6 +843,51 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       longHall(ctx, b, s, color, { wall: '#e2dccb', wallDark: '#c2bba8', roof: color, rise: 22, columns: true });
       break;
   }
+}
+
+/** Maravilla: templo escalonado de piedra clara con columnas, banda del jugador y remate dorado. */
+function wonder(ctx: CanvasRenderingContext2D, b: { tx: number; ty: number }, s: number, color: string): void {
+  const up = (k: ReturnType<typeof corners>, h: number) => {
+    const m = (p: P) => ({ px: p.px, py: p.py - h });
+    return { T: m(k.T), R: m(k.R), B: m(k.B), L: m(k.L), C: m(k.C) };
+  };
+  const base = corners(b, s, 0.1);
+  poly(ctx, [base.T.px, base.T.py + 6, base.R.px + 12, base.R.py + 6, base.B.px, base.B.py + 9, base.L.px - 6, base.L.py + 6], 'rgba(0,0,0,0.28)');
+  // Tres gradas que se angostan hacia arriba.
+  const tiers = [
+    { inset: 0.1, h: 26, wall: '#cfc4a8', dark: '#a39878' },
+    { inset: 0.7, h: 22, wall: '#dbd1b8', dark: '#b0a589' },
+    { inset: 1.25, h: 20, wall: '#e6ddc8', dark: '#bdb298' },
+  ];
+  let y = 0;
+  for (const t of tiers) {
+    const k = up(corners(b, s, t.inset), y);
+    box(ctx, k, t.h, t.wall, t.dark);
+    // Cornisa oscura al pie de cada grada (para que se lean los escalones).
+    line(ctx, k.L.px, k.L.py - 2, k.B.px, k.B.py - 2, shade(t.dark, 0.8), 2);
+    line(ctx, k.B.px, k.B.py - 2, k.R.px, k.R.py - 2, shade(t.dark, 0.7), 2);
+    const top = up(k, t.h);
+    poly(ctx, [top.T.px, top.T.py, top.R.px, top.R.py, top.B.px, top.B.py, top.L.px, top.L.py], shade(t.wall, 1.06));
+    y += t.h;
+  }
+  // Templo de columnas en la cima.
+  const cella = up(corners(b, s, 1.6), y);
+  const H = 44;
+  // Muro del templo (sombra) y columnas claras delante.
+  box(ctx, cella, H, '#8e846c', '#756c57');
+  for (const [p, q] of [[cella.L, cella.B], [cella.B, cella.R]] as const)
+    for (let i = 0; i <= 5; i++) {
+      const c = along(p, q, i / 5);
+      ctx.fillStyle = '#6f6754';
+      ctx.fillRect(c.px - 1, c.py - H, 5.5, H);
+      ctx.fillStyle = '#f6f1e4';
+      ctx.fillRect(c.px - 2.5, c.py - H, 4.5, H);
+    }
+  band(ctx, cella, H, color);
+  const apex = hipRoof(ctx, cella, H, 30, '#d4ad3c');
+  // Remate dorado y bandera.
+  ellipse(ctx, apex.px, apex.py - 5, 6, 6, '#f7dc7a');
+  flag(ctx, apex.px, apex.py - 8, color, 26);
 }
 
 /** Banda del color del jugador alrededor de un edificio (para saber de quién es). */

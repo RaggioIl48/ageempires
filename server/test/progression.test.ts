@@ -42,8 +42,10 @@ describe('full progression on a generated map', () => {
       g.step();
       const b = [...w.buildings.values()].find((x) => x.owner === 1 && x.type === type && x.tx === tx && x.ty === ty);
       expect(b, `${type} was placed`).toBeDefined();
-      const secs = runUntil(g, () => b!.progress >= 1, 400);
-      expect(secs, `${type} got finished`).toBeLessThan(400);
+      // La Maravilla es una obra larga a propósito (15 minutos con un trabajador).
+      const limit = Math.max(400, BUILDING_DEFS[type].buildTime);
+      const secs = runUntil(g, () => b!.progress >= 1, limit);
+      expect(secs, `${type} got finished`).toBeLessThan(limit);
       return b!;
     };
 

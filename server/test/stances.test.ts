@@ -45,14 +45,29 @@ describe('modo guardia', () => {
 });
 
 describe('hostigamiento', () => {
-  it('un arquero retrocede si un guerrero se le viene encima', () => {
+  it('un arquero dispara y retrocede mientras recarga si un guerrero se le viene encima', () => {
     const g = flatGame();
     const w = g.world;
     const archer = w.addUnit('archer', 1, 20.5, 20.5);
     const foe = w.addUnit('warrior', 2, 22.2, 20.5);
-    run(g, 1.5);
-    expect(archer.x).toBeLessThan(20.2); // se alejó (hacia la izquierda)
-    expect(Math.hypot(archer.x - foe.x, archer.y - foe.y)).toBeGreaterThan(1.5);
+    const hp0 = foe.hp;
+    run(g, 2.5);
+    expect(foe.hp).toBeLessThan(hp0); // primero tiró
+    expect(archer.x).toBeLessThan(20.2); // y se alejó (hacia la izquierda)
+    expect(Math.hypot(archer.x - foe.x, archer.y - foe.y)).toBeGreaterThan(1);
+  });
+
+  it('hostigando, un grupo de arqueros sigue tirando (no se pasa la pelea retrocediendo)', () => {
+    const g = flatGame();
+    const w = g.world;
+    const archers = Array.from({ length: 6 }, (_, i) => w.addUnit('archer', 1, 18.5 + i, 14.5));
+    const foes = Array.from({ length: 4 }, (_, i) => w.addUnit('spearman', 2, 19.5 + i, 20.5));
+    const hp0 = foes.reduce((s, u) => s + u.hp, 0);
+    g.enqueue(2, { kind: 'move', unitIds: foes.map((u) => u.id), x: 21, y: 13, amove: true } as never);
+    run(g, 12);
+    const left = foes.filter((u) => w.units.has(u.id)).reduce((s, u) => s + u.hp, 0);
+    expect(hp0 - left).toBeGreaterThan(hp0 * 0.25);
+    expect(archers.length).toBe(6);
   });
 
   it('en modo guardia, o con una orden directa de atacar, no retrocede', () => {

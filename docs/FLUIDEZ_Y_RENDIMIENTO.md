@@ -84,3 +84,20 @@ aleatorio. Se cuenta en cuántos cuadros (de 16 ms) el dibujo casi se frena o sa
   (~0,1 CPU, se duerme). Un servidor en la laptop del docente o un VPS barato lo resuelve.
 - **Regimientos** (ver `DIAGNOSTICO_BATALLAS.md`): mandar posiciones por regimiento en vez de por
   soldado reduciría mucho el tráfico de las batallas grandes.
+
+## 4. Tirones y congelamientos (2026-10-16)
+
+- **Causa:** las hojas se dibujaban desde `<img>`. Chrome guarda las imágenes decodificadas solo hasta
+  cierto tope de memoria (~400–500 MB en este equipo). Al pasarlo, vuelve a decodificar y subir a la
+  GPU en **cada cuadro**. Medido: 300 dibujos desde 75 hojas = 3,7 s por cuadro. Es lo que se sentía
+  como "se congela todo" al juntarse muchos pueblos en una batalla.
+- **Arreglo:**
+  - Las hojas se guardan como `ImageBitmap`: 100 hojas, 22 ms.
+  - Atlas recortado (`tools/art/trim.mjs`): 1052 MB → 412 MB de texturas.
+  - Las máscaras de color se preparan con un presupuesto por cuadro.
+- **Servidor:** A* 5 veces más rápido y un presupuesto de búsqueda por paso. El peor paso pasó de
+  89 ms a 13 ms.
+- **Medir:** F3 muestra el peor cuadro, la cantidad de tirones y el peor paso del servidor. Para las
+  pruebas de carga: `preview.html?stress=300&types=all&colors=8&zoomcycle=1`.
+- **Hojas nuevas:** después de `soldiers.mjs` correr `node tools/art/trim.mjs` (recorta y rehace la
+  copia liviana).

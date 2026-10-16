@@ -32,6 +32,8 @@ computer needs none). Keep that window open while playing. The link **changes ev
 `npm run online`, so send it to the class each session. It is much faster than the free Render plan
 (the simulation uses the teacher's CPU instead of ~0.1 CPU).
 
+Other ways to play online (a fixed link with Tailscale Funnel or a named Cloudflare tunnel, a cloud server that does not need your computer, Render) are compared in [docs/JUGAR_ONLINE.md](docs/JUGAR_ONLINE.md).
+
 ## Playing in class (LAN mode)
 
 **1. The teacher starts the server** (in a terminal, in the project folder):

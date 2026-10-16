@@ -62,6 +62,28 @@ describe('arte de unidades', () => {
     }
   });
 
+  it('atlas recortado: cada cuadro cae dentro de la imagen y de su celda, en posiciones pares (copia liviana exacta)', () => {
+    type Anim = { w: number; h: number; n: number; d: number; r?: number[] };
+    let trimmed = 0;
+    for (const [id, s] of Object.entries<{ file: string; maskY: number; anims: Record<string, Anim> }>(units.sheets)) {
+      const b = fs.readFileSync(path.join(ART, s.file));
+      const w = b.readUInt32BE(16);
+      for (const [name, a] of Object.entries(s.anims)) {
+        if (!a.r) continue;
+        trimmed++;
+        expect(a.r.length, `${id} ${name}`).toBe(a.n * a.d * 6);
+        for (let k = 0; k < a.r.length; k += 6) {
+          const [x, y, fw, fh, dx, dy] = a.r.slice(k, k + 6);
+          if (!fw) continue;
+          expect(x + fw <= w && y + fh <= s.maskY, `${id} ${name} #${k / 6} inside the atlas`).toBe(true);
+          expect(dx + fw <= a.w && dy + fh <= a.h, `${id} ${name} #${k / 6} inside its cell`).toBe(true);
+          expect(x % 2 === 0 && y % 2 === 0, `${id} ${name} #${k / 6} even position`).toBe(true);
+        }
+      }
+    }
+    expect(trimmed).toBeGreaterThan(100);
+  });
+
   it('cada pueblo tiene sprites para sus unidades de las eras Tribal y Media', () => {
     for (const f of FACTION_ORDER)
       for (const type of Object.keys(UNIT_DEFS) as UnitType[]) {

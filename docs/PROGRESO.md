@@ -775,6 +775,52 @@ Total War: Napoleon:
 - `DEMO_ARMY=n` (server env var, measurement only) gives every player n regiments that clash at the center.
 - **`npm run online`**: Cloudflare quick tunnel + server with the public link (see README).
 
+## No more freezes, faster server, balance pass, Wonder victory (2026-10-16)
+
+**The freezes ("everything stops for a few seconds")** — measured with REA and in the app's browser:
+- Cause: sprite sheets drawn from `<img>` elements. Chrome keeps decoded images only up to a memory
+  budget (~400–500 MB here); past it, it decodes and uploads them to the GPU again **every frame**.
+  Test: 300 draws from 50 sheets = 11 ms; from 75 sheets = **3.7 s per frame**. A battle with 8
+  peoples on screen crossed that line.
+- Fix 1: sheets are kept as **ImageBitmap** (decoded off the game thread, outside that budget):
+  100 sheets = 22 ms. Fix 2: **trimmed atlases** (`tools/art/trim.mjs`): each frame is cut to its
+  outline and packed; per-frame rectangles in the manifest (`r`). Drawn texture memory: 1052 MB →
+  412 MB (a 3D sheet: ~20 MB → 4 MB). Fix 3: team-colour masks are prepared at most 4 ms per frame.
+- Result (stress test, 300 soldiers, all 74 3D types, 8 colours, zoom in/out every 3 s): **0 fps
+  with 3–4 s freezes → 60 fps, 6–7 ms per frame**, no stutters after loading.
+- F3 meter now shows the worst frame and stutter count, and the server's worst recent step; the
+  server logs any step over 150 ms.
+
+**Server**: A* rewritten with flat arrays and a reusable typed heap (**5× faster**, same paths) and a
+per-step search budget for combat chases. Worst step in an 8-player battle: 89 ms → 13 ms.
+
+**Online play**: static files are now cached (built code forever, art for a day, 304 re-checks), so
+each student downloads the art once. Alternatives (fixed link with Tailscale Funnel or a named
+Cloudflare tunnel, a VPS, Render) in [JUGAR_ONLINE.md](JUGAR_ONLINE.md).
+
+**Balance (Phase 6.4)** — equal-cost matchup matrix (`.bench`-style harness) and bot tournaments:
+- The counter triangle holds (spear > cavalry > swords/archers, swords > spears).
+- **Archers lost to everything**: skirmish made them back away endlessly without shooting (40 s walking,
+  zero arrows). Now they shoot when loaded and step back while reloading. Archer arrows 5 → 7 and
+  frontal shield block 55 % → 40 %: placed archers now beat spearmen and still lose to cavalry and
+  shielded swordsmen.
+- Unique units: Horse Archer 6 → 7, Armored Archer 6 → 9 (cost 90 → 80), Javelin Rider 8 → 9,
+  Axe Thrower range 3 → 4, Gothic Knight cost 180 → 155, War Chariot cost 180 → 160;
+  Berserker cost 100 → 120, Huscarl 130 → 145, Gothic Lancer 150 → 165.
+- Peoples: Mongols lose the +10 % cavalry attack, cavalry trains 15 % faster (was 25 %) and their
+  terror is +10 % (was +20 %); Visigoths gather metal 15 % faster.
+- **Bots' economy**: they always ran out of food while thousands of metal and stone piled up. Now
+  they build up to two farms at a time and, in the Medieval Age, a market where they sell surplus
+  stone/wood and buy food.
+- Bot tournament (all peoples, 24 full games each): first run 17–83 %; final run Romans 42 %,
+  Mongols 54 %, Gauls 25 %, Germans 42 %, Visigoths 46 %, Ostrogoths 67 %, Vikings 75 %.
+  **Next:** Vikings and Ostrogoths a bit strong, Gauls weak. Tools: `tools/bench/matchups.ts` (matrix, `HOLD=1`, `TWEAK=…`) and `tools/bench/tourney.ts`.
+
+**Wonder victory (Phase 6.2)**: Medieval building (600 of each resource, 15 min with one worker). A
+finished Wonder that stands 5 minutes wins; everyone is warned and the war panel shows the countdown;
+destroying it stops the clock; one per empire. Bots send their whole army against an enemy Wonder.
+New `preview.html?buildings=1&faction=…` shows every building of a people.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

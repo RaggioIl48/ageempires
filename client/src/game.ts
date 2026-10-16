@@ -71,7 +71,7 @@ export class GameView {
     box.classList.remove('hidden');
     box.dataset.level = v.level;
     box.innerHTML = this.perfOpen
-      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs<br><small>${Object.entries(this.renderer.timings).map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join(' · ')}</small>`
+      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step (worst ${Math.round(s.serverMaxMs ?? 0)})<br>worst frame ${Math.round(s.hitchMs ?? 0)} ms · ${this.perf.hitches} stutters<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs<br><small>${Object.entries(this.renderer.timings).map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join(' · ')}</small>`
       : `● ${Math.round(s.ping)} ms`;
   }
 
