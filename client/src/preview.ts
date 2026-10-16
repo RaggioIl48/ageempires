@@ -4,7 +4,7 @@
 
 import { BUILD_MENU, BUILDING_DEFS, PLAYER_COLORS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { UnitView } from '../../shared/protocol.ts';
-import { drawDyingUnit, drawSpriteUnit, forceSheet, loadArt, setLod } from './art.ts';
+import { drawDyingUnit, drawSpriteUnit, forceSheet, loadArt, preloadGame, setLod } from './art.ts';
 import { drawBuilding } from './sprites.ts';
 import { worldToPx } from './view.ts';
 
@@ -106,8 +106,19 @@ async function stress(n: number, art: string): Promise<void> {
   const units = [...Array(n).keys()].map((i) => {
     const [f, t] = keys[i % keys.length].split('/') as [FactionId, UnitType];
     const kind = i % 3; // 0 = camina, 1 = pelea, 2 = quieto
-    return { f, t, color: colors[i % colors.length], x: 20 + Math.random() * (canvas.width - 40), y: 40 + Math.random() * (canvas.height - 60), face: (i % 8) * (Math.PI / 4), kind, id: i };
+    return { f, t, k: i % keys.length, color: colors[i % colors.length], x: 20 + Math.random() * (canvas.width - 40), y: 40 + Math.random() * (canvas.height - 60), face: (i % 8) * (Math.PI / 4), kind, id: i };
   });
+  // appear=1: como en una partida, primero la pantalla de carga (preloadGame) y después los tipos
+  // aparecen de a uno cada 300 ms (un ejército que sale de la niebla): mide el costo del primer dibujo.
+  const appear = q.get('appear') === '1';
+  let shownTypes = keys.length, appearFrom = 0;
+  if (appear) {
+    document.getElementById('stats')!.textContent = 'loading…';
+    const factions = [...new Set(keys.map((k) => k.split('/')[0] as FactionId))];
+    await preloadGame(factions.flatMap((f) => colors.map((c) => ({ faction: f, color: c }))), () => {});
+    shownTypes = 0;
+    appearFrom = performance.now();
+  }
   const times: number[] = [];
   let frames = 0, since = performance.now();
   // Tirones: el mayor hueco entre cuadros y cuántos pasaron de 100 ms (lo que se siente como "se trabó").
@@ -126,7 +137,9 @@ async function stress(n: number, art: string): Promise<void> {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (zoomCycle && Math.floor((now - start) / 3000) % 2 === 1) ctx.setTransform(2.5, 0, 0, 2.5, -canvas.width * 0.75, -canvas.height * 0.75);
     units.sort((a, b) => a.y - b.y);
+    if (appear) shownTypes = Math.min(keys.length, Math.floor((now - appearFrom) / 300));
     for (const s of units) {
+      if (s.k >= shownTypes) continue;
       if (s.kind === 0) {
         s.x += Math.cos(s.face) * 0.4;
         s.y += Math.sin(s.face) * 0.2;

@@ -14,7 +14,7 @@ estudiantes hasta él**.
 | Situación | Usar | Por qué |
 |---|---|---|
 | **Clase en el aula** (lo habitual) | **Red local**: doble clic en `Jugar en el aula.bat` (o `npm run aula`) | No usa internet. Medido: el servidor responde en 4 ms por la red local y el juego usa ~67 kbit/s por estudiante (picos de 250): 30 alumnos ≈ 2 Mbit/s, nada para el Wi-Fi del colegio |
-| Algún estudiante desde la casa | `Jugar online.bat` (túnel rápido de Cloudflare) | Gratis, sin cuenta; el enlace cambia cada vez y se manda por el chat de la clase |
+| Algún estudiante desde la casa | En el panel del profesor: **🌐 Turn on online play** (o `Jugar online.bat`) | Gratis, sin cuenta. El panel muestra el enlace con botón de copiar; cambia cada vez que se enciende |
 | Si un día quieres un enlace fijo | Tailscale Funnel (opción 2) | Gratis con cuenta; mismo enlace siempre |
 
 **Red local, paso a paso:**

@@ -5,7 +5,7 @@ import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniqu
 import { artVersion, prefetchFaction, unitPortrait } from './art.ts';
 import { flagSvg } from './flags.ts';
 import { PEOPLE_HISTORY, parseQuizText } from '../../shared/lessons.ts';
-import { CODE_LENGTH, type BotLevel, type ClientMessage, type QuizMode, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
+import { CODE_LENGTH, type BotLevel, type ClientMessage, type QuizMode, type RoomSettings, type RoomSummary, type RoomView, type TunnelView } from '../../shared/protocol.ts';
 
 export function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -284,6 +284,13 @@ export class TeacherScreen {
       }
       this.send({ t: 'teacher', pin });
     });
+    el('online-box').addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      const toggle = t.closest<HTMLElement>('[data-tunnel]');
+      if (toggle) this.send({ t: 'tunnel', on: toggle.dataset.tunnel === '1' });
+      const copy = t.closest<HTMLElement>('[data-copy]');
+      if (copy) void navigator.clipboard?.writeText(copy.dataset.copy ?? '').then(() => (copy.textContent = '✔ Copied'));
+    });
     el('teacher-rooms').addEventListener('change', (e) => {
       const sel = e.target as HTMLSelectElement;
       if (sel.dataset.team !== undefined)
@@ -348,6 +355,29 @@ export class TeacherScreen {
     el('form-pin').classList.remove('hidden');
     el('teacher-main').classList.add('hidden');
     el('teacher-error').textContent = message;
+  }
+
+  /** Modo online: estado del túnel, su enlace y el botón para abrirlo o cerrarlo. */
+  setTunnel(v: TunnelView & { urls: string[]; canToggle: boolean }): void {
+    this.urls = v.urls;
+    const box = el('online-box');
+    box.classList.remove('hidden');
+    const btn = (on: boolean, label: string, cls = '') => (v.canToggle ? `<button data-tunnel="${on ? 1 : 0}" class="${cls}">${label}</button>` : '');
+    const lan = v.urls.filter((u) => u !== v.url);
+    const local = lan.length ? `<div class="muted">In the classroom (same Wi-Fi), students can also use: ${lan.map((u) => `<code>${esc(u)}</code>`).join(' ')}</div>` : '';
+    const body: Record<TunnelView['state'], string> = {
+      off: `<b>🌐 Online play: off</b> — students at home cannot join. ${btn(true, '🌐 Turn on online play', 'primary')}`,
+      starting: '<b>🌐 Opening the online link…</b> (a few seconds)',
+      on: `<b>🌐 Online play: ON</b> — send this link to your students: <code class="big-link">${esc(v.url ?? '')}</code>
+        <button data-copy="${esc(v.url ?? '')}">📋 Copy</button> ${btn(false, 'Turn off')}
+        <div class="muted">The link changes every time you turn it on. Keep this computer on while you play.</div>`,
+      missing: `<b>🌐 Online play needs a free program (cloudflared).</b> Install it once: open a terminal and run
+        <code>winget install --id Cloudflare.cloudflared</code>, then press ${btn(true, 'Try again')}`,
+      error: `<b>🌐 Online play could not start:</b> ${esc(v.message ?? '')} ${btn(true, 'Try again')}`,
+    };
+    box.innerHTML = body[v.state] + local;
+    box.dataset.state = v.state;
+    this.render();
   }
 
   loggedIn(urls: string[], rooms: RoomSummary[]): void {

@@ -48,6 +48,7 @@ try {
     port,
     pin,
     staticDir,
+    tunnel: !publicUrl, // ya publicado (Render o npm run online): no hace falta el botón
     // Publicado en internet: solo ese enlace (las direcciones internas del servidor no le sirven a nadie).
     urls: (p) => (publicUrl ? [publicUrl] : lanAddresses().map((ip) => `http://${ip}:${p}`)),
   });

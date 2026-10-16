@@ -838,6 +838,33 @@ New `preview.html?buildings=1&faction=…` shows every building of a people.
   students need ≈ 2 Mbit/s. The server answers on the LAN address in 4 ms. Recommendation and
   troubleshooting are in [JUGAR_ONLINE.md](JUGAR_ONLINE.md).
 
+## Illustrated loading screen, online button, cleaner screen (2026-10-16)
+
+- **Loading screen**: a painted scene (dusk sky, mountains, a castle flying your colour) with a row of
+  soldiers of your people; history facts of the peoples in the game rotate every 7 s; a side panel
+  with every unit of your people up to the Medieval Age (what it does, what it beats, what it
+  fears, a line of history). When everything is ready: "Enter the battlefield" (it enters by itself
+  after 25 s; reconnecting players and the teacher enter as soon as it is loaded). The same
+  information stays in 📖 Army.
+- **Stutters when an army comes out of the fog**: the loading screen now also sends every sheet and
+  colour mask to the GPU once (a 1 px draw), and when you zoom in, sheets switch to full resolution
+  one every 0.4 s (they used to switch all at once) and stay for 60 s (was 15 s).
+  Test `preview.html?stress=300&types=all&colors=8&appear=1`: preload, then a new type appears
+  every 300 ms. Result: 60 fps, 1 stutter in 26 s.
+- **Online button in the teacher panel**: "🌐 Turn on online play" opens the Cloudflare tunnel from
+  the server and shows the link with a copy button; "Turn off" closes it. Only on the server
+  computer. If cloudflared is missing, the panel shows how to install it. Tested end to end with
+  REA (button → link → 200).
+- **Unit panel**: compact (name, health, what it is doing, morale, one line of stats and urgent
+  states). Description, counters and details are in the ⓘ tooltip.
+- **Notices**: the war panel moved from the top centre (560 px, one block per battle) to a narrow
+  column on the right; other players' battles take one line, and anything beyond 5 rows is summed
+  up. Results of battles you were not in are a small notice instead of a window in the middle;
+  your own results are a card on the right that closes by itself after 15 s. Notices are on the
+  left at mid height.
+- `DEMO_CODE=ABCD` (server env var, tests only): the first room gets that code, so REA can join as a
+  student.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

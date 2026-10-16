@@ -14,7 +14,7 @@ import { ClientState } from './state.ts';
 import { Camera, renderDpr } from './view.ts';
 import { PerfMeter, perfVerdict } from './perf.ts';
 import { Sound } from './sound.ts';
-import { preloadGame } from './art.ts';
+import { LoadingScreen } from './loading.ts';
 
 export class GameView {
   readonly state = new ClientState();
@@ -35,7 +35,7 @@ export class GameView {
   private lastPing = 0;
   private perfOpen = false;
   /** Pantalla de carga en curso (una por bienvenida) y cuánto tardó la última. */
-  private loadingRun = 0;
+  private readonly loading = new LoadingScreen();
   loadMs = 0;
   private readonly perfBox = document.getElementById('perf')!;
   readonly perf = new PerfMeter();
@@ -110,31 +110,17 @@ export class GameView {
    * aparece "Jugar ya" y a los 30 s se entra igual: lo que falte se sigue cargando de fondo.
    */
   private showLoading(): void {
-    const box = document.getElementById('loading')!;
-    const fill = document.getElementById('loading-fill')!;
-    const text = document.getElementById('loading-text')!;
-    const skip = document.getElementById('loading-skip')!;
-    const id = ++this.loadingRun;
-    const close = () => {
-      if (id !== this.loadingRun || box.classList.contains('hidden')) return;
-      box.classList.add('hidden');
-      this.perf.resetHitches();
-    };
-    box.classList.remove('hidden');
-    skip.classList.add('hidden');
-    skip.onclick = close;
-    const t0 = performance.now();
-    const showSkip = window.setTimeout(() => skip.classList.remove('hidden'), 6000);
-    const giveUp = window.setTimeout(close, 30_000);
     const players = [...this.state.players.values()].map((p) => ({ faction: p.faction, color: p.color }));
-    void preloadGame(players, (done, total) => {
-      fill.style.width = `${total ? Math.round((done / total) * 100) : 100}%`;
-      text.textContent = `Loading the armies of every people in this game · ${done}/${total}`;
-    }).finally(() => {
-      window.clearTimeout(showSkip);
-      window.clearTimeout(giveUp);
-      this.loadMs = Math.round(performance.now() - t0);
-      close();
+    const me = this.state.spectator ? undefined : { faction: this.state.faction(this.state.you), color: this.state.color(this.state.you) };
+    this.loading.show({
+      players,
+      me,
+      tick: () => this.state.tick,
+      ctx: this.ctx,
+      onDone: (ms) => {
+        this.loadMs = ms;
+        this.perf.resetHitches();
+      },
     });
   }
 

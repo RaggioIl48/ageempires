@@ -12,6 +12,7 @@ import { TICK_MS } from '../../../shared/data.ts';
 import { parseClientMessage, type ServerMessage } from '../../../shared/protocol.ts';
 import type { Conn } from '../lobby/conn.ts';
 import { Lobby } from '../lobby/lobby.ts';
+import { Tunnel } from './tunnel.ts';
 import type { Room } from '../lobby/room.ts';
 
 export interface GameServerOptions {
@@ -27,6 +28,8 @@ export interface GameServerOptions {
   urls?: (port: number) => string[];
   /** Semilla fija de mapa (pruebas). */
   seed?: number;
+  /** Botón "modo online" del panel del profesor (index.ts lo activa; las pruebas no). */
+  tunnel?: boolean;
 }
 
 export interface RunningServer {
@@ -100,10 +103,17 @@ export function viaProxy(headers: Record<string, string | string[] | undefined>)
 
 export function startGameServer(opts: GameServerOptions): Promise<RunningServer> {
   let port = opts.port;
-  const lobby = new Lobby({
+  // Modo online: el enlace público va primero en las direcciones para los estudiantes.
+  const tunnel = opts.tunnel ? new Tunnel(() => port, () => lobby.tunnelChanged()) : null;
+  const urls = () => {
+    const base = opts.urls?.(port) ?? [`http://localhost:${port}`];
+    return tunnel?.url ? [tunnel.url, ...base.filter((u) => u !== tunnel.url)] : base;
+  };
+  const lobby: Lobby = new Lobby({
     pin: opts.pin,
-    urls: () => opts.urls?.(port) ?? [`http://localhost:${port}`],
+    urls,
     seed: opts.seed !== undefined ? () => opts.seed! : undefined,
+    ...(tunnel ? { tunnel } : {}),
   });
 
   const http = createServer((req, res) => serveStatic(opts.staticDir, req, res));
@@ -159,6 +169,7 @@ export function startGameServer(opts: GameServerOptions): Promise<RunningServer>
         close: () =>
           new Promise<void>((done) => {
             if (timer) clearInterval(timer);
+            tunnel?.stop();
             for (const c of wss.clients) c.terminate();
             wss.close();
             http.close(() => done());

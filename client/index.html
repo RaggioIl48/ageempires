@@ -60,6 +60,7 @@
           <button type="submit">Enter</button>
         </form>
         <div id="teacher-main" class="hidden">
+          <div id="online-box" class="online-box hidden"></div>
           <form id="form-room" class="new-room">
             <h3>New game</h3>
             <label>Players <select id="in-max"></select></label>
@@ -167,11 +168,16 @@
     <div id="overlay" class="hidden"></div>
     <div id="paused" class="hidden">⏸ The teacher paused the game</div>
     <div id="loading" class="hidden">
-      <div class="loading-box">
-        <b>⚔ Preparing the battlefield…</b>
+      <canvas id="loading-art"></canvas>
+      <div class="loading-top">
+        <h1>Classroom Empires</h1>
+        <div id="loading-people"></div>
+      </div>
+      <aside id="loading-cards" class="panel"></aside>
+      <div class="loading-bottom">
+        <p id="loading-tip"></p>
         <div class="loading-bar"><div id="loading-fill"></div></div>
-        <small id="loading-text">Loading the armies of every people in this game</small>
-        <button id="loading-skip" class="hidden">Play now</button>
+        <div class="loading-row"><small id="loading-text">Preparing the armies…</small><button id="loading-go" class="big primary" disabled>Preparing…</button></div>
       </div>
     </div>
     <div id="ended" class="hidden"></div>

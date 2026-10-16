@@ -546,7 +546,16 @@ export function setLod(on: boolean): void {
 /** Cuándo se necesitó por última vez la resolución original de cada hoja. */
 const fullNeeded = new Map<string, number>();
 /** Tras cuántos ms sin necesitar la original (con la liviana lista) se la libera. */
-const EVICT_AFTER_MS = 15_000;
+const EVICT_AFTER_MS = 60_000;
+/**
+ * Hojas completas ya en uso (con mucho zoom). Al acercar la cámara a un ejército, varias pasaban a
+ * la vez de la liviana a la completa: cada una es una textura grande que la GPU recibe en ese cuadro
+ * (y su máscara de color a tamaño completo). Se promueve una cada PROMOTE_MS; las demás siguen con la
+ * liviana un instante, que a esa distancia casi no se nota.
+ */
+const promoted = new Set<string>();
+const PROMOTE_MS = 400;
+let lastPromote = 0;
 let lastEvict = 0;
 
 /**
@@ -565,8 +574,12 @@ function pick(ctx: CanvasRenderingContext2D, sheet: SheetMeta, now: number): Pic
     }
     fullNeeded.set(sheet.file, now);
     const f = artImage(sheet.file);
-    if (f) return { img: f, q: 1 };
-    return lo ? { img: lo, q: 0.5 } : null;
+    if (f && !promoted.has(sheet.file) && (now - lastPromote >= PROMOTE_MS || !lo)) {
+      promoted.add(sheet.file);
+      lastPromote = now;
+    }
+    if (f && promoted.has(sheet.file)) return { img: f, q: 1 };
+    return lo ? { img: lo, q: 0.5 } : f ? { img: f, q: 1 } : null;
   }
   const f = artImage(sheet.file);
   return f ? { img: f, q: 1 } : null;
@@ -579,6 +592,7 @@ function evictIdle(now: number): void {
   for (const [id, sh] of Object.entries(sheets)) {
     if (!sh.lo || !ready.has(sh.file) || now - (fullNeeded.get(sh.file) ?? 0) < EVICT_AFTER_MS) continue;
     dropImage(sh.file);
+    promoted.delete(sh.file);
     for (const key of [...tints.keys()]) if (key.startsWith(`${id}|`) && key.endsWith('|1')) tints.delete(key);
   }
 }
@@ -663,7 +677,11 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
  * completa se sigue pidiendo al acercar mucho el zoom), los edificios y árboles, y la máscara de
  * cada pueblo con el color de cada jugador que lo usa. Todo el arte junto serían ~400 MB de video.
  */
-export async function preloadGame(players: { faction: FactionId; color: string }[], onProgress: (done: number, total: number) => void): Promise<void> {
+export async function preloadGame(
+  players: { faction: FactionId; color: string }[],
+  onProgress: (done: number, total: number) => void,
+  warm?: CanvasRenderingContext2D,
+): Promise<void> {
   await loadArt();
   if (!manifest) return;
   const m = manifest;
@@ -686,12 +704,22 @@ export async function preloadGame(players: { faction: FactionId; color: string }
   onProgress(0, total);
   // Imágenes: varias a la vez (el navegador reparte las descargas).
   await Promise.all([...files].map((f) => whenLoaded(f).then(() => onProgress(++done, total))));
+  // Que la GPU ya tenga cada hoja: un dibujo de 1 px (bajo la pantalla de carga) la sube ahora y no
+  // cuando aparece por primera vez ese soldado (por ejemplo, un ejército que sale de la niebla).
+  if (warm)
+    for (const f of files) {
+      const img = images.get(f);
+      if (img && ready.has(f)) warm.drawImage(img, 0, 0, 1, 1, 0, 0, 1, 1);
+    }
   // Máscaras de color: unas cuantas por cuadro, para que la barra de progreso siga moviéndose.
   for (let i = 0; i < tints.length; i++) {
     const [id, color] = tints[i];
     const sheet = m.sheets[id];
     const img = images.get(sheet.lo ?? sheet.file);
-    if (img && ready.has(sheet.lo ?? sheet.file)) tintOf(id, img, sheet, color, sheet.lo ? 0.5 : 1, true);
+    if (img && ready.has(sheet.lo ?? sheet.file)) {
+      const tint = tintOf(id, img, sheet, color, sheet.lo ? 0.5 : 1, true);
+      if (warm && tint) warm.drawImage(tint, 0, 0, 1, 1, 0, 0, 1, 1);
+    }
     onProgress(++done, total);
     if (i % 4 === 3) await new Promise((r) => requestAnimationFrame(() => r(null)));
   }

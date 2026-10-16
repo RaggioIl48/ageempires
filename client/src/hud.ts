@@ -440,16 +440,19 @@ export class Hud {
       u.task && u.owner === this.state.you
         ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}% per trip</b>` : ` · ${CREW_SIZE - n} more nearby for +${CREW_PCT}%`}</div>`
         : '';
-    return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
-      <div class="row">${doing}</div>${carry}${crew}${MORALE_CATS.includes(def.category) ? moraleRow(u) : ''}
-      <div class="stats">
-        <div>Attack ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
-        <div>Armor ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
-        <div>Speed ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · Health ${mark(st.hp, def.hp)}</div>
-        ${extras.length ? `<div class="up">${extras.join(' · ')}</div>` : ''}
-        <div class="muted">${CATEGORY_LABELS[st.category]}${st.flies ? ' (flies)' : ''} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
-        ${counterHtml(u.type)}
-      </div>`;
+    // Compacto: lo que hace falta mirar en plena batalla. La descripción, contra quién sirve y quién
+    // le gana van en el ⓘ (al pasar el mouse), en la pantalla de carga y en 📖 Army: antes el panel
+    // ocupaba media pantalla y tapaba el campo.
+    const urgent = [u.st !== undefined && (u.st ?? 100) < 60 ? `💧 ${u.st}%` : '', u.guard ? '🛡 Guard' : '', u.rank ? `${'▲'.repeat(u.rank)} ${RANK_NAMES[u.rank]}` : '', u.cl ? '🪜 Climbing' : '', u.buff ? (u.buff === 1 ? '📯 Inspired' : '🛡 Holding') : ''].filter(Boolean);
+    const info = [
+      `${CATEGORY_LABELS[st.category]}${st.flies ? ' (flies)' : ''}: ${def.strong}. ${def.weak}.`,
+      goodAgainst(u.type).length ? `Good against: ${goodAgainst(u.type).join(', ')}` : '',
+      weakAgainst(u.type).length ? `Weak against: ${weakAgainst(u.type).join(', ')}` : '',
+      ...extras,
+    ].filter(Boolean).join('\n');
+    return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique} <span class="info-tip" title="${esc(info)}">ⓘ</span></h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
+      <div class="row">${doing}${urgent.length ? ` · <span class="up">${urgent.join(' · ')}</span>` : ''}</div>${carry}${crew}${MORALE_CATS.includes(def.category) ? moraleRow(u) : ''}
+      <div class="stats compact">⚔ ${mark(st.attack.damage, def.attack.damage)} ${range} · 🛡 ${mark(st.armor.melee, def.armor.melee)}/${mark(st.armor.ranged, def.armor.ranged)} · 👟 ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · ❤ ${mark(st.hp, def.hp)}</div>`;
   }
 
   private buildingInfo(b: BuildingView): string {
@@ -457,7 +460,7 @@ export class Hud {
     const max = this.state.maxHpOf(b);
     let html = `<h3>${def.label}</h3>${this.ownerLine(b.owner)}${hpBar(b.hp, max)}`;
     if (b.progress < 1) return html + `<div class="row">Under construction: <b>${Math.floor(b.progress * 100)}%</b></div>`;
-    html += `<div class="row muted">${esc(def.description)}</div>`;
+    html = html.replace('</h3>', ` <span class="info-tip" title="${esc(def.description)}">ⓘ</span></h3>`);
     const field = BUILDING_DEFS[b.type].field;
     if (field) html += `<div class="row"><span class="icon mini">${ICONS[field.resource]}</span><b>${b.stock ?? 0}</b> ${RESOURCE_LABELS[field.resource]} left${field.workers > 1 ? ` · up to ${field.workers} workers` : ''}</div>`;
     if (def.popProvided) html += `<div class="row">Population: +${def.popProvided}</div>`;
@@ -702,15 +705,6 @@ export class Hud {
     this.notices = this.notices.filter((n) => n.until > now).slice(-4);
     setHtml(el('notices'), this.notices.map((n) => `<div class="notice">${esc(n.text)}</div>`).join(''));
   }
-}
-
-/** Contra quién es buena y quién le gana (sale de las tablas de combate). */
-function counterHtml(type: UnitType): string {
-  const good = goodAgainst(type), weak = weakAgainst(type);
-  return (
-    (good.length ? `<div class="counter good">⚔ Good against: ${esc(good.join(', '))}</div>` : '') +
-    (weak.length ? `<div class="counter bad">⚠ Weak against: ${esc(weak.join(', '))}</div>` : '')
-  );
 }
 
 /** Categorías con moral (como en el servidor). */

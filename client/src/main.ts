@@ -223,6 +223,9 @@ function onMessage(msg: ServerMessage): void {
     case 'rooms':
       teacher.setRooms(msg.rooms);
       return;
+    case 'tunnel':
+      if (isTeacherPage) teacher.setTunnel(msg);
+      return;
     case 'welcome':
       hideOverlays();
       game.handle(msg);

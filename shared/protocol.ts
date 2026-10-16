@@ -418,7 +418,9 @@ export type ClientMessage =
   /** Respuesta a la pregunta para avanzar de era. */
   | { t: 'quizAnswer'; id: number; choice: number }
   /** Medir la conexión (el servidor contesta con un pong). */
-  | { t: 'ping'; n: number };
+  | { t: 'ping'; n: number }
+  /** Profesor (en el computador del servidor): abrir o cerrar el modo online (túnel de Cloudflare). */
+  | { t: 'tunnel'; on: boolean };
 
 // ---------- Servidor -> Cliente ----------
 
@@ -438,6 +440,13 @@ export interface HillView {
 }
 
 /** Victoria: la Colina Sagrada (si el mapa la tiene) y los imperios caídos. */
+/** Modo online (túnel rápido de Cloudflare abierto desde el panel del profesor). */
+export interface TunnelView {
+  state: 'off' | 'starting' | 'on' | 'missing' | 'error';
+  url?: string;
+  message?: string;
+}
+
 export interface VictoryView {
   hill?: HillView;
   /** Maravillas terminadas: [dueño, segundos que le faltan para ganar]. */
@@ -491,6 +500,8 @@ export type ServerMessage =
   | { t: 'kicked'; message: string }
   /** Respuesta al profesor: salas existentes y direcciones para los estudiantes. */
   | { t: 'teacherOk'; rooms: RoomSummary[]; urls: string[] }
+  /** Estado del modo online y las direcciones para los estudiantes (cambian al abrirlo o cerrarlo). */
+  | ({ t: 'tunnel'; urls: string[]; canToggle: boolean } & TunnelView)
   | { t: 'rooms'; rooms: RoomSummary[] }
   | {
       t: 'welcome';
@@ -637,6 +648,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'leave' };
     case 'unwatch':
       return { t: 'unwatch' };
+    case 'tunnel':
+      return typeof m.on === 'boolean' ? { t: 'tunnel', on: m.on } : null;
     case 'setTeam':
       return isCode(m.code) && isId(m.memberId) && Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) <= 8
         ? { t: 'setTeam', code: m.code, memberId: m.memberId, team: m.team as number }
