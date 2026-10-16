@@ -1282,6 +1282,15 @@ export const ABILITY_IDS = Object.keys(ABILITIES) as AbilityId[];
 export const CHARGE_BONUS = 1.5;
 export const CHARGE_READY_SEC = 4;
 
+// ---------- Caballos con peso (Total War): arranque, giros y carga que atraviesa ----------
+/** Segundos que tarda un jinete en llegar a toda velocidad, y con qué fracción arranca. */
+export const CAV_ACCEL_SECONDS = 1.2;
+export const CAV_START_SPEED = 0.35;
+/** Grados por segundo que puede girar un caballo (los giros cerrados cuestan impulso). */
+export const CAV_TURN_DEG = 220;
+/** Casillas que sigue de largo un jinete tras el choque de su carga contra infantería sin lanzas. */
+export const CHARGE_THROUGH_TILES = 2;
+
 // ---------- Armas de la Edad Media (lanza > caballería > espada > lanza) ----------
 /** La lanza contra la caballería: mínimo ×3,5 (las lanzas de élite, más). */
 export const SPEAR_VS_CAVALRY = 3.5;

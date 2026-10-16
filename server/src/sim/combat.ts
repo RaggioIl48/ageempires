@@ -6,7 +6,7 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, SHIELD_WALL_ARMOR, CHARGE_READY_SEC, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, SHIELD_WALL_ARMOR, CHARGE_READY_SEC, CHARGE_THROUGH_TILES, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { elevationDamage } from '../../../shared/terrain.ts';
 import { isEnemy } from './diplomacy.ts';
@@ -232,7 +232,10 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
     }
   }
   // Choque de la carga: derriba, empuja y arrolla (projectiles.ts).
-  if (charge && attacker && t.kind === 'unit') chargeImpact(world, attacker, t.unit, dmg);
+  if (charge && attacker && t.kind === 'unit') {
+    chargeImpact(world, attacker, t.unit, dmg);
+    chargeThrough(world, attacker, t.unit);
+  }
   if (attack.type === 'ranged') {
     const look = attacker ? UNIT_DEFS[attacker.type].shot : undefined;
     world.events.push({ k: 'shot', x1: from.x, y1: from.y, x2: at.x, y2: at.y, s: look === 'bullet' ? 1 : look === 'shell' ? 2 : 0 });
@@ -316,6 +319,8 @@ export function updateCombat(world: World, dt: number): void {
       continue;
     }
 
+    // Atravesando la línea tras una carga: sigue de largo; después da la vuelta y vuelve a cargar.
+    if (u.passUntil > world.tick) continue;
     if (inAttackRange(u.x, u.y, withHeight(world, stats.attack, u, t), t)) {
       u.path = [];
       u.chaseGoal = null;
@@ -428,6 +433,21 @@ function skirmish(world: World, grid: UnitGrid, u: Unit, stats: ReturnType<World
   u.state = 'moving';
   u.skirmishUntil = world.tick + 2 * TICK_RATE;
   return true;
+}
+
+/**
+ * Tras el choque de una carga, el jinete no se clava: sigue unas casillas a través de la línea
+ * (como en Total War), y después gira en arco y vuelve a cargar cuando la carga se recarga.
+ */
+function chargeThrough(world: World, rider: Unit, target: Unit): void {
+  const dx = target.x - rider.x, dy = target.y - rider.y, len = Math.hypot(dx, dy) || 1;
+  const goal = { x: target.x + (dx / len) * CHARGE_THROUGH_TILES, y: target.y + (dy / len) * CHARGE_THROUGH_TILES };
+  if (!world.inBounds(Math.floor(goal.x), Math.floor(goal.y)) || !world.isWalkable(Math.floor(goal.x), Math.floor(goal.y)) || !clearLine(world, rider, goal)) return;
+  rider.path = [goal];
+  rider.chaseGoal = null;
+  rider.repathIn = 0;
+  const speed = Math.max(0.5, world.statsOf(rider).speed);
+  rider.passUntil = world.tick + Math.ceil(((len + CHARGE_THROUGH_TILES) / speed) * TICK_RATE);
 }
 
 /** Persigue al objetivo: en línea recta si se puede, si no con A*. */

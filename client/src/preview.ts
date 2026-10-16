@@ -18,7 +18,8 @@ const coolIn = document.getElementById('cool') as HTMLInputElement;
 
 /** Ángulo en pantalla de cada columna (S, SE, E, NE, N, NO, O, SO), con y hacia abajo. */
 const FACES = [90, 45, 0, -45, -90, -135, 180, 135].map((d) => (d * Math.PI) / 180);
-const ROWS = ['idle', 'walk', 'attack', 'die'] as const;
+// Galope y carga: los jinetes (los de a pie repiten caminar y atacar en esas filas).
+const ROWS = ['idle', 'walk', 'gallop', 'charge', 'attack', 'die'] as const;
 const COLOR = '#2f6fd6';
 
 interface Manifest {
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
     while (now - lastHit >= cool) lastHit += cool;
     const cellW = 70, cellH = 70;
     canvas.width = Math.min(document.documentElement.clientWidth, 8 * cellW * zoom + 40);
-    canvas.height = 4 * cellH * zoom + 40;
+    canvas.height = ROWS.length * cellH * zoom + 40;
     ctx.fillStyle = '#5b6b3a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.save();
@@ -62,8 +63,9 @@ async function main(): Promise<void> {
         ctx.fillRect(d * cellW + 2, r * cellH + 2, cellW - 4, cellH - 4);
         const u: UnitView = {
           id: r * 8 + d, owner: 0, type, x: 0, y: 0, hp: 100,
-          state: row === 'attack' ? 'attacking' : 'idle',
+          state: row === 'attack' || row === 'charge' ? 'attacking' : 'idle',
           ...(row === 'walk' ? { walk: 1 as const, sp: 1.4 } : {}),
+          ...(row === 'gallop' || row === 'charge' ? { walk: 1 as const, sp: 2.4 } : {}),
           ...(row === 'attack' ? { cool, ha: lastHit } : {}),
         } as UnitView;
         if (row === 'die') drawDyingUnit(ctx, u, x, y, COLOR, faction, face, ((now - start) / 1000) % 2.5);

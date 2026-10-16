@@ -359,6 +359,11 @@ function animName(u: UnitView, sheet?: SheetMeta): string {
   // Jinetes: trote al marchar, galope al correr o cargar.
   if (u.walk === 1) {
     if (!sheet?.anims.run) return 'walk';
+    // Carga (Total War): atacando en movimiento, el jinete golpea al galope y atraviesa la línea.
+    if (u.state === 'attacking' && sheet.anims.charge) {
+      galloping.add(u.id);
+      return 'charge';
+    }
     const sp = u.sp ?? 0;
     if (galloping.has(u.id) ? sp < TROT_BELOW : sp < GALLOP_FROM) {
       galloping.delete(u.id);
@@ -413,13 +418,15 @@ export function drawSpriteUnit(
   const t = now / 1000 + u.id * 0.37;
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
   // El trote de un caballo se calcula para ~1,5 casillas/s y el galope para ~2,5.
-  const base = name === 'run' ? 2.5 : sheet.anims.run ? 1.5 : 1.4;
+  const base = name === 'run' || name === 'charge' ? 2.5 : sheet.anims.run ? 1.5 : 1.4;
   const pace = (name === 'walk' || name === 'run') && u.sp ? Math.min(1.4, Math.max(0.55, u.sp / base)) : 1;
   // Ataque: sincronizado con el golpe real del servidor (preparación, impacto, recuperación).
   // Con la zancada medida: los pies (o cascos) apoyados quedan quietos sobre el suelo. Sin ella, el
   // ritmo de antes (proporcional a la velocidad). Acotado por si una medición quedó rara.
-  const marching = (name === 'walk' || name === 'run') && u.sp;
-  const fps = marching && a.st ? Math.min(a.fps * 3, Math.max(a.fps * 0.5, (u.sp! / a.st) * a.n)) : a.fps * pace;
+  const marching = (name === 'walk' || name === 'run' || name === 'charge') && u.sp;
+  // La carga va sobre el galope: misma zancada.
+  const stride = a.st ?? (name === 'charge' ? sheet.anims.run?.st : undefined);
+  const fps = marching && stride ? Math.min(a.fps * 3, Math.max(a.fps * 0.5, (u.sp! / stride) * a.n)) : a.fps * pace;
   const f =
     name === 'attack' && u.cool
       ? attackFrame(now, u.ha, { n: a.n, fps: a.fps, hit: a.hit ?? defaultHit(a.n), cooldownMs: u.cool }).frame

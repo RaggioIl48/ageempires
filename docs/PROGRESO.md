@@ -883,6 +883,25 @@ New `preview.html?buildings=1&faction=…` shows every building of a people.
   Riders have a long shadow along the horse's facing instead of the round shadow of a soldier on
   foot.
 
+## Riders with weight: gallop attack, arcs and charges that go through (2026-10-16)
+
+Priority 1 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
+
+- **Attack at a gallop**: new `charge` animation on every rider sheet: the rider strikes (or shoots)
+  on the *galloping* horse, one stride per blow (`tools/art/soldiers.mjs`, horse body `run` + rider
+  `attack_melee`/`attack_ranged`). A rider that attacks while moving uses it; the standing attack
+  is only for static melee. Its pace uses the gallop stride, so the hooves stay planted.
+- **Starting and turning** (server, `movement.ts`): cavalry starts at 35 % speed and reaches full
+  speed in 1.2 s; it turns at most 220°/s and loses momentum in sharp turns (a half turn at a
+  gallop slows it down). The path stays the same; the pace and the facing change, so flanks and
+  rears also turn gradually.
+- **Charges that go through** (`combat.ts`): after the charge impact against infantry (not braced
+  spears in front), the rider keeps riding ~2 tiles through the line, then turns in an arc and comes
+  back. The next charge is ready after 4 s, like Total War's cycle charge.
+- Viewer: `preview.html` shows gallop and charge rows.
+- Tests: `server/test/cavalry.test.ts`. Matchups unchanged in direction: knight vs spearmen −0.85,
+  vs swordsmen +0.73, vs archers +0.80; scouts do a bit better against swordsmen (−0.60 → −0.24).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

@@ -93,20 +93,22 @@ describe('unit upgrades (AoE style)', () => {
 
 describe("peoples' abilities (Total War style)", () => {
   it('cavalry charge: the first hit after a while hits harder; Ostrogoths hit hardest', () => {
-    const hitOf = (faction: FactionId) => {
+    // Mismo golpe desde la misma posición: con la carga lista y sin ella (golpeó hace poco). Después de
+    // cargar, el jinete atraviesa la línea y vuelve por otro lado, así que el segundo golpe real no
+    // sirve para comparar (cambia el flanco).
+    const strikeOf = (faction: FactionId, charged: boolean) => {
       const g = flatGame([faction, 'romans']);
       const w = g.world;
       const k = w.addUnit('knight', 1, 20.5, 20.5);
+      if (!charged) k.lastStrike = 0;
       const target = w.addUnit('warrior', 2, 21.3, 20.5);
       target.cooldown = 999; // it does not fight back
       const hp0 = target.hp;
       g.enqueue(1, { kind: 'attack', unitIds: [k.id], targetId: target.id });
       runUntil(g, () => target.hp < hp0, 10);
-      const first = hp0 - target.hp;
-      const hp1 = target.hp;
-      runUntil(g, () => target.hp < hp1, 10);
-      return { first, second: hp1 - target.hp };
+      return hp0 - target.hp;
     };
+    const hitOf = (faction: FactionId) => ({ first: strikeOf(faction, true), second: strikeOf(faction, false) });
     const germans = hitOf('germans');
     expect(germans.first).toBeGreaterThan(germans.second);
     expect(germans.first / germans.second).toBeCloseTo(CHARGE_BONUS, 0);

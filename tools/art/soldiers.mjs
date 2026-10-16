@@ -108,6 +108,9 @@ const horse = (unit, actor, { ranged = false, coat = 'brown', extra } = {}) => (
     walk: { from: 'walk', frames: 10, fps: 11 },
     run: { from: 'run', frames: 12, fps: 16 },
     attack: ranged ? { from: 'attack_ranged', body: 'idle', frames: 8, fps: 12 } : { from: 'attack_melee', body: 'idle', frames: 8, fps: 12 },
+    // Carga (Total War): el jinete golpea (o tira) con el caballo AL GALOPE, en la misma fase del
+    // galope: una zancada por golpe. Se usa cuando ataca en movimiento; el ataque de arriba, quieto.
+    charge: ranged ? { from: 'attack_ranged', body: 'run', frames: 12, fps: 16 } : { from: 'attack_melee', body: 'run', frames: 12, fps: 16 },
     die: { from: 'death', frames: 8, fps: 10, loop: false },
   },
 });
@@ -493,7 +496,7 @@ export async function soldierSheet(r) {
     const event = riderEvent(body, a.from.toLowerCase()) ?? src.event;
     anims[name] = {
       fs: box.fs, dirs: 8, n: a.frames, base, mask, ax: box.ax, ay: box.ay, fps: a.fps, loop,
-      ...(name === 'attack' ? { hit: Math.max(1, Math.min(a.frames - 2, Math.round(a.frames * event))) } : {}),
+      ...(name === 'attack' || name === 'charge' ? { hit: Math.max(1, Math.min(a.frames - 2, Math.round(a.frames * event))) } : {}),
     };
   }
   const packed = packSheet(anims);

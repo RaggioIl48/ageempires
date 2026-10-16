@@ -107,6 +107,10 @@ export interface Unit {
   repathIn: number; // pasos hasta poder recalcular la persecución
   /** Paso del último golpe dado (para la carga de caballería). */
   lastStrike: number;
+  /** Caballería: impulso (0 = parado, 1 = a toda velocidad). Arranca de a poco y lo pierde al girar. */
+  momentum: number;
+  /** Caballería: hasta qué paso sigue de largo tras el choque de una carga (atraviesa la línea). */
+  passUntil: number;
   /** Trabajadores de su cuadrilla (mismo recurso, cerca), contándolo; 0 si no recolecta. */
   crew: number;
   /** Límite de velocidad mientras marcha en formación (0 = sin límite). */
@@ -572,6 +576,8 @@ export class World {
       chaseGoal: null,
       repathIn: 0,
       lastStrike: -Infinity,
+      momentum: 0,
+      passUntil: 0,
       crew: 0,
       speedCap: 0,
       morale: 100,
