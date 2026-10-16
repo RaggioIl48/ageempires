@@ -902,6 +902,23 @@ Priority 1 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
 - Tests: `server/test/cavalry.test.ts`. Matchups unchanged in direction: knight vs spearmen −0.85,
   vs swordsmen +0.73, vs archers +0.80; scouts do a bit better against swordsmen (−0.60 → −0.24).
 
+## Real bows and running infantry (2026-10-16)
+
+Priority 2 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
+
+- **Archers with bows**: 0 A.D. has no Roman, Gaul, Briton or Iberian archers, so the archers of
+  Romans, Gauls, Germans and Visigoths were built on a javelin thrower or a slinger and shot with
+  that gesture. Now they keep the clothes and head of their people and carry a short bow, an arrow
+  and a quiver, with the stance and the shot of a 0 A.D. archer (`archer()` recipe in
+  `tools/art/soldiers.mjs`).
+- **Running on foot**: every infantry sheet has a `run` animation. Troops at full speed run, and in
+  walk mode (R) they walk (thresholds 1.0 / 0.9 tiles/s; riders keep 2.0 / 1.65).
+- Viewer: the "gallop" row shows the run for soldiers on foot.
+- **Team-colour masks at half resolution**: with the bigger sheets, the stress test (74 types × 8
+  colours) slipped to 53–56 fps with a stutter every ~8 s. Each mask was a full-width canvas (~3 MB,
+  ~1.8 GB in that test). Now they are a quarter of that (flat cloth colour, it does not show), and
+  the test is back to a steady 60 fps with no stutters after loading. Drawn sheets total 497 MB.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

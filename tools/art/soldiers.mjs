@@ -50,11 +50,43 @@ export const SOLDIER_CREDIT = {
 const footAnims = (attack = 'attack_melee') => ({
   idle: { from: 'idle', frames: 6, fps: 4 },
   walk: { from: 'walk', frames: 10, fps: 12 },
+  // A la carrera (cargas y retiradas): el cliente la usa cuando el soldado va a toda velocidad.
+  run: { from: 'run', frames: 10, fps: 15 },
   attack: { from: attack, frames: 8, fps: 12 },
   die: { from: 'death', frames: 8, fps: 10, loop: false },
 });
 /** Soldado a pie: unidad del juego ('pueblo/tipo'), actor de 0 A.D. y variantes elegidas. */
 const foot = (unit, actor, { attack, choose = [], props, extra } = {}) => ({ units: [unit], actor: `units/${actor}.xml`, choose, props, extra, anims: footAnims(attack) });
+
+/**
+ * Arquero de un pueblo sin arqueros en 0 A.D. (romanos, galos, germanos, visigodos): la ropa y la
+ * cabeza de su pueblo, con arco corto, flecha y aljaba, y la postura y el disparo de un arquero de
+ * 0 A.D. (antes disparaban con el gesto de lanzar una jabalina o una honda).
+ */
+const ARCHER = 'units/athenians/infantry_archer_b.xml';
+const BOW = {
+  weapon_R: 'props/units/weapons/arrow_back.xml',
+  weapon_bow: 'props/units/weapons/bow_short.xml',
+  back: 'props/units/quiver_greek_back.xml',
+  weapon_L: '',
+  shield: '',
+  shield_arm: '',
+  projectile: '',
+};
+const archer = (unit, actor, { extra } = {}) => ({
+  units: [unit],
+  actor: `units/${actor}.xml`,
+  choose: [],
+  props: BOW,
+  extra,
+  anims: {
+    idle: { from: 'idle', actor: ARCHER, frames: 6, fps: 4 },
+    walk: { from: 'walk', actor: ARCHER, frames: 10, fps: 12 },
+    run: { from: 'run', actor: ARCHER, frames: 10, fps: 15 },
+    attack: { from: 'attack_ranged', actor: ARCHER, frames: 8, fps: 12 },
+    die: { from: 'death', frames: 8, fps: 10, loop: false },
+  },
+});
 
 /** Guerrero (Edad Tribal): tropa ligera, con hacha o maza, sin escudo ni casco (se distingue del lancero). */
 const light = (weapon) => ({ weapon_R: `props/units/weapons/${weapon}.xml`, shield: '', shield_arm: '', helmet: '' });
@@ -124,7 +156,7 @@ export const SOLDIERS = {
   'romans-legionary-3d': foot('romans/legionary', 'romans/infantry_swordsman_b', { choose: ['Scutum-01', 'cardiopylax-1c'] }),
   'romans-triarius-3d': foot('romans/triarius', 'romans/infantry_spearman_e'),
   // 0 A.D. no tiene arqueros romanos: el tirador es un vélite con jabalinas.
-  'romans-archer-3d': foot('romans/archer', 'romans/infantry_javelinist_b', { attack: 'attack_ranged' }),
+  'romans-archer-3d': archer('romans/archer', 'romans/infantry_javelinist_b'),
   // Galos: lanceros y espadachines con escudo hexagonal, guerreros elegidos y honderos.
   'gauls-warrior-3d': foot('gauls/warrior', 'gauls/infantry_spearman_a', { props: light('axe_single') }),
   'gauls-spearman-3d': foot('gauls/spearman', 'gauls/infantry_spearman_b'),
@@ -140,7 +172,7 @@ export const SOLDIERS = {
     anims: { ...footAnims(), attack: { from: 'attack_melee', actor: 'units/gauls/infantry_swordsman_c.xml', frames: 8, fps: 12 } },
   },
   // 0 A.D. no tiene arqueros galos: el tirador es un hondero (el de ropa y escudo con color del jugador).
-  'gauls-archer-3d': foot('gauls/archer', 'gauls/infantry_slinger_a', { attack: 'attack_ranged' }),
+  'gauls-archer-3d': archer('gauls/archer', 'gauls/infantry_slinger_a'),
 
   // Los demás pueblos no existen en 0 A.D.: se usa el equipo más parecido de otro pueblo, cuidando que
   // cada uno se vea distinto. Son aproximaciones (ver docs/SOLDADOS_3D.md) y se pueden cambiar acá.
@@ -148,7 +180,7 @@ export const SOLDIERS = {
   'germans-warrior-3d': foot('germans/warrior', 'britons/infantry_spearman_a', { props: light('axe_single') }),
   'germans-spearman-3d': foot('germans/spearman', 'britons/infantry_spearman_b'),
   'germans-swordsman-3d': foot('germans/swordsman', 'gauls/infantry_swordsman_b'),
-  'germans-archer-3d': foot('germans/archer', 'britons/infantry_javelinist_b', { attack: 'attack_ranged' }),
+  'germans-archer-3d': archer('germans/archer', 'britons/infantry_javelinist_b'),
   'germans-chosen_spearman-3d': foot('germans/chosen_spearman', 'britons/infantry_spearman_e'),
   'germans-axe_thrower-3d': foot('germans/axe_thrower', 'britons/infantry_javelinist_e', { attack: 'attack_ranged' }),
   'germans-chosen_axeman-3d': foot('germans/chosen_axeman', 'britons/infantry_swordsman_c'),
@@ -156,7 +188,7 @@ export const SOLDIERS = {
   'visigoths-warrior-3d': foot('visigoths/warrior', 'iberians/infantry_spearman_a', { props: light('axe_single') }),
   'visigoths-spearman-3d': foot('visigoths/spearman', 'iberians/infantry_spearman_b'),
   'visigoths-swordsman-3d': foot('visigoths/swordsman', 'iberians/infantry_swordsman_a'),
-  'visigoths-archer-3d': foot('visigoths/archer', 'iberians/infantry_javelinist_b', { attack: 'attack_ranged' }),
+  'visigoths-archer-3d': archer('visigoths/archer', 'iberians/infantry_javelinist_b'),
   'visigoths-armored_archer-3d': foot('visigoths/armored_archer', 'carthaginians/infantry_archer_e', { attack: 'attack_ranged' }),
   // Ostrogodos ← seléucidas (infantería pesada de estilo tardorromano/oriental); banda guerrera ← tracios.
   'ostrogoths-warrior-3d': foot('ostrogoths/warrior', 'seleucids/infantry_spearman_a', { props: light('axe_single') }),

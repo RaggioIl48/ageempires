@@ -293,6 +293,13 @@ function imageOf(_id: string, sheet: SheetMeta): ArtImage | null {
 const TINT_BUDGET_MS = 4;
 let tintWindow = 0, tintSpent = 0;
 
+/**
+ * Las máscaras de color se guardan a media resolución de la hoja que tiñen: son manchas de tela de
+ * un solo color (no se nota) y cada una es una textura de video. Con 74 tipos × 8 colores ocupaban
+ * ~1,8 GB y acercaban el juego al límite de la tarjeta gráfica (tirones otra vez); así, la cuarta parte.
+ */
+export const TINT_SCALE = 0.5;
+
 function tintOf(id: string, img: ArtImage, sheet: SheetMeta, color: string, q = 1, force = false): HTMLCanvasElement | null {
   const key = `${id}|${color}|${q}`;
   let c = tints.get(key);
@@ -304,16 +311,17 @@ function tintOf(id: string, img: ArtImage, sheet: SheetMeta, color: string, q = 
     }
     if (!force && tintSpent >= TINT_BUDGET_MS) return null;
     const top = Math.floor(sheet.maskY * q);
+    const w = img.width, h = Math.max(1, img.height - top);
     c = document.createElement('canvas');
-    c.width = img.width;
-    c.height = Math.max(1, img.height - top);
+    c.width = Math.max(1, Math.ceil(w * TINT_SCALE));
+    c.height = Math.max(1, Math.ceil(h * TINT_SCALE));
     const g = c.getContext('2d')!;
-    g.drawImage(img, 0, top, c.width, c.height, 0, 0, c.width, c.height);
+    g.drawImage(img, 0, top, w, h, 0, 0, c.width, c.height);
     g.globalCompositeOperation = 'multiply';
     g.fillStyle = color;
     g.fillRect(0, 0, c.width, c.height);
     g.globalCompositeOperation = 'destination-in';
-    g.drawImage(img, 0, top, c.width, c.height, 0, 0, c.width, c.height);
+    g.drawImage(img, 0, top, w, h, 0, 0, c.width, c.height);
     tints.set(key, c);
     tintSpent += performance.now() - t0;
   }
@@ -353,6 +361,9 @@ function rowOf(u: UnitView, sheet: SheetMeta, dirs: number, face: number): numbe
  */
 const GALLOP_FROM = 2.0;
 const TROT_BELOW = 1.65;
+/** Infantería: a la carrera desde 1,0 casillas/s (en modo "caminar" van a ~0,85) y vuelve al paso por debajo de 0,9. */
+const RUN_FROM = 1.0;
+const WALK_BELOW = 0.9;
 const galloping = new Set<number>();
 
 function animName(u: UnitView, sheet?: SheetMeta): string {
@@ -365,7 +376,9 @@ function animName(u: UnitView, sheet?: SheetMeta): string {
       return 'charge';
     }
     const sp = u.sp ?? 0;
-    if (galloping.has(u.id) ? sp < TROT_BELOW : sp < GALLOP_FROM) {
+    const rider = !!sheet.anims.charge;
+    const [up, down] = rider ? [GALLOP_FROM, TROT_BELOW] : [RUN_FROM, WALK_BELOW];
+    if (galloping.has(u.id) ? sp < down : sp < up) {
       galloping.delete(u.id);
       return 'walk';
     }
@@ -418,7 +431,8 @@ export function drawSpriteUnit(
   const t = now / 1000 + u.id * 0.37;
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
   // El trote de un caballo se calcula para ~1,5 casillas/s y el galope para ~2,5.
-  const base = name === 'run' || name === 'charge' ? 2.5 : sheet.anims.run ? 1.5 : 1.4;
+  const rider = !!sheet.anims.charge;
+  const base = rider ? (name === 'run' || name === 'charge' ? 2.5 : 1.5) : 1.4;
   const pace = (name === 'walk' || name === 'run') && u.sp ? Math.min(1.4, Math.max(0.55, u.sp / base)) : 1;
   // Ataque: sincronizado con el golpe real del servidor (preparación, impacto, recuperación).
   // Con la zancada medida: los pies (o cascos) apoyados quedan quietos sobre el suelo. Sin ella, el
@@ -569,7 +583,8 @@ function drawFrame(
     if (mw && mh) {
       const tint = tintOf(id, img, sheet, color, q);
       const top = Math.floor(sheet.maskY * q);
-      if (tint) ctx.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - top, mw * q, mh * q, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
+      const t = TINT_SCALE;
+      if (tint) ctx.drawImage(tint, a.m[k] * q * t, (a.m[k + 1] * q - top) * t, mw * q * t, mh * q * t, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
     }
   }
   return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
@@ -699,7 +714,8 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   const k = d * a.n * 6;
   if (a.m.length && a.m[k + 2]) {
     const tint = tintOf(id, img, sheet, color, q, true)!;
-    g.drawImage(tint, a.m[k] * q, a.m[k + 1] * q - Math.floor(sheet.maskY * q), a.m[k + 2] * q, a.m[k + 3] * q, a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
+    const t = TINT_SCALE;
+    g.drawImage(tint, a.m[k] * q * t, (a.m[k + 1] * q - Math.floor(sheet.maskY * q)) * t, a.m[k + 2] * q * t, a.m[k + 3] * q * t, a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
   }
   // Recorte cuadrado: medio cuerpo (a pie) o la figura entera (jinetes y máquinas).
   const side = wide ? Math.max(a.w, a.h) : Math.round(a.ay * 0.72);

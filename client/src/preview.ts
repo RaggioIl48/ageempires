@@ -64,8 +64,8 @@ async function main(): Promise<void> {
         const u: UnitView = {
           id: r * 8 + d, owner: 0, type, x: 0, y: 0, hp: 100,
           state: row === 'attack' || row === 'charge' ? 'attacking' : 'idle',
-          ...(row === 'walk' ? { walk: 1 as const, sp: 1.4 } : {}),
-          ...(row === 'gallop' || row === 'charge' ? { walk: 1 as const, sp: 2.4 } : {}),
+          ...(row === 'walk' ? { walk: 1 as const, sp: 0.85 } : {}),
+          ...(row === 'gallop' || row === 'charge' ? { walk: 1 as const, sp: 2.4 } : {}), // a pie: corre
           ...(row === 'attack' ? { cool, ha: lastHit } : {}),
         } as UnitView;
         if (row === 'die') drawDyingUnit(ctx, u, x, y, COLOR, faction, face, ((now - start) / 1000) % 2.5);

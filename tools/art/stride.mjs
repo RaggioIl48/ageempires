@@ -102,14 +102,15 @@ if (process.argv[1]?.replace(/\\/g, '/').endsWith('tools/art/stride.mjs')) {
       const raw = measureStride(img, sheet, a);
       // Rangos creíbles (un paso humano o de caballo); fuera de eso la medición falló (ruedas, armas
       // que tocan el suelo…) y se usa el ritmo de siempre.
-      const [lo, hi] = name === 'run' ? [1.1, 2.5] : [0.4, 1.05];
+      const rider = !!sheet.anims.charge;
+      const [lo, hi] = name === 'run' ? (rider ? [1.1, 2.5] : [0.6, 1.8]) : [0.4, 1.05];
       const st = raw && raw >= lo && raw <= hi ? raw : null;
       if (st) a.st = st;
       else delete a.st;
       res.push(`${name} ${st ?? '—'}`);
     }
     // Si uno de los dos pasos no se pudo medir (pocos apoyos), se estima desde el otro.
-    const w = sheet.anims.walk, r = sheet.anims.run;
+    const w = sheet.anims.walk, r = sheet.anims.charge ? sheet.anims.run : null; // solo jinetes
     if (r && !r.st && w?.st) {
       r.st = Math.round(w.st * GALLOP_PER_TROT * 1000) / 1000;
       res.push(`(run estimated ${r.st})`);

@@ -88,9 +88,10 @@ describe('arte de unidades', () => {
     let riders = 0;
     for (const [id, s] of Object.entries<{ anims: Record<string, { st?: number }> }>(units.sheets)) {
       const w = s.anims.walk?.st, r = s.anims.run?.st;
+      const isRider = !!s.anims.charge;
       if (w !== undefined) expect(w >= 0.4 && w <= 1.05, `${id} walk ${w}`).toBe(true);
-      if (r !== undefined) expect(r >= 1.1 && r <= 2.5, `${id} run ${r}`).toBe(true);
-      if (s.anims.run && id.endsWith('-3d')) {
+      if (r !== undefined) expect(isRider ? r >= 1.1 && r <= 2.5 : r >= 0.6 && r <= 1.8, `${id} run ${r}`).toBe(true);
+      if (isRider && id.endsWith('-3d')) {
         riders++;
         expect(w, `${id} trot stride`).toBeDefined();
         expect(r, `${id} gallop stride`).toBeDefined();

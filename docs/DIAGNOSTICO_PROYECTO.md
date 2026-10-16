@@ -106,7 +106,7 @@ Ordenado por cuánto se nota en pantalla.
 | # | Qué | Por qué | Esfuerzo |
 |---|---|---|---|
 | 1 | ✅ Ataque al galope + giro y aceleración de la caballería (2026-10-16) | Lo que más acerca la caballería a Total War | Medio |
-| 2 | Arqueros con animación de arco + carrera a pie | Errores visibles en unidades que se usan todo el tiempo | Bajo–medio |
+| 2 | ✅ Arqueros con animación de arco + carrera a pie (2026-10-16) | Errores visibles en unidades que se usan todo el tiempo | Bajo–medio |
 | 3 | Derribo visible, polvo y variantes de muerte | La carga se "siente" | Medio |
 | 4 | Guardar partidas (no perderlas al reiniciar) | Una clase no se pierde por un corte | Medio |
 | 5 | 16 direcciones para jinetes | Giros suaves en los cuerpos largos | Medio (más memoria) |
