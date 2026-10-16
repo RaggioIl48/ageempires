@@ -11,10 +11,10 @@
 // Desde internet, el panel del profesor pide el PIN (lo muestra el servidor al arrancar).
 
 import { spawn, spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prepare } from './prepare.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 8080;
@@ -54,12 +54,8 @@ if (!cloudflared) {
   process.exit(1);
 }
 
-// El cliente compilado (lo que se descarga el navegador).
-if (!fs.existsSync(path.join(ROOT, 'client/dist/index.html'))) {
-  console.log('  Building the game…');
-  const b = spawnSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'inherit', shell: true });
-  if (b.status !== 0) process.exit(1);
-}
+// Dependencias y cliente compilado al día (recompila si cambió algo).
+prepare();
 
 const already = await portInUse(PORT);
 console.log(`\n  Opening a Cloudflare tunnel to http://localhost:${PORT} …`);

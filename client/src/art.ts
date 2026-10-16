@@ -147,16 +147,32 @@ function artImage(file: string): ArtImage | null {
       images.set(file, out);
       ready.add(file);
       artVersion++;
+      wake(file);
     };
     img.onload = () => {
       // Decodificar fuera del hilo del juego (sin tirón al aparecer una unidad nueva).
       if (typeof createImageBitmap === 'function') createImageBitmap(img).then(done, () => done(img));
       else done(img);
     };
-    img.onerror = () => images.set(file, null);
+    img.onerror = () => {
+      images.set(file, null);
+      wake(file);
+    };
     img.src = `${BASE}art/${file}`;
   }
   return null;
+}
+
+/** Promesa que se cumple cuando la imagen está lista (o falló): para la pantalla de carga. */
+const waiters = new Map<string, (() => void)[]>();
+function whenLoaded(file: string): Promise<void> {
+  if (ready.has(file) || images.get(file) === null) return Promise.resolve();
+  artImage(file);
+  return new Promise((done) => waiters.set(file, [...(waiters.get(file) ?? []), done]));
+}
+function wake(file: string): void {
+  for (const done of waiters.get(file) ?? []) done();
+  waiters.delete(file);
 }
 
 /** Libera una imagen (y su memoria de video, si es un ImageBitmap). */
@@ -640,17 +656,69 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
  * Precarga las hojas de las unidades de un pueblo (al entrar a la partida), de a una cada tanto
  * para no competir con el resto de la carga: así la primera tropa ya aparece con su dibujo.
  */
-export function preloadFaction(faction: FactionId): void {
+/**
+ * Pantalla de carga: deja listo lo que va a usar ESTA partida antes de empezar a dibujarla, para que
+ * no haya tirones cuando aparece por primera vez cada tipo de soldado (bajar la hoja, decodificarla y
+ * teñir su color de equipo). Solo lo necesario: las hojas livianas de los pueblos que juegan (la
+ * completa se sigue pidiendo al acercar mucho el zoom), los edificios y árboles, y la máscara de
+ * cada pueblo con el color de cada jugador que lo usa. Todo el arte junto serían ~400 MB de video.
+ */
+export async function preloadGame(players: { faction: FactionId; color: string }[], onProgress: (done: number, total: number) => void): Promise<void> {
+  await loadArt();
+  if (!manifest) return;
+  const m = manifest;
+  // Hojas de unidades de cada pueblo en juego (y las comunes '*/'), con los colores que las usan.
+  const sheetColors = new Map<string, Set<string>>();
+  for (const p of players)
+    for (const [key, id] of Object.entries(m.units)) {
+      if (!key.startsWith(`${p.faction}/`) && !key.startsWith('*/')) continue;
+      if (!m.sheets[id]) continue;
+      if (!sheetColors.has(id)) sheetColors.set(id, new Set());
+      sheetColors.get(id)!.add(p.color);
+    }
+  const files = new Set<string>();
+  for (const id of sheetColors.keys()) files.add(m.sheets[id].lo ?? m.sheets[id].file);
+  for (const sp of Object.values(buildingArt?.sprites ?? {})) files.add(sp.file);
+  const tints: [string, string][] = [];
+  for (const [id, colors] of sheetColors) if (Object.values(m.sheets[id].anims).some((a) => a.m.length)) for (const c of colors) tints.push([id, c]);
+  const total = files.size + tints.length;
+  let done = 0;
+  onProgress(0, total);
+  // Imágenes: varias a la vez (el navegador reparte las descargas).
+  await Promise.all([...files].map((f) => whenLoaded(f).then(() => onProgress(++done, total))));
+  // Máscaras de color: unas cuantas por cuadro, para que la barra de progreso siga moviéndose.
+  for (let i = 0; i < tints.length; i++) {
+    const [id, color] = tints[i];
+    const sheet = m.sheets[id];
+    const img = images.get(sheet.lo ?? sheet.file);
+    if (img && ready.has(sheet.lo ?? sheet.file)) tintOf(id, img, sheet, color, sheet.lo ? 0.5 : 1, true);
+    onProgress(++done, total);
+    if (i % 4 === 3) await new Promise((r) => requestAnimationFrame(() => r(null)));
+  }
+}
+
+/**
+ * En la sala de espera: baja (sin decodificar) el arte del pueblo elegido y los edificios, para que la
+ * pantalla de carga de la partida solo tenga que prepararlos. Queda en la caché del navegador (el
+ * servidor la permite por un día). Una sola vez por pueblo; si cambia de pueblo, baja el nuevo.
+ */
+const prefetched = new Set<string>();
+export function prefetchFaction(faction: FactionId): void {
   void loadArt().then(() => {
     if (!manifest) return;
-    const files = new Set<string>();
+    const files: string[] = [];
     for (const [key, id] of Object.entries(manifest.units)) {
-      if (!key.startsWith(`${faction}/`) && !key.startsWith('*/')) continue;
       const sheet = manifest.sheets[id];
-      if (sheet) files.add(sheet.file);
+      if (sheet && (key.startsWith(`${faction}/`) || key.startsWith('*/'))) files.push(sheet.lo ?? sheet.file);
     }
-    let i = 0;
-    for (const file of files) setTimeout(() => artImage(file), 150 * i++);
+    for (const sp of Object.values(buildingArt?.sprites ?? {})) files.push(sp.file);
+    // De a una por vez: en el Wi-Fi del aula no compite con lo que necesitan los demás.
+    let chain = Promise.resolve();
+    for (const f of files) {
+      if (prefetched.has(f) || ready.has(f)) continue;
+      prefetched.add(f);
+      chain = chain.then(() => fetch(`${BASE}art/${f}`).then((r) => r.blob()).then(() => undefined, () => undefined));
+    }
   });
 }
 

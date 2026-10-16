@@ -98,6 +98,14 @@ export class PerfMeter {
     this.serverMaxMs = serverMaxMs;
   }
 
+  /** Empieza a contar tirones de cero (al cerrarse la pantalla de carga: lo de antes era cargar). */
+  resetHitches(): void {
+    this.hitches = 0;
+    this.hitchCur = 0;
+    this.hitchPrev = 0;
+    this.lastFrame = -1;
+  }
+
   /** Tirón más largo de los últimos 5–10 s (ms). */
   get hitchMs(): number {
     return Math.max(this.hitchCur, this.hitchPrev);

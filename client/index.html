@@ -166,6 +166,14 @@
     <!-- Screen overlays (connection, pause, end of game) -->
     <div id="overlay" class="hidden"></div>
     <div id="paused" class="hidden">⏸ The teacher paused the game</div>
+    <div id="loading" class="hidden">
+      <div class="loading-box">
+        <b>⚔ Preparing the battlefield…</b>
+        <div class="loading-bar"><div id="loading-fill"></div></div>
+        <small id="loading-text">Loading the armies of every people in this game</small>
+        <button id="loading-skip" class="hidden">Play now</button>
+      </div>
+    </div>
     <div id="ended" class="hidden"></div>
     <!-- Question to advance an age -->
     <div id="quiz" class="overlay hidden"><div class="quiz-box panel"></div></div>

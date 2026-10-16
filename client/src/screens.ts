@@ -2,7 +2,7 @@
 // (facción y color) y panel del profesor.
 
 import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
-import { artVersion, unitPortrait } from './art.ts';
+import { artVersion, prefetchFaction, unitPortrait } from './art.ts';
 import { flagSvg } from './flags.ts';
 import { PEOPLE_HISTORY, parseQuizText } from '../../shared/lessons.ts';
 import { CODE_LENGTH, type BotLevel, type ClientMessage, type QuizMode, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
@@ -208,6 +208,7 @@ export class LobbyScreen {
     el('lobby-status').textContent =
       room.phase === 'lobby' ? `Waiting for the teacher to start the game… (${settingsText(room.settings)})` : 'The game is starting…';
     const mine = room.members.find((m) => m.id === this.me);
+    if (mine && room.phase === 'lobby') prefetchFaction(mine.faction);
     el('lobby-members').innerHTML = room.members
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i>

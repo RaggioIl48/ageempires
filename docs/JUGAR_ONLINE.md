@@ -9,6 +9,41 @@ El juego tiene dos partes:
 Lo único que cambia entre las opciones es **dónde corre el servidor** y **cómo llegan los
 estudiantes hasta él**.
 
+## Recomendación (auditada el 2026-10-16, todo gratis)
+
+| Situación | Usar | Por qué |
+|---|---|---|
+| **Clase en el aula** (lo habitual) | **Red local**: doble clic en `Jugar en el aula.bat` (o `npm run aula`) | No usa internet. Medido: el servidor responde en 4 ms por la red local y el juego usa ~67 kbit/s por estudiante (picos de 250): 30 alumnos ≈ 2 Mbit/s, nada para el Wi-Fi del colegio |
+| Algún estudiante desde la casa | `Jugar online.bat` (túnel rápido de Cloudflare) | Gratis, sin cuenta; el enlace cambia cada vez y se manda por el chat de la clase |
+| Si un día quieres un enlace fijo | Tailscale Funnel (opción 2) | Gratis con cuenta; mismo enlace siempre |
+
+**Red local, paso a paso:**
+1. La primera vez: instalar Node.js LTS (https://nodejs.org).
+2. Cada clase: doble clic en **`Jugar en el aula.bat`**. Prepara el juego si cambió algo, arranca
+   el servidor y abre el panel del profesor.
+3. Los estudiantes escriben en el navegador la dirección de **STUDENTS** que muestra la ventana
+   (por ejemplo `http://192.168.1.7:8080`). Tienen que estar en la misma red Wi-Fi o de cable.
+4. La ventana debe quedar abierta mientras juegan.
+
+**Si un estudiante no puede entrar:**
+- **Misma red:** el Wi-Fi de invitados suele ser otra red. Tienen que estar en la misma que tu PC.
+- **Permiso de Windows:** si Windows pregunta si Node.js puede usar la red, responde **Permitir**.
+  En esta PC ya está permitido, incluso en redes "públicas".
+- **Aislamiento de equipos:** muchas redes Wi-Fi de colegio impiden que los equipos se hablen entre
+  sí. Si nadie puede entrar aunque estén en la misma red, eso es lo que pasa. Pídele a sistemas que
+  lo permita para tu PC o para el **equipo servidor del colegio** (si está conectado por cable a la
+  red de las salas, es la mejor opción). Otra salida es conectar tu PC por cable.
+- **IP cambiante:** la dirección puede cambiar de un día a otro (la asigna el router). Lee siempre la
+  que muestra la ventana; también aparece en el panel del profesor. Sistemas puede dejarle una IP
+  fija a tu PC o al equipo servidor.
+
+**El equipo del colegio como servidor:** sirve igual. Se instala Node.js, se copia la carpeta del
+juego y se usa `Jugar en el aula.bat`. Si queda siempre encendido, los estudiantes entran a la misma
+dirección todas las clases.
+
+**Pantalla de carga:** al empezar la partida, cada navegador prepara solo el arte de los pueblos que
+juegan (~1–2 s en la red local). En la sala de espera ya va descargando el de su pueblo.
+
 ## Resumen
 
 | Opción | Costo | Enlace | ¿Tu PC encendida? | Esfuerzo | Ideal para |

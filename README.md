@@ -36,7 +36,7 @@ Other ways to play online (a fixed link with Tailscale Funnel or a named Cloudfl
 
 ## Playing in class (LAN mode)
 
-**1. The teacher starts the server** (in a terminal, in the project folder):
+**1. The teacher starts the server**: double click **`Jugar en el aula.bat`** (Windows; it builds the game if needed, starts the server and opens the teacher panel), or in a terminal in the project folder:
 
 ```bash
 npm install        # first time only

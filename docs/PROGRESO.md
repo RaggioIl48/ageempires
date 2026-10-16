@@ -821,6 +821,23 @@ finished Wonder that stands 5 minutes wins; everyone is warned and the war panel
 destroying it stops the clock; one per empire. Bots send their whole army against an enemy Wonder.
 New `preview.html?buildings=1&faction=…` shows every building of a people.
 
+## Loading screen and classroom setup (2026-10-16)
+
+- **Loading screen** when the game starts: every browser prepares only what this game uses, i.e. the
+  light sheets of the peoples playing, the buildings, and each people's team mask in the colours of
+  its players, before showing the map. "Play now" appears at 6 s, and at 30 s it enters anyway.
+  Measured with REA (4 bots, 120 units, teacher watching, cold cache): **50 → 60 fps, worst frame
+  167 → 20 ms, 5 → 1 stutters in 40 s**, loading 1.8 s. The old preload fetched the *full-resolution*
+  sheets of your own people (4× the data, then thrown away after 15 s); now it uses the light copies.
+- **Lobby prefetch**: in the waiting room the browser downloads (without decoding) the art of the
+  chosen people and the buildings, one file at a time so it does not crowd the school Wi-Fi.
+- **Classroom launcher**: `Jugar en el aula.bat` / `npm run aula` installs on first use, rebuilds the
+  client only when something changed, starts the server and opens the teacher panel.
+  `Jugar online.bat` does the same with the Cloudflare tunnel.
+- **Network audit**: `tools/bench/traffic.ts` measures ~67 kbit/s per student (peaks 250), so 30
+  students need ≈ 2 Mbit/s. The server answers on the LAN address in 4 ms. Recommendation and
+  troubleshooting are in [JUGAR_ONLINE.md](JUGAR_ONLINE.md).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

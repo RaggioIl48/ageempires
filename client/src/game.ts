@@ -14,7 +14,7 @@ import { ClientState } from './state.ts';
 import { Camera, renderDpr } from './view.ts';
 import { PerfMeter, perfVerdict } from './perf.ts';
 import { Sound } from './sound.ts';
-import { preloadFaction } from './art.ts';
+import { preloadGame } from './art.ts';
 
 export class GameView {
   readonly state = new ClientState();
@@ -34,6 +34,9 @@ export class GameView {
   private lastMini = 0;
   private lastPing = 0;
   private perfOpen = false;
+  /** Pantalla de carga en curso (una por bienvenida) y cuánto tardó la última. */
+  private loadingRun = 0;
+  loadMs = 0;
   private readonly perfBox = document.getElementById('perf')!;
   readonly perf = new PerfMeter();
   /** Sonido de batalla (M = silencio). */
@@ -71,7 +74,7 @@ export class GameView {
     box.classList.remove('hidden');
     box.dataset.level = v.level;
     box.innerHTML = this.perfOpen
-      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step (worst ${Math.round(s.serverMaxMs ?? 0)})<br>worst frame ${Math.round(s.hitchMs ?? 0)} ms · ${this.perf.hitches} stutters<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs<br><small>${Object.entries(this.renderer.timings).map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join(' · ')}</small>`
+      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step (worst ${Math.round(s.serverMaxMs ?? 0)})<br>worst frame ${Math.round(s.hitchMs ?? 0)} ms · ${this.perf.hitches} stutters · loaded in ${(this.loadMs / 1000).toFixed(1)} s<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs<br><small>${Object.entries(this.renderer.timings).map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join(' · ')}</small>`
       : `● ${Math.round(s.ping)} ms`;
   }
 
@@ -84,7 +87,7 @@ export class GameView {
       this.sound.onEvents(this.state.lastEvents, { cx: this.cam.cx, cy: this.cam.cy, w, h }, this.state.battles.length > battlesBefore);
     }
     if (msg.t === 'welcome') {
-      if (!this.state.spectator) preloadFaction(this.state.faction(this.state.you));
+      this.showLoading();
       this.renderer.setMap(this.state);
       this.minimap.reset();
       this.cam.mapSize = this.state.size;
@@ -99,6 +102,40 @@ export class GameView {
     this.guide.update();
     this.chat.update();
     this.war.update();
+  }
+
+  /**
+   * Pantalla de carga: tapa la partida mientras se preparan las hojas de los pueblos en juego y sus
+   * colores (si no, cada tipo de soldado nuevo traía un tirón). Si tarda (internet lenta), a los 6 s
+   * aparece "Jugar ya" y a los 30 s se entra igual: lo que falte se sigue cargando de fondo.
+   */
+  private showLoading(): void {
+    const box = document.getElementById('loading')!;
+    const fill = document.getElementById('loading-fill')!;
+    const text = document.getElementById('loading-text')!;
+    const skip = document.getElementById('loading-skip')!;
+    const id = ++this.loadingRun;
+    const close = () => {
+      if (id !== this.loadingRun || box.classList.contains('hidden')) return;
+      box.classList.add('hidden');
+      this.perf.resetHitches();
+    };
+    box.classList.remove('hidden');
+    skip.classList.add('hidden');
+    skip.onclick = close;
+    const t0 = performance.now();
+    const showSkip = window.setTimeout(() => skip.classList.remove('hidden'), 6000);
+    const giveUp = window.setTimeout(close, 30_000);
+    const players = [...this.state.players.values()].map((p) => ({ faction: p.faction, color: p.color }));
+    void preloadGame(players, (done, total) => {
+      fill.style.width = `${total ? Math.round((done / total) * 100) : 100}%`;
+      text.textContent = `Loading the armies of every people in this game · ${done}/${total}`;
+    }).finally(() => {
+      window.clearTimeout(showSkip);
+      window.clearTimeout(giveUp);
+      this.loadMs = Math.round(performance.now() - t0);
+      close();
+    });
   }
 
   /** Al empezar: la cámara sobre el Centro Urbano propio (o el centro del mapa si es el profesor). */

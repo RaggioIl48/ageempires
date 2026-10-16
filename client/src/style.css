@@ -1576,3 +1576,46 @@ img.portrait {
   background: #3b2a1a;
   color: #f3d58a;
 }
+
+/* Pantalla de carga al empezar la partida (las hojas de los pueblos en juego y sus colores). */
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 11, 8, 0.94);
+}
+#loading.hidden {
+  display: none;
+}
+.loading-box {
+  width: min(420px, 86vw);
+  text-align: center;
+  color: var(--accent);
+}
+.loading-box b {
+  font-size: 22px;
+}
+.loading-bar {
+  height: 12px;
+  margin: 16px 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  overflow: hidden;
+}
+#loading-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.15s;
+}
+.loading-box small {
+  display: block;
+  color: var(--text, #eee);
+  opacity: 0.8;
+}
+#loading-skip {
+  margin-top: 14px;
+}
