@@ -154,7 +154,11 @@ export type GameEvent =
   /** c: 1 = golpe de carga (más grande). */
   /** c = carga; fl = flanco (1) o espalda (2); b = el escudo paró el tiro. */
   | { k: 'hit'; x: number; y: number; c?: 1; fl?: 1 | 2; b?: 1 }
-  | { k: 'death'; x: number; y: number }
+  /**
+   * d = hacia dónde iba el golpe mortal (0–15, sectores de 22,5° en el plano del mapa);
+   * h = golpe brutal (carga, jinete, máquina): el caído sale despedido.
+   */
+  | { k: 'death'; x: number; y: number; d?: number; h?: 1 }
   /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
   | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }
   | { k: 'destroyed'; x: number; y: number; size: number }
@@ -187,6 +191,8 @@ export interface RoomSettings {
   diplomacy: 'free' | 'locked';
   /** Chat entre jugadores (el profesor puede apagarlo). */
   chat: boolean;
+  /** Modo pruebas: la clave de recursos (ver TEST_KEY en room.ts) funciona para todos. */
+  testMode?: boolean;
   /** Niebla de guerra: cada uno ve solo lo que ven sus tropas y las de sus aliados. */
   fog: boolean;
   /** Pausa táctica automática al empezar cada batalla (segundos; 0 = no). */
@@ -590,6 +596,7 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (s.diplomacy !== undefined && s.diplomacy !== 'free' && s.diplomacy !== 'locked') return null;
   if (s.chat !== undefined && typeof s.chat !== 'boolean') return null;
   if (s.fog !== undefined && typeof s.fog !== 'boolean') return null;
+  if (s.testMode !== undefined && typeof s.testMode !== 'boolean') return null;
   if (s.battlePause !== undefined && (!Number.isInteger(s.battlePause) || (s.battlePause as number) < 0 || (s.battlePause as number) > 60)) return null;
   if (s.quiz !== undefined && s.quiz !== 'off' && s.quiz !== 'history' && s.quiz !== 'custom') return null;
   let questions: QuizQuestion[] | undefined;
@@ -614,6 +621,7 @@ function parseSettings(v: unknown): RoomSettings | null {
     fog: (s.fog as boolean | undefined) ?? true,
     battlePause: (s.battlePause as number | undefined) ?? 15,
     quiz: (s.quiz as QuizMode | undefined) ?? 'history',
+    ...(s.testMode === true ? { testMode: true } : {}),
     ...(questions?.length ? { questions } : {}),
   };
 }

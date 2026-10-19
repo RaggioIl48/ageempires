@@ -151,6 +151,8 @@ export interface Unit {
   amove: Point | null;
   /** Órdenes de movimiento en cola (Shift + clic derecho): se cumplen una tras otra. */
   orders: { x: number; y: number; amove: boolean }[];
+  /** Adónde seguía cuando un enemigo cercano lo hizo trabar combate en plena marcha (null = a ningún lado). */
+  resume: Point | null;
   /** Pasos que le quedan en el suelo tras ser derribado por una carga (0 = de pie). */
   down: number;
   /** Disparos que le quedan (solo soldados a distancia; Infinity = sin límite). */
@@ -159,6 +161,9 @@ export interface Unit {
   wall: boolean;
   /** Veces que huyó (desde SHATTER_AFTER queda destrozada). */
   routs: number;
+  /** Último golpe recibido: hacia dónde iba (0–15, -1 = ninguno) y si fue brutal (carga, jinete, máquina). */
+  hitFrom: number;
+  hitHeavy: boolean;
 }
 
 /** Proyectil en vuelo: el daño se decide al caer, donde esté el objetivo en ese momento. */
@@ -606,10 +611,13 @@ export class World {
       reg: 0,
       amove: null,
       orders: [],
+      resume: null,
       down: 0,
       ammo: ammoFor(type),
       wall: false,
       routs: 0,
+      hitFrom: -1,
+      hitHeavy: false,
     };
     this.units.set(u.id, u);
     return u;

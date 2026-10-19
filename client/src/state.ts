@@ -60,6 +60,11 @@ export interface Corpse {
   v: UnitView;
   face: number;
   t0: number;
+  /** Hacia dónde iba el golpe mortal (radianes en el plano del mapa) y si fue brutal (sale despedido). */
+  blow?: number;
+  heavy?: boolean;
+  /** Ya levantó el polvo al caer. */
+  dusted?: boolean;
 }
 
 /** Propuesta diplomática pendiente. */
@@ -306,8 +311,9 @@ export class ClientState {
     for (const id of d.ur ?? []) {
       const cu = this.units.get(id);
       // Si cayó en combate (hay un evento de muerte donde estaba), queda en el suelo un momento.
-      if (cu && deaths.some((e) => Math.abs(e.x - cu.v.x) < 0.8 && Math.abs(e.y - cu.v.y) < 0.8)) {
-        this.corpses.push({ v: cu.v, face: cu.face, t0: now });
+      const e = cu ? deaths.find((e) => Math.abs(e.x - cu.v.x) < 0.8 && Math.abs(e.y - cu.v.y) < 0.8) : undefined;
+      if (cu && e && e.k === 'death') {
+        this.corpses.push({ v: cu.v, face: cu.face, t0: now, ...(e.d !== undefined ? { blow: (e.d / 16) * Math.PI * 2 } : {}), ...(e.h ? { heavy: true } : {}) });
         if (this.corpses.length > 220) this.corpses.shift();
       }
       this.units.delete(id);

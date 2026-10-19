@@ -101,14 +101,103 @@ Ordenado por cuánto se nota en pantalla.
 - **Herramientas del profesor:** pausar con mensaje para la clase, repetir una batalla y guardar
   el informe de la partida.
 
-## 7. Prioridades recomendadas
+## 7. Prioridades recomendadas (actualizado 2026-10-19)
 
 | # | Qué | Por qué | Esfuerzo |
 |---|---|---|---|
 | 1 | ✅ Ataque al galope + giro y aceleración de la caballería (2026-10-16) | Lo que más acerca la caballería a Total War | Medio |
 | 2 | ✅ Arqueros con animación de arco + carrera a pie (2026-10-16) | Errores visibles en unidades que se usan todo el tiempo | Bajo–medio |
-| 3 | Derribo visible, polvo y variantes de muerte | La carga se "siente" | Medio |
+| 3 | ✅ Derribo visible, polvo, sacudida y variantes de muerte (2026-10-19) | La carga se "siente" | Medio |
+| — | ✅ Alcance visible, disparo en marcha y combate cercano en marcha (2026-10-19) | Pedido directo: control de arqueros | Bajo–medio |
+| — | ✅ Clave de pruebas `imperio10mil` (2026-10-19) | Probar unidades sin juntar recursos | Bajo |
 | 4 | Guardar partidas (no perderlas al reiniciar) | Una clase no se pierde por un corte | Medio |
-| 5 | 16 direcciones para jinetes | Giros suaves en los cuerpos largos | Medio (más memoria) |
-| 6 | Renderer WebGL (PixiJS) | Habilita todo lo visual a escala | Alto |
-| 7 | Tarjetas de regimiento estilo Total War | Control más claro de la batalla | Medio |
+| 5 | Edad Media en tres etapas, con catapulta y monje (§9) | La edad que más se juega es hoy la más plana | Medio–alto |
+| 6 | Posturas de combate (agresiva / defensiva / mantener) y guarnición | El jugador decide si sus tropas traban combate solas | Medio |
+| 7 | Animación de disparo en marcha (jinete arquero al galope) | Hoy disparan con el cuadro de caminar | Medio |
+| 8 | 16 direcciones para jinetes | Giros suaves en los cuerpos largos | Medio (más memoria) |
+| 9 | Tarjetas de regimiento estilo Total War | Control más claro de la batalla | Medio |
+| 10 | Renderer WebGL (PixiJS) | Habilita todo lo visual a escala | Alto |
+
+## 8. Lo hecho el 2026-10-19
+
+- **Alcance de los arqueros:** al seleccionar tiradores se ve la zona a tiro (sombreada, borde
+  amarillo punteado). Con un regimiento entero se dibuja una sola mancha (la unión de los círculos).
+  Falta sumar el alcance extra de las colinas en el dibujo.
+- **Disparo en marcha:** con una orden de mover simple, los tiradores disparan sin detenerse al
+  enemigo más cercano a tiro. A pie recargan 35 % más lento; el jinete arquero, normal.
+- **Combate cercano en marcha:** los cuerpo a cuerpo que marchan traban combate con un soldado
+  enemigo que se les acerca a un 30 % de su visión (mínimo 2 casillas). Al terminar siguen hacia su
+  destino. Ignoran trabajadores y enemigos que huyen, y no se alejan de su camino.
+- **Clave de pruebas:** escribir `imperio10mil` en el chat deja 10.000 de cada recurso. Funciona si
+  un estudiante juega solo contra la computadora, o si el profesor activa "Test mode" al crear la
+  partida. Nadie más ve el mensaje.
+- **Prioridad 3:** el muerto cae hacia donde iba el golpe (lo arrollado por una carga sale
+  despedido media casilla) y a uno de tres ritmos. Hay polvo al caer y al ser derribado, y una
+  sacudida corta de cámara cuando una carga choca en pantalla. Todo con la animación de muerte que
+  ya existía: en el caché de 0 A.D. solo está `death_a` para la infantería.
+- Medido con REA (Chrome sin ventana, partida completa con ejércitos de prueba): la clave, el
+  alcance y la marcha funcionan, sin errores en la página. 423 tests pasan (9 nuevos en
+  `server/test/marching.test.ts`).
+
+## 9. Auditoría: la Edad Media
+
+La Edad Media es donde pasa casi toda la partida (la Industrial está pensada para llegar tarde).
+Hoy tiene 8 unidades comunes (explorador, lancero, espadachín, arquero, caballero, ariete, torre de
+asedio, General), 3 únicas por pueblo, 40 tecnologías y 24 edificios. Pero 21 de esas 40
+tecnologías son solo "élite" de las unidades únicas: la edad tiene mucho volumen y poco recorrido.
+
+Lo que más falta, por cuánto cambia la partida:
+
+1. **No hay progreso dentro de la edad.** Del año 500 al 1500 todo pasa en un solo escalón.
+   → Tres etapas (Alta, Plena y Baja Edad Media) con una pregunta de historia cada una. Cada etapa
+   abre algo que se ve: cota de malla → placas, castillos de piedra, ballesteros y piqueros.
+   Además da una línea de tiempo concreta para la clase.
+2. **No hay artillería de piedra común.** Solo los mongoles (trabuquete) y los romanos (escorpión)
+   tienen máquinas a distancia. Los demás asedian con ariete y torre.
+   → Mangonel o catapulta para todos en la Plena Edad Media, y trabuquete en la Baja.
+3. **No hay curación ni religión común.** Solo el Nemeton galo y la regeneración vikinga curan.
+   → Monje o sacerdote (cura a las tropas cercanas) y un monasterio. Las reliquias que dan oro
+   serían un buen gancho de historia y un objetivo en el mapa.
+4. **Las tropas viejas no se actualizan.** El guerrero tribal sigue siendo guerrero toda la
+   partida (límite conocido).
+   → Líneas de mejora estilo AoE II: al investigar la mejora, las unidades existentes cambian de tipo.
+5. **Faltan órdenes clásicas:** guarnecer torres, castillos y el Centro Urbano (los trabajadores se
+   esconden y disparan flechas), y patrullar.
+6. **Comercio pobre:** el mercado solo cambia recursos. Una carreta de comercio entre mercados
+   propios o aliados le da sentido a la diplomacia y a los caminos.
+7. **Balance pendiente:** vikingos (75 %) y ostrogodos (67 %) fuertes; galos (25 %) débiles.
+8. **Ballestero, piquero y caballería ligera son tecnologías, no unidades nuevas.** El cliente ya
+   distingue la unidad mejorada (`isUpgraded`); falta comprobar en el visor que el cambio se note
+   lo suficiente en pantalla.
+
+## 10. Diagnóstico: jugabilidad y animaciones
+
+### Jugabilidad
+- **Posturas de combate en vez de un solo interruptor de guardia.** Con el combate en marcha, las
+  tropas ahora pelean solas. Para una retirada, el jugador necesita poder decir "no te detengas".
+  → Tres posturas por regimiento: agresiva (persigue todo lo que ve), defensiva (lo de hoy: traba
+  combate cerca y sigue) y mantener (no se mueve). Un botón en el panel, como el de guardia.
+- **El alcance tendría que verse antes de entrenar:** al pasar el ratón por el botón de entrenar, y
+  con el bonus de altura cuando el arquero está en una colina.
+- **Retirada clara:** una orden "Retirada" que ignora enemigos y corre (hoy, mover con Shift o
+  caminar no la reemplazan).
+- **Tutorial de 5 minutos y tarjetas de regimiento** (ver §6 y §4): hoy aprender a jugar depende
+  del profesor.
+- **Guardar partidas:** sigue siendo el mayor riesgo de una clase.
+
+### Animaciones
+- **Disparo en marcha sin cuadro propio.** El arquero que dispara caminando usa el cuadro de
+  caminar: la flecha sale, pero el gesto no. En el caché de 0 A.D. están las variantes
+  `base_archer_fast_back` y `base_archer_fast_hip` del jinete arquero, que parecen ser disparos al
+  galope (hay que comprobarlo). Para el arquero a pie conviene una decisión de diseño: que se
+  detenga medio segundo para tirar, o que dispare caminando sin gesto.
+- **Muertes de verdad distintas.** Las variantes de hoy son de movimiento y ritmo. Para tener
+  caídas distintas hacen falta más animaciones de muerte de 0 A.D.; en el caché solo está
+  `death_a`. Para la caballería ya están `horse_death_01` y la del jinete (`death_01`): con ellas se
+  puede hacer "el jinete cae del caballo" dibujando caballo y jinete por separado al morir.
+- **Choque de carga:** ya hay derribo, polvo y sacudida. Falta un cuadro de "recibir golpe" o de
+  retroceso en el que aguanta la carga sin caer.
+- **Reposo:** cada soldado ya empieza su ciclo desfasado, pero todos repiten los mismos 6 cuadros.
+  Dos o tres reposos distintos (mirar alrededor, apoyarse en la lanza) elegidos por unidad le
+  darían vida a una línea que espera.
+- **Lo grande sigue igual:** 16 direcciones para jinetes y WebGL (§5) son los saltos de fondo.

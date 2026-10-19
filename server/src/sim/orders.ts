@@ -37,6 +37,7 @@ export function clearOrders(units: Unit[]): void {
   for (const u of units) {
     u.amove = null;
     u.orders = [];
+    u.resume = null;
   }
 }
 
@@ -47,6 +48,15 @@ const free = (u: Unit) => !u.task && u.path.length === 0 && u.state === 'idle' &
 export function updateOrders(world: World): void {
   for (const u of world.units.values()) {
     if (!free(u)) continue;
+    // Terminó la pelea que le salió al paso: sigue la marcha que tenía.
+    if (u.resume) {
+      const r = u.resume;
+      u.resume = null;
+      if (Math.hypot(r.x - u.x, r.y - u.y) > 0.8) {
+        go(world, u, r.x, r.y);
+        continue;
+      }
+    }
     if (u.amove) {
       if (Math.hypot(u.amove.x - u.x, u.amove.y - u.y) > 0.8) {
         go(world, u, u.amove.x, u.amove.y);

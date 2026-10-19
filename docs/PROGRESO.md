@@ -940,6 +940,30 @@ Priority 2 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
   knocked down by a charge now falls (~0.4 s), stays down and gets up (~0.4 s) instead of freezing
   in one frame.
 
+## Archer range, fire on the move, close combat on the march, test key, death variants (2026-10-19)
+
+- **Archer range on screen**: selected ranged units (archers, slingers, horse archers, siege) show
+  their range as a shaded zone with a dashed outline. A whole regiment draws one zone (the union of
+  all circles), not 30 overlapping rings (`drawRanges` in `client/src/render.ts`). The extra range
+  from a hill is not drawn yet.
+- **Fire on the move**: with a plain move order, ranged soldiers shoot the nearest enemy in range
+  without stopping. On foot they reload 35 % slower (`MOVING_FIRE_SLOW`); horse archers keep their
+  normal rate. Before, a plain move ignored enemies completely.
+- **Close combat on the march**: melee troops with a plain move order engage an enemy soldier that
+  comes within 30 % of their sight (at least 2 tiles, `ENGAGE_NEAR`), and then carry on to where
+  they were going (`Unit.resume`). They ignore workers and routing enemies, and do not chase far
+  from their path. Guard mode and holding a formation keep their own rules; a new order cancels it.
+- **Test key**: typing `imperio10mil` in the chat sets every resource to 10,000. It works when one
+  student plays alone (against the computer) or when the teacher turns on the new "Test mode" option
+  when creating the game. Nobody else sees the message.
+- **Priority 3 (knockdown, dust, deaths)**: the death event now carries the direction of the
+  killing blow and whether it was brutal (charge, rider, siege). The fallen soldier slides that way
+  (about half a tile when ridden down) and falls at one of three speeds, so a line no longer dies in
+  step. Dust when a body hits the ground and when a charge knocks someone down, and a 0.18 s camera
+  shake when a charge lands on screen.
+- Tests: `server/test/marching.test.ts` (9). Checked in the game with REA (headless Chrome): the
+  key, the range zone and the march with no page errors (`docs/img/alcance_y_clave.png`).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

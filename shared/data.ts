@@ -1174,6 +1174,13 @@ export const GUARD_LEASH = 3;
 /** Hostigamiento (arqueros): si un enemigo cuerpo a cuerpo se acerca a esta distancia, retroceden tanto así. */
 export const SKIRMISH_DIST = 2.2;
 export const SKIRMISH_STEP = 3.5;
+/**
+ * Marchando con una orden de mover simple: si un enemigo militar se les pega a esta fracción de su
+ * visión (como mínimo GUARD_ENGAGE casillas), traban combate y después siguen hacia su destino.
+ */
+export const ENGAGE_NEAR = 0.3;
+/** Disparo en marcha: un tirador a pie que camina recarga así de más lento (el jinete arquero, normal). */
+export const MOVING_FIRE_SLOW = 1.35;
 /** Veteranía: bajas para cada rango (1, 2, 3) y lo que da cada rango. */
 export const RANK_KILLS = [2, 5, 10] as const;
 export const RANK_DAMAGE = 0.08;

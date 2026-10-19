@@ -4,7 +4,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { spawnDemoArmies } from '../sim/demo.ts';
-import { FACTION_ORDER, PLAYER_COLORS, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
+import { FACTION_ORDER, PLAYER_COLORS, RESOURCE_TYPES, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
 import { QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
 import type {
 
@@ -51,6 +51,14 @@ export interface Member {
 
 /** Segundos mínimos entre dos mensajes de chat de un mismo estudiante. */
 const CHAT_COOLDOWN_MS = 1500;
+
+/**
+ * Clave de pruebas: escrita en el chat, deja todos los recursos en TEST_KEY_AMOUNT (para probar
+ * unidades y edificios sin juntar recursos). Solo funciona si el profesor activó el modo pruebas
+ * o si en la partida hay un único estudiante (contra la computadora); nadie más ve el mensaje.
+ */
+export const TEST_KEY = 'imperio10mil';
+export const TEST_KEY_AMOUNT = 10_000;
 
 /** Segundos de espera después de contestar mal la pregunta de la era. */
 export const QUIZ_RETRY_SEC = 20;
@@ -302,6 +310,7 @@ export class Room {
   chat(conn: Conn, text: string, to: 'all' | 'allies'): string | null {
     const member = this.memberOf(conn);
     if (!member || member.kicked) return null;
+    if (text.trim().toLowerCase() === TEST_KEY) return this.testKey(member);
     if (!this.settings.chat) return 'The teacher turned off chat in this game.';
     const now = Date.now();
     if (now - member.lastChat < CHAT_COOLDOWN_MS) return 'Wait a moment before sending another message.';
@@ -312,6 +321,17 @@ export class Room {
     const msg: ServerMessage = { t: 'chat', from: member.id, name: member.name, color: member.color, text, to };
     for (const m of this.members) if (m.conn && !m.kicked && (to === 'all' || friend(m))) m.conn.send(msg);
     for (const w of this.watchers) w.send(msg);
+    return null;
+  }
+
+  /** La clave de pruebas: todos los recursos del jugador en TEST_KEY_AMOUNT. */
+  private testKey(member: Member): string | null {
+    const p = this.game?.world.players.get(member.id);
+    if (!p || this.phase !== 'playing') return 'The test key only works during a game.';
+    const humans = this.members.filter((m) => !m.bot && !m.kicked).length;
+    if (!this.settings.testMode && humans > 1) return 'The test key is off: the teacher can turn on test mode when creating the game.';
+    for (const r of RESOURCE_TYPES) p.resources[r] = TEST_KEY_AMOUNT;
+    this.game!.world.notify(member.id, `Test key: ${TEST_KEY_AMOUNT.toLocaleString('en')} of every resource.`);
     return null;
   }
 

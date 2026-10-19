@@ -162,7 +162,7 @@ export function sameTuple(a: readonly number[] | undefined, b: readonly number[]
 }
 
 // ---------- Efectos ----------
-// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga, flanco] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
+// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga, flanco] · death: [2, x, y, dirección + 1, brutal] · destroyed: [3, x, y, tamaño]
 // gain: [4, x, y, dueño, recurso, cantidad] · ability: [5, x, y, habilidad, radio] · rank: [6, x, y, rango]
 export type EventTuple = number[];
 
@@ -173,7 +173,7 @@ export function encodeEvent(e: GameEvent): EventTuple {
     case 'hit':
       return e.b ? [1, q(e.x), q(e.y), e.c ?? 0, e.fl ?? 0, 1] : e.fl ? [1, q(e.x), q(e.y), e.c ?? 0, e.fl] : e.c ? [1, q(e.x), q(e.y), 1] : [1, q(e.x), q(e.y)];
     case 'death':
-      return [2, q(e.x), q(e.y)];
+      return e.d === undefined ? [2, q(e.x), q(e.y)] : e.h ? [2, q(e.x), q(e.y), e.d + 1, 1] : [2, q(e.x), q(e.y), e.d + 1];
     case 'destroyed':
       return [3, q(e.x), q(e.y), e.size];
     case 'gain':
@@ -198,7 +198,7 @@ export function decodeEvent(t: EventTuple): GameEvent {
       return h;
     }
     case 2:
-      return { k: 'death', x: dq(t[1]), y: dq(t[2]) };
+      return { k: 'death', x: dq(t[1]), y: dq(t[2]), ...(t[3] ? { d: (t[3] - 1) & 15 } : {}), ...(t[4] ? { h: 1 as const } : {}) };
     case 6:
       return { k: 'rank', x: dq(t[1]), y: dq(t[2]), r: t[3] };
     case 5:

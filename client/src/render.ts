@@ -34,7 +34,7 @@ import { drawDyingUnit } from './art.ts';
 import { approachAngle } from './motion.ts';
 import { buildFogIndex, paintFog } from './fogmap.ts';
 import { Particles, puffAt, type PuffKind } from './particles.ts';
-import type { ClientState, ClientUnit } from './state.ts';
+import type { ClientState, ClientUnit, Corpse } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
 import { KNOCKDOWN_SECONDS, MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
 
@@ -100,7 +100,13 @@ const BAKE = 0.5;
 /** Escala de la imagen de niebla: 1/4 en mapas chicos, menos en los grandes (como mucho ~1600 px de ancho). */
 const fogScale = (n: number) => Math.min(0.25, 1600 / (n * 64));
 /** Margen de arriba (px del mundo) para lo que las colinas levantan. */
-const BAKE_TOP = MAX_LEVEL * ELEV_PX + 8;
+/** Alcance de los tiradores seleccionados: cuántos círculos como mucho, y tramos de cada contorno. */
+const MAX_RANGE_RINGS = 80;
+/** Sacudida en el choque de una carga: duración y amplitud (px de pantalla). */
+const SHAKE_MS = 180;
+const SHAKE_PX = 2.5;
+const RANGE_SEGMENTS = 56;
+const BAKE_TOP =MAX_LEVEL * ELEV_PX + 8;
 
 /**
  * Terreno con relieve, "horneado" una vez: cada texel de la textura plana se proyecta a su
@@ -221,6 +227,25 @@ const swingCache = new Map<number, number>();
  * Devuelve el momento (s) de la animación de muerte que corresponde.
  */
 const FALL_S = 0.45;
+/**
+ * Variantes de muerte sin arte nuevo: cada caído usa la misma animación de 0 A.D., pero
+ * - cae más rápido o más lento según quién es (tres ritmos, fijos por unidad);
+ * - se desplaza en la dirección del golpe: un tropezón si fue un golpe normal, y despedido
+ *   casi media casilla si lo arrolló una carga, un jinete o una máquina.
+ * Devuelve dónde dibujarlo, qué cuadro de la animación toca y si ya tocó el suelo.
+ */
+export function corpseFall(c: Corpse, age: number): { x: number; y: number; anim: number; landed: boolean } {
+  const pace = c.heavy ? 1.45 : DEATH_PACES[c.v.id % DEATH_PACES.length];
+  const anim = age * pace;
+  const push = c.blow === undefined ? 0 : c.heavy ? 0.48 : 0.12;
+  const t = Math.min(1, age / (c.heavy ? 0.35 : 0.5));
+  const d = push * (1 - (1 - t) * (1 - t)); // sale rápido y frena
+  return { x: c.v.x + Math.cos(c.blow ?? 0) * d, y: c.v.y + Math.sin(c.blow ?? 0) * d, anim, landed: anim >= DEATH_LAND_S };
+}
+const DEATH_PACES = [0.8, 1, 1.25];
+/** Segundos de la animación de muerte (a ritmo normal) en que el cuerpo llega al suelo. */
+const DEATH_LAND_S = 0.55;
+
 export function fallTime(ms: number): number {
   const total = KNOCKDOWN_SECONDS * 1000, down = 380, up = 420;
   if (ms < down) return (ms / down) * FALL_S;
@@ -259,6 +284,8 @@ export class Renderer {
   private puffImg: Partial<Record<PuffKind, HTMLCanvasElement>> = {};
   /** Nubes de polvo nuevas que quedan en este cuadro (un ejército grande no llena la pantalla). */
   private dustBudget = 0;
+  /** Sacudida corta de la cámara en el choque de una carga (cuándo empezó). */
+  private shakeAt = -Infinity;
   private dustSeen = 0;
   private dustScale = 1;
   private mountains: { tx: number; ty: number }[] = [];
@@ -345,7 +372,10 @@ export class Renderer {
 
     // Transformación de cámara: a partir de aquí se dibuja en px del mundo.
     const z = cam.zoom * dpr;
-    ctx.setTransform(z, 0, 0, z, dpr * (cam.width / 2) - cam.cx * z, dpr * (cam.height / 2) - cam.cy * z);
+    // Choque de carga a la vista: la imagen tiembla un instante (2–3 px que se apagan en 0,18 s).
+    const shake = Math.max(0, 1 - (now - this.shakeAt) / SHAKE_MS) * SHAKE_PX * dpr;
+    const sx = shake ? (Math.random() - 0.5) * 2 * shake : 0, sy = shake ? (Math.random() - 0.5) * 2 * shake : 0;
+    ctx.setTransform(z, 0, 0, z, dpr * (cam.width / 2) - cam.cx * z + sx, dpr * (cam.height / 2) - cam.cy * z + sy);
 
     this.mark(); // inicio del cuadro
     // Terreno con colinas (horneado al recibir el mapa).
@@ -389,6 +419,11 @@ export class Renderer {
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
       // Derribado: desde cuándo (cae, queda en el suelo y se levanta).
+      // Al caer derribado levanta polvo (una vez).
+      if (cu.v.dn && cu.downAt === undefined && inView(p.x, p.y)) {
+        const q = worldToPx(p.x, p.y);
+        this.particles.burst(q.px, q.py, 5, 'dust', now, 0.8);
+      }
       if (cu.v.dn) cu.downAt ??= now;
       else cu.downAt = undefined;
       if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.hurtAt !== undefined && now - cu.hurtAt < HURT_MS ? { hf: 1 - (now - cu.hurtAt) / HURT_MS } : {}), ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
@@ -419,6 +454,8 @@ export class Renderer {
     // Niebla de guerra: negro donde nunca se estuvo, velo gris donde no se ve ahora.
     if (state.fog) this.drawFog(ctx, state);
     this.mark('fog');
+    // Alcance de los tiradores seleccionados (encima de la niebla, para verlo siempre).
+    this.drawRanges(ctx, state, list, sel, now);
 
     // Frente de formación que se está arrastrando: la línea, los puestos y una flecha hacia adelante.
     if (front) {
@@ -474,10 +511,16 @@ export class Renderer {
     state.corpses = state.corpses.filter((c) => now - c.t0 < CORPSE_MS);
     for (const c of state.corpses) {
       const age = (now - c.t0) / 1000;
-      const p = worldToPx(c.v.x, c.v.y);
       if (!inView(c.v.x, c.v.y)) continue;
+      const fall = corpseFall(c, age);
+      const p = worldToPx(fall.x, fall.y);
+      // Al tocar el suelo, un poco de polvo (más si salió despedido).
+      if (!c.dusted && fall.landed) {
+        c.dusted = true;
+        this.particles.burst(p.px, p.py, c.heavy ? 7 : 3, 'dust', now, c.heavy ? 1.1 : 0.55);
+      }
       ctx.globalAlpha = Math.min(1, (CORPSE_MS / 1000 - age) / CORPSE_FADE_S);
-      drawDyingUnit(ctx, c.v, p.px, p.py, state.color(c.v.owner), state.faction(c.v.owner), c.face, age);
+      drawDyingUnit(ctx, c.v, p.px, p.py, state.color(c.v.owner), state.faction(c.v.owner), c.face, fall.anim);
       ctx.globalAlpha = 1;
     }
     this.drawStuckArrows(ctx, now, inView);
@@ -585,7 +628,7 @@ export class Renderer {
     }
 
     this.mark('bars');
-    this.drawEffects(ctx, state, now);
+    this.drawEffects(ctx, state, now, inView);
     this.drawPuffs(ctx, now, 'smoke');
     this.mark('effects');
 
@@ -669,6 +712,62 @@ export class Renderer {
     g.fillRect(0, 0, 32, 32);
     this.puffImg[kind] = c;
     return c;
+  }
+
+  /**
+   * Alcance de los tiradores seleccionados (arqueros, honderos, jinetes arqueros, máquinas):
+   * la zona a tiro sombreada y su borde punteado. Con un regimiento entero se dibuja la unión de
+   * todos los círculos: una sola mancha con un solo contorno, no 30 anillos encimados.
+   */
+  private drawRanges(ctx: CanvasRenderingContext2D, state: ClientState, list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[], sel: { units: Set<number> }, now: number): void {
+    const rings: { px: number; py: number; rx: number; ry: number }[] = [];
+    for (const d of list) {
+      if (d.k !== 'unit' || !sel.units.has(d.u!.id) || rings.length >= MAX_RANGE_RINGS) continue;
+      const attack = state.statsOf(d.u!.owner, d.u!.type).attack;
+      if (attack.type !== 'ranged') continue;
+      const p = worldToPx(d.x!, d.y!);
+      rings.push({ px: p.px, py: p.py - (d.lift ?? 0), rx: attack.range * (TILE_W / 2) * Math.SQRT2, ry: attack.range * (TILE_H / 2) * Math.SQRT2 });
+    }
+    if (!rings.length) return;
+    const path = () => {
+      ctx.beginPath();
+      for (const r of rings) {
+        ctx.moveTo(r.px + r.rx, r.py);
+        ctx.ellipse(r.px, r.py, r.rx, r.ry, 0, 0, Math.PI * 2);
+      }
+    };
+    ctx.save();
+    // Zona a tiro: todas las elipses en un mismo trazo se rellenan una sola vez (la unión).
+    path();
+    ctx.fillStyle = 'rgba(255,226,122,0.09)';
+    ctx.fill();
+    // Contorno de la unión: cada elipse se traza por tramos, salteando los que caen dentro de otra.
+    ctx.beginPath();
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      let open = false;
+      for (let k = 0; k <= RANGE_SEGMENTS; k++) {
+        const a = (k / RANGE_SEGMENTS) * Math.PI * 2, x = r.px + Math.cos(a) * r.rx, y = r.py + Math.sin(a) * r.ry;
+        let inside = false;
+        for (let j = 0; j < rings.length && !inside; j++) {
+          if (j === i) continue;
+          const o = rings[j], dx = (x - o.px) / o.rx, dy = (y - o.py) / o.ry;
+          inside = dx * dx + dy * dy < 0.995;
+        }
+        if (inside) open = false;
+        else if (open) ctx.lineTo(x, y);
+        else {
+          ctx.moveTo(x, y);
+          open = true;
+        }
+      }
+    }
+    ctx.setLineDash([7, 6]);
+    ctx.lineDashOffset = -now / 80;
+    ctx.strokeStyle = 'rgba(255,226,122,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawPuffs(ctx: CanvasRenderingContext2D, now: number, kind: PuffKind): void {
@@ -790,7 +889,7 @@ export class Renderer {
   }
 
   /** Flechas, golpes, muertes y derrumbes. Los efectos viejos se descartan. */
-  private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number): void {
+  private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number, inView: (x: number, y: number) => boolean): void {
     // Las flechas que terminan su vuelo quedan clavadas (algunas en el suelo, junto a quien alcanzaron).
     for (const { e, t0 } of state.effects)
       if (e.k === 'shot' && e.s !== 1 && e.s !== 2 && now - t0 >= effectMs(e)) {
@@ -865,6 +964,7 @@ export class Renderer {
           const p = worldToPx(e.x, e.y);
           if (e.c && !item.fx) {
             item.fx = true;
+            if (inView(e.x, e.y)) this.shakeAt = now;
             this.particles.burst(p.px, p.py, 6, 'dust', now, 0.8);
           }
           const spark = (now - t0) / EFFECT_MS.hit;
