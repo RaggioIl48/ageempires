@@ -2,7 +2,7 @@
 // profesor (crear sala, iniciar, pausar…) y los de los estudiantes (entrar con
 // código, elegir facción, dar órdenes). Cada acción se autoriza aquí.
 
-import { CODE_ALPHABET, CODE_LENGTH, type ClientMessage, type ServerMessage } from '../../../shared/protocol.ts';
+import { CODE_ALPHABET, CODE_LENGTH, type ClientMessage, type ServerMessage, type TunnelView } from '../../../shared/protocol.ts';
 import type { Conn } from './conn.ts';
 import { Room } from './room.ts';
 
@@ -16,6 +16,8 @@ export interface LobbyOptions {
   urls: () => string[];
   /** Semilla de mapa para cada partida (por defecto, al azar). */
   seed?: () => number;
+  /** Modo online (túnel); sin esto, el panel no ofrece el botón. */
+  tunnel?: { start(): void; stop(): void; view(): TunnelView };
 }
 
 export class Lobby {
@@ -54,7 +56,7 @@ export class Lobby {
         if (conn.role === 'student') conn.room?.command(conn, msg.cmd);
         return;
       case 'ping':
-        conn.send({ t: 'pong', n: msg.n, ms: Math.round((conn.room?.stepMs ?? 0) * 10) / 10 });
+        conn.send({ t: 'pong', n: msg.n, ms: Math.round((conn.room?.stepMs ?? 0) * 10) / 10, mx: Math.round(conn.room?.stepMax ?? 0) });
         return;
       case 'quizAnswer':
         if (conn.role === 'student') conn.room?.answerQuiz(conn, msg.id, msg.choice);
@@ -101,6 +103,7 @@ export class Lobby {
           conn.role = 'teacher';
           this.teachers.add(conn);
           conn.send({ t: 'teacherOk', rooms: this.summaries(), urls: this.opts.urls() });
+          if (this.opts.tunnel) conn.send(this.tunnelMessage(conn));
           for (const room of this.rooms.values()) conn.send({ t: 'room', room: room.view() });
         } else {
           conn.send({ t: 'error', message: 'Wrong teacher PIN.' });
@@ -118,6 +121,13 @@ export class Lobby {
       const room = new Room(code, msg.settings, seed, (r) => this.roomChanged(r));
       this.rooms.set(code, room);
       this.roomChanged(room);
+      return;
+    }
+    if (msg.t === 'tunnel') {
+      // Solo desde el computador del servidor: quien entra por el túnel podría cortarse a sí mismo.
+      if (!this.opts.tunnel || !conn.isLocal) return conn.send({ t: 'error', message: 'Online mode can only be turned on or off on the server computer.' });
+      if (msg.on) this.opts.tunnel.start();
+      else this.opts.tunnel.stop();
       return;
     }
     if (msg.t === 'unwatch') {
@@ -186,8 +196,20 @@ export class Lobby {
     for (const t of this.teachers) t.send(msg);
   }
 
+  private tunnelMessage(conn: Conn): ServerMessage {
+    return { t: 'tunnel', ...this.opts.tunnel!.view(), urls: this.opts.urls(), canToggle: conn.isLocal };
+  }
+
+  /** El modo online cambió: los paneles de profesor muestran el estado y los enlaces nuevos. */
+  tunnelChanged(): void {
+    for (const t of this.teachers) t.send(this.tunnelMessage(t));
+  }
+
   /** Código de 4 letras fácil de dictar (sin O, I ni L para no confundir). */
   private newCode(): string {
+    // Solo para pruebas automáticas (como DEMO_ARMY): la primera sala usa este código fijo.
+    const demo = process.env.DEMO_CODE?.toUpperCase();
+    if (demo && demo.length === CODE_LENGTH && !this.rooms.has(demo)) return demo;
     for (;;) {
       let code = '';
       for (let i = 0; i < CODE_LENGTH; i++) code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];

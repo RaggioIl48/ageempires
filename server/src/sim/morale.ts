@@ -9,6 +9,9 @@
 import {
   FACTIONS,
   RANK_RESOLVE,
+  SHATTER_AFTER,
+  SHATTER_RALLY_RADIUS,
+  SURROUND_MORALE,
   rankOf,
   GENERAL_AURA_REGEN,
   GENERAL_AURA_RESOLVE,
@@ -99,10 +102,48 @@ export function deathMorale(world: World, dead: Unit): void {
 }
 
 const lastRoutNotice = new Map<number, number>();
+const lastShatterNotice = new Map<number, number>();
+
+/** Aviso (como mucho uno cada 15 s): una tropa quedó destrozada. */
+function notifyShattered(world: World, u: Unit): void {
+  const last = lastShatterNotice.get(u.owner) ?? -Infinity;
+  if (world.tick - last < 15 * TICK_RATE) return;
+  lastShatterNotice.set(u.owner, world.tick);
+  world.notify(u.owner, 'A regiment is shattered: it ran a second time and will only rally back at your city');
+}
+
+/** ¿Destrozada? (huyó varias veces: solo se reagrupa junto a su ciudad) */
+export const isShattered = (u: Unit) => u.routs >= SHATTER_AFTER;
+
+/** ¿Está cerca de su ciudad? (para que una tropa destrozada se reagrupe) */
+function nearHome(world: World, u: Unit): boolean {
+  for (const b of world.buildings.values())
+    if (b.owner === u.owner && b.type === 'town_center' && b.progress >= 1) {
+      const cx = b.tx + b.size / 2, cy = b.ty + b.size / 2;
+      if ((u.x - cx) ** 2 + (u.y - cy) ** 2 <= SHATTER_RALLY_RADIUS ** 2) return true;
+    }
+  return false;
+}
+
+/** ¿Rodeado? Enemigos pegados por tres lados o más (cuadrantes alrededor del soldado). */
+function surrounded(world: World, u: Unit, grid: UnitGrid): boolean {
+  let quads = 0;
+  for (const o of grid.near(u.x, u.y, 1.6)) {
+    if (o.hp <= 0 || !isEnemy(world, u.owner, o.owner) || UNIT_DEFS[o.type].category === 'worker') continue;
+    const q = (o.x >= u.x ? 1 : 0) + (o.y >= u.y ? 2 : 0);
+    quads |= 1 << q;
+  }
+  let n = 0;
+  for (let q = 0; q < 4; q++) if (quads & (1 << q)) n++;
+  return n >= 3;
+}
 
 /** La tropa se quiebra y huye hacia su ciudad. */
 export function startRout(world: World, u: Unit): void {
   u.morale = 0;
+  u.routs++;
+  u.wall = false;
+  if (u.routs === SHATTER_AFTER) notifyShattered(world, u);
   u.routing = ROUT_MIN_SECONDS * TICK_RATE;
   u.task = null;
   u.chaseGoal = null;
@@ -165,7 +206,8 @@ export function updateMorale(world: World, dt: number): void {
     if (u.routing > 0) {
       u.morale = Math.min(MORALE_MAX, u.morale + (danger ? MORALE_REGEN_COMBAT * 2 : MORALE_REGEN_ROUT) * dt);
       if (u.routing > 1) u.routing--;
-      else if (u.morale >= ROUT_RALLY && !danger) {
+      // Destrozada: solo se reagrupa a salvo junto a su ciudad.
+      else if (u.morale >= ROUT_RALLY && !danger && (!isShattered(u) || nearHome(world, u))) {
         // A salvo y con ánimo: se reagrupa donde está.
         u.routing = 0;
         u.path = [];
@@ -177,6 +219,14 @@ export function updateMorale(world: World, dt: number): void {
     }
     const aura = nearGeneral(world, u) ? GENERAL_AURA_REGEN : 0;
     u.morale = Math.min(MORALE_MAX, u.morale + ((danger ? MORALE_REGEN_COMBAT : MORALE_REGEN_SAFE) + aura) * dt);
+    // Rodeado: pierde moral rápido (se mira escalonado, como el peligro).
+    if (danger && (world.tick + u.id) % DANGER_EVERY === 0) {
+      grid ??= new UnitGrid(world);
+      if (surrounded(world, u, grid)) {
+        u.morale -= (SURROUND_MORALE * DANGER_EVERY * dt) / resolveOf(world, u.owner);
+        if (u.morale <= 0) startRout(world, u);
+      }
+    }
   }
 }
 

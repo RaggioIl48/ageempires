@@ -55,6 +55,11 @@ export function encodeUnit(u: UnitView): UnitTuple {
     u.dk ? 1 : 0,
     u.fc ?? -1,
     u.sk ?? -1,
+    u.rg ?? 0,
+    u.am ?? -1,
+    u.dn ? 1 : 0,
+    u.sw ? 1 : 0,
+    u.sh ? 1 : 0,
   ];
 }
 
@@ -87,6 +92,11 @@ export function decodeUnit(t: UnitTuple): UnitView {
   if (t[22]) v.dk = 1;
   if (t[23] >= 0) v.fc = t[23];
   if (t[24] >= 0) v.sk = t[24];
+  if (t[25]) v.rg = t[25];
+  if (t[26] >= 0) v.am = t[26];
+  if (t[27]) v.dn = 1;
+  if (t[28]) v.sw = 1;
+  if (t[29]) v.sh = 1;
   return v;
 }
 
@@ -152,18 +162,18 @@ export function sameTuple(a: readonly number[] | undefined, b: readonly number[]
 }
 
 // ---------- Efectos ----------
-// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga, flanco] · death: [2, x, y] · destroyed: [3, x, y, tamaño]
+// shot: [0, x1, y1, x2, y2, estilo] · hit: [1, x, y, carga, flanco] · death: [2, x, y, dirección + 1, brutal] · destroyed: [3, x, y, tamaño]
 // gain: [4, x, y, dueño, recurso, cantidad] · ability: [5, x, y, habilidad, radio] · rank: [6, x, y, rango]
 export type EventTuple = number[];
 
 export function encodeEvent(e: GameEvent): EventTuple {
   switch (e.k) {
     case 'shot':
-      return [0, q(e.x1), q(e.y1), q(e.x2), q(e.y2), e.s ?? 0];
+      return e.ms ? [0, q(e.x1), q(e.y1), q(e.x2), q(e.y2), e.s ?? 0, Math.round(e.ms / 10)] : [0, q(e.x1), q(e.y1), q(e.x2), q(e.y2), e.s ?? 0];
     case 'hit':
-      return e.fl ? [1, q(e.x), q(e.y), e.c ?? 0, e.fl] : e.c ? [1, q(e.x), q(e.y), 1] : [1, q(e.x), q(e.y)];
+      return e.b ? [1, q(e.x), q(e.y), e.c ?? 0, e.fl ?? 0, 1] : e.fl ? [1, q(e.x), q(e.y), e.c ?? 0, e.fl] : e.c ? [1, q(e.x), q(e.y), 1] : [1, q(e.x), q(e.y)];
     case 'death':
-      return [2, q(e.x), q(e.y)];
+      return e.d === undefined ? [2, q(e.x), q(e.y)] : e.h ? [2, q(e.x), q(e.y), e.d + 1, 1] : [2, q(e.x), q(e.y), e.d + 1];
     case 'destroyed':
       return [3, q(e.x), q(e.y), e.size];
     case 'gain':
@@ -178,16 +188,17 @@ export function encodeEvent(e: GameEvent): EventTuple {
 export function decodeEvent(t: EventTuple): GameEvent {
   switch (t[0]) {
     case 0:
-      return { k: 'shot', x1: dq(t[1]), y1: dq(t[2]), x2: dq(t[3]), y2: dq(t[4]), ...(t[5] ? { s: t[5] } : {}) };
+      return { k: 'shot', x1: dq(t[1]), y1: dq(t[2]), x2: dq(t[3]), y2: dq(t[4]), ...(t[5] ? { s: t[5] } : {}), ...(t[6] ? { ms: t[6] * 10 } : {}) };
     case 1:
     {
       const h: GameEvent = { k: 'hit', x: dq(t[1]), y: dq(t[2]) };
       if (t[3]) h.c = 1;
       if (t[4] === 1 || t[4] === 2) h.fl = t[4];
+      if (t[5]) h.b = 1;
       return h;
     }
     case 2:
-      return { k: 'death', x: dq(t[1]), y: dq(t[2]) };
+      return { k: 'death', x: dq(t[1]), y: dq(t[2]), ...(t[3] ? { d: (t[3] - 1) & 15 } : {}), ...(t[4] ? { h: 1 as const } : {}) };
     case 6:
       return { k: 'rank', x: dq(t[1]), y: dq(t[2]), r: t[3] };
     case 5:

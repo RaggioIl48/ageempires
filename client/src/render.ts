@@ -26,6 +26,7 @@ import {
   RESOURCE_COLORS,
   setEraLookup,
   setWallLookup,
+  setGateLookup,
   unitTop,
   line,
   poly,
@@ -34,9 +35,9 @@ import { drawDyingUnit } from './art.ts';
 import { approachAngle } from './motion.ts';
 import { buildFogIndex, paintFog } from './fogmap.ts';
 import { Particles, puffAt, type PuffKind } from './particles.ts';
-import type { ClientState, ClientUnit } from './state.ts';
+import type { ClientState, ClientUnit, Corpse } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
-import { MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
+import { KNOCKDOWN_SECONDS, MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
 
 export { RESOURCE_COLORS, shade } from './sprites.ts';
 
@@ -100,7 +101,16 @@ const BAKE = 0.5;
 /** Escala de la imagen de niebla: 1/4 en mapas chicos, menos en los grandes (como mucho ~1600 px de ancho). */
 const fogScale = (n: number) => Math.min(0.25, 1600 / (n * 64));
 /** Margen de arriba (px del mundo) para lo que las colinas levantan. */
-const BAKE_TOP = MAX_LEVEL * ELEV_PX + 8;
+/** Alcance de los tiradores seleccionados: cuántos círculos como mucho, y tramos de cada contorno. */
+const MAX_RANGE_RINGS = 80;
+/** Sacudida en el choque de una carga: duración y amplitud (px de pantalla). */
+const SHAKE_MS = 180;
+/** Puertas: a qué distancia (casillas) de una tropa que puede pasar se abren, y cuánto tardan. */
+const GATE_OPEN_DIST = 2.6;
+const GATE_SWING_MS = 700;
+const SHAKE_PX = 2.5;
+const RANGE_SEGMENTS = 56;
+const BAKE_TOP =MAX_LEVEL * ELEV_PX + 8;
 
 /**
  * Terreno con relieve, "horneado" una vez: cada texel de la textura plana se proyecta a su
@@ -196,18 +206,57 @@ type Drawable =
   | { depth: number; k: 'building'; b: BuildingView }
   | { depth: number; k: 'mountain'; tx: number; ty: number };
 
+/** Destello al recibir un golpe (ms). */
+const HURT_MS = 160;
 /** Cuánto quedan los caídos en el suelo (ms). */
-const CORPSE_MS = 4000;
+const CORPSE_MS = 25_000;
+/** Los últimos segundos se desvanecen. */
+const CORPSE_FADE_S = 3;
+/** Flechas clavadas en el suelo: cuánto quedan (ms) y cuántas como mucho. */
+const STUCK_MS = 9000;
+const MAX_STUCK = 300;
 
 /** Duración de cada efecto (ms). */
 const EFFECT_MS = { shot: 300, hit: 180, flank: 900, ability: 1100, rank: 1600, death: 900, destroyed: 1200, gain: 1600 } as const;
 /** Los disparos de cañón vuelan más lento y terminan en una explosión. */
 const SHELL_MS = 600;
-const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number }) =>
-  e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
+const effectMs = (e: { k: keyof typeof EFFECT_MS; s?: number; fl?: number; ms?: number }) =>
+  e.k === 'shot' && e.ms ? e.ms : e.k === 'shot' && e.s === 2 ? SHELL_MS : e.k === 'hit' && e.fl ? EFFECT_MS.flank : EFFECT_MS[e.k];
 
 /** Tiempo real entre golpes (ms), según la misma cuenta del servidor (guardado por espera). */
 const swingCache = new Map<number, number>();
+/**
+ * Derribado por una carga (dura KNOCKDOWN_SECONDS): la animación de caer hasta el suelo, quieto, y
+ * la misma al revés para levantarse. Antes quedaba congelado en un cuadro y se paraba de golpe.
+ * Devuelve el momento (s) de la animación de muerte que corresponde.
+ */
+const FALL_S = 0.45;
+/**
+ * Variantes de muerte sin arte nuevo: cada caído usa la misma animación de 0 A.D., pero
+ * - cae más rápido o más lento según quién es (tres ritmos, fijos por unidad);
+ * - se desplaza en la dirección del golpe: un tropezón si fue un golpe normal, y despedido
+ *   casi media casilla si lo arrolló una carga, un jinete o una máquina.
+ * Devuelve dónde dibujarlo, qué cuadro de la animación toca y si ya tocó el suelo.
+ */
+export function corpseFall(c: Corpse, age: number): { x: number; y: number; anim: number; landed: boolean } {
+  const pace = c.heavy ? 1.45 : DEATH_PACES[c.v.id % DEATH_PACES.length];
+  const anim = age * pace;
+  const push = c.blow === undefined ? 0 : c.heavy ? 0.48 : 0.12;
+  const t = Math.min(1, age / (c.heavy ? 0.35 : 0.5));
+  const d = push * (1 - (1 - t) * (1 - t)); // sale rápido y frena
+  return { x: c.v.x + Math.cos(c.blow ?? 0) * d, y: c.v.y + Math.sin(c.blow ?? 0) * d, anim, landed: anim >= DEATH_LAND_S };
+}
+const DEATH_PACES = [0.8, 1, 1.25];
+/** Segundos de la animación de muerte (a ritmo normal) en que el cuerpo llega al suelo. */
+const DEATH_LAND_S = 0.55;
+
+export function fallTime(ms: number): number {
+  const total = KNOCKDOWN_SECONDS * 1000, down = 380, up = 420;
+  if (ms < down) return (ms / down) * FALL_S;
+  if (ms > total - up) return Math.max(0, ((total - ms) / up) * FALL_S);
+  return FALL_S;
+}
+
 const swingMs = (cooldown: number): number => {
   let ms = swingCache.get(cooldown);
   if (ms === undefined) swingCache.set(cooldown, (ms = strikeIntervalTicks(cooldown) * TICK_MS));
@@ -234,11 +283,47 @@ export class Renderer {
   private fogIndexFor: ClientState | null = null;
   private fogImage: ImageData | null = null;
   private lastDraw = 0;
+  /** Puertas de muralla: cuánto está abierta cada una (0 cerrada … 1 abierta) y cuándo se calculó. */
+  private gateOpen = new Map<number, number>();
+  private gatesAt = 0;
+
+  /**
+   * Las puertas se abren cuando se acerca alguien que puede pasar (el dueño o un aliado) y se
+   * cierran solas cuando ya no hay nadie cerca. Tardan GATE_SWING_MS en abrirse del todo.
+   */
+  private updateGates(state: ClientState, now: number): void {
+    const dt = Math.min(0.2, Math.max(0, (now - this.gatesAt) / 1000));
+    this.gatesAt = now;
+    const want = new Map<number, boolean>();
+    const gates: BuildingView[] = [];
+    for (const b of state.buildings.values()) if (b.type === 'gate' && b.progress >= 1) (gates.push(b), want.set(b.id, false));
+    if (gates.length) {
+      for (const cu of state.units.values()) {
+        const v = cu.v;
+        if (v.hp <= 0) continue;
+        for (const g of gates) {
+          if (want.get(g.id)) continue;
+          const dx = v.x - (g.tx + 0.5), dy = v.y - (g.ty + 0.5);
+          if (dx * dx + dy * dy > GATE_OPEN_DIST * GATE_OPEN_DIST) continue;
+          if (v.owner === g.owner || state.relation(v.owner, g.owner) === 'ally') want.set(g.id, true);
+        }
+      }
+    }
+    const step = dt / (GATE_SWING_MS / 1000);
+    for (const [id, open] of want) {
+      const cur = this.gateOpen.get(id) ?? 0;
+      this.gateOpen.set(id, open ? Math.min(1, cur + step) : Math.max(0, cur - step * 0.6));
+    }
+    for (const id of this.gateOpen.keys()) if (!want.has(id)) this.gateOpen.delete(id);
+    setGateLookup((id) => this.gateOpen.get(id) ?? 0);
+  }
   /** Polvo y humo (con tope fijo). */
   readonly particles = new Particles();
   private puffImg: Partial<Record<PuffKind, HTMLCanvasElement>> = {};
   /** Nubes de polvo nuevas que quedan en este cuadro (un ejército grande no llena la pantalla). */
   private dustBudget = 0;
+  /** Sacudida corta de la cámara en el choque de una carga (cuándo empezó). */
+  private shakeAt = -Infinity;
   private dustSeen = 0;
   private dustScale = 1;
   private mountains: { tx: number; ty: number }[] = [];
@@ -320,18 +405,29 @@ export class Renderer {
     setEraLookup((id) => state.eraOf(id));
     // Murallas y puertas por casilla (para unir cada tramo con sus vecinos).
     const walls = new Map<number, number>();
-    for (const b of state.buildings.values()) if (b.type === 'wall' || b.type === 'gate') walls.set(b.ty * 100_000 + b.tx, b.owner);
+    const wallsOnly = new Map<number, number>();
+    for (const b of state.buildings.values())
+      if (b.type === 'wall' || b.type === 'gate') {
+        walls.set(b.ty * 100_000 + b.tx, b.owner);
+        if (b.type === 'wall') wallsOnly.set(b.ty * 100_000 + b.tx, b.owner);
+      }
     setWallLookup((tx, ty, owner) => walls.get(ty * 100_000 + tx) === owner);
+    this.updateGates(state, now);
 
     // Transformación de cámara: a partir de aquí se dibuja en px del mundo.
     const z = cam.zoom * dpr;
-    ctx.setTransform(z, 0, 0, z, dpr * (cam.width / 2) - cam.cx * z, dpr * (cam.height / 2) - cam.cy * z);
+    // Choque de carga a la vista: la imagen tiembla un instante (2–3 px que se apagan en 0,18 s).
+    const shake = Math.max(0, 1 - (now - this.shakeAt) / SHAKE_MS) * SHAKE_PX * dpr;
+    const sx = shake ? (Math.random() - 0.5) * 2 * shake : 0, sy = shake ? (Math.random() - 0.5) * 2 * shake : 0;
+    ctx.setTransform(z, 0, 0, z, dpr * (cam.width / 2) - cam.cx * z + sx, dpr * (cam.height / 2) - cam.cy * z + sy);
 
+    this.mark(); // inicio del cuadro
     // Terreno con colinas (horneado al recibir el mapa).
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     if (this.baked) ctx.drawImage(this.baked, -(state.size * TILE_W) / 2, -BAKE_TOP, this.baked.width / BAKE, this.baked.height / BAKE);
     ctx.restore();
+    this.mark('terrain');
 
     // Objetos visibles.
     const vis = cam.visiblePx(100);
@@ -363,10 +459,20 @@ export class Renderer {
       // Los aviones se dibujan encima de todo.
       const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
       // Sobre una muralla: el defensor arriba del todo; el que trepa, a media altura de la escala.
-      const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
+      // Solo las murallas: por una puerta se pasa a ras del suelo, bajo el arco (antes se levantaba
+      // a la altura de la muralla y parecía caminar por el techo de la puerta).
+      const wallOwner = wallsOnly.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
+      // Derribado: desde cuándo (cae, queda en el suelo y se levanta).
+      // Al caer derribado levanta polvo (una vez).
+      if (cu.v.dn && cu.downAt === undefined && inView(p.x, p.y)) {
+        const q = worldToPx(p.x, p.y);
+        this.particles.burst(q.px, q.py, 5, 'dust', now, 0.8);
+      }
+      if (cu.v.dn) cu.downAt ??= now;
+      else cu.downAt = undefined;
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.hurtAt !== undefined && now - cu.hurtAt < HURT_MS ? { hf: 1 - (now - cu.hurtAt) / HURT_MS } : {}), ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 
@@ -390,8 +496,12 @@ export class Renderer {
       if (b) outlineFootprint(ctx, b.tx, b.ty, BUILDING_DEFS[b.type].size, ringColor(state, b.owner));
     }
 
+    this.mark('ground');
     // Niebla de guerra: negro donde nunca se estuvo, velo gris donde no se ve ahora.
     if (state.fog) this.drawFog(ctx, state);
+    this.mark('fog');
+    // Alcance de los tiradores seleccionados (encima de la niebla, para verlo siempre).
+    this.drawRanges(ctx, state, list, sel, now);
 
     // Frente de formación que se está arrastrando: la línea, los puestos y una flecha hacia adelante.
     if (front) {
@@ -447,12 +557,19 @@ export class Renderer {
     state.corpses = state.corpses.filter((c) => now - c.t0 < CORPSE_MS);
     for (const c of state.corpses) {
       const age = (now - c.t0) / 1000;
-      const p = worldToPx(c.v.x, c.v.y);
       if (!inView(c.v.x, c.v.y)) continue;
-      ctx.globalAlpha = Math.min(1, (CORPSE_MS / 1000 - age) / 1.2);
-      drawDyingUnit(ctx, c.v, p.px, p.py, state.color(c.v.owner), state.faction(c.v.owner), c.face, age);
+      const fall = corpseFall(c, age);
+      const p = worldToPx(fall.x, fall.y);
+      // Al tocar el suelo, un poco de polvo (más si salió despedido).
+      if (!c.dusted && fall.landed) {
+        c.dusted = true;
+        this.particles.burst(p.px, p.py, c.heavy ? 7 : 3, 'dust', now, c.heavy ? 1.1 : 0.55);
+      }
+      ctx.globalAlpha = Math.min(1, (CORPSE_MS / 1000 - age) / CORPSE_FADE_S);
+      drawDyingUnit(ctx, c.v, p.px, p.py, state.color(c.v.owner), state.faction(c.v.owner), c.face, fall.anim);
       ctx.globalAlpha = 1;
     }
+    this.drawStuckArrows(ctx, now, inView);
 
     this.drawPuffs(ctx, now, 'dust');
 
@@ -478,18 +595,23 @@ export class Renderer {
           const p = worldToPx(d.x, d.y);
           p.py -= d.lift;
           if (d.u.buff) buffRing(ctx, p.px, p.py, d.u.buff, UNIT_LOOK[d.u.type].ring + 2, now);
+          // Derribado por una carga: en el suelo (cuadro de la caída) hasta que se levanta.
+          if (d.u.dn && drawDyingUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), state.faction(d.u.owner), d.face, fallTime(now - (state.units.get(d.u.id)?.downAt ?? now)))) break;
           drawUnit(ctx, d.u, p.px, p.py, state.color(d.u.owner), now, state.faction(d.u.owner), isUpgraded(d.u.type, state.techsOf(d.u.owner)), d.face);
           break;
         }
       }
     }
 
+    this.mark('units');
+    this.drawStandards(ctx, state, list, sel, now);
+
     // Barras de vida: de lo seleccionado y de todo lo que esté herido.
     for (const d of list) {
       if (d.k === 'unit') {
         // Barras solo donde importan: todas en lo elegido; en el resto, la vida si está herido,
         // la moral si flaquea y el aguante si están agotados. Muy lejos, solo lo elegido.
-        const chosen = sel.units.has(d.u.id), far = cam.zoom < 0.6;
+        const chosen = sel.units.has(d.u.id), far = cam.zoom < 0.6 || (!!d.u.rg && !chosen);
         const max = state.statsOf(d.u.owner, d.u.type).hp;
         if (chosen || (!far && d.u.hp < max)) {
           const p = worldToPx(d.x, d.y);
@@ -551,8 +673,10 @@ export class Renderer {
       }
     }
 
-    this.drawEffects(ctx, state, now);
+    this.mark('bars');
+    this.drawEffects(ctx, state, now, inView);
     this.drawPuffs(ctx, now, 'smoke');
+    this.mark('effects');
 
     // Previsualización del edificio a colocar.
     if (ghost?.line) {
@@ -581,6 +705,15 @@ export class Renderer {
       ellipse(ctx, p.px, p.py, 6 + age * 10, 3 + age * 5, null, m.color, 2);
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** Tiempo (ms, promedio suave) de cada parte del dibujo: lo muestra el medidor F3. */
+  readonly timings: Record<string, number> = {};
+  private markAt = 0;
+  private mark(name?: string): void {
+    const t = performance.now();
+    if (name) this.timings[name] = (this.timings[name] ?? 0) * 0.9 + (t - this.markAt) * 0.1;
+    this.markAt = t;
   }
 
   /**
@@ -627,6 +760,62 @@ export class Renderer {
     return c;
   }
 
+  /**
+   * Alcance de los tiradores seleccionados (arqueros, honderos, jinetes arqueros, máquinas):
+   * la zona a tiro sombreada y su borde punteado. Con un regimiento entero se dibuja la unión de
+   * todos los círculos: una sola mancha con un solo contorno, no 30 anillos encimados.
+   */
+  private drawRanges(ctx: CanvasRenderingContext2D, state: ClientState, list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[], sel: { units: Set<number> }, now: number): void {
+    const rings: { px: number; py: number; rx: number; ry: number }[] = [];
+    for (const d of list) {
+      if (d.k !== 'unit' || !sel.units.has(d.u!.id) || rings.length >= MAX_RANGE_RINGS) continue;
+      const attack = state.statsOf(d.u!.owner, d.u!.type).attack;
+      if (attack.type !== 'ranged') continue;
+      const p = worldToPx(d.x!, d.y!);
+      rings.push({ px: p.px, py: p.py - (d.lift ?? 0), rx: attack.range * (TILE_W / 2) * Math.SQRT2, ry: attack.range * (TILE_H / 2) * Math.SQRT2 });
+    }
+    if (!rings.length) return;
+    const path = () => {
+      ctx.beginPath();
+      for (const r of rings) {
+        ctx.moveTo(r.px + r.rx, r.py);
+        ctx.ellipse(r.px, r.py, r.rx, r.ry, 0, 0, Math.PI * 2);
+      }
+    };
+    ctx.save();
+    // Zona a tiro: todas las elipses en un mismo trazo se rellenan una sola vez (la unión).
+    path();
+    ctx.fillStyle = 'rgba(255,226,122,0.09)';
+    ctx.fill();
+    // Contorno de la unión: cada elipse se traza por tramos, salteando los que caen dentro de otra.
+    ctx.beginPath();
+    for (let i = 0; i < rings.length; i++) {
+      const r = rings[i];
+      let open = false;
+      for (let k = 0; k <= RANGE_SEGMENTS; k++) {
+        const a = (k / RANGE_SEGMENTS) * Math.PI * 2, x = r.px + Math.cos(a) * r.rx, y = r.py + Math.sin(a) * r.ry;
+        let inside = false;
+        for (let j = 0; j < rings.length && !inside; j++) {
+          if (j === i) continue;
+          const o = rings[j], dx = (x - o.px) / o.rx, dy = (y - o.py) / o.ry;
+          inside = dx * dx + dy * dy < 0.995;
+        }
+        if (inside) open = false;
+        else if (open) ctx.lineTo(x, y);
+        else {
+          ctx.moveTo(x, y);
+          open = true;
+        }
+      }
+    }
+    ctx.setLineDash([7, 6]);
+    ctx.lineDashOffset = -now / 80;
+    ctx.strokeStyle = 'rgba(255,226,122,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawPuffs(ctx: CanvasRenderingContext2D, now: number, kind: PuffKind): void {
     const img = this.puffSprite(kind);
     for (const p of this.particles.pool) {
@@ -643,8 +832,116 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  /**
+   * Estandartes de regimiento (Total War): sobre cada regimiento a la vista, un banderín con el
+   * color del dueño, cuántos quedan, y barras de vida y moral del conjunto. Bandera blanca si huye.
+   */
+  private drawStandards(ctx: CanvasRenderingContext2D, state: ClientState, list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[], sel: { units: Set<number> }, now: number): void {
+    const regs = new Map<number, { xs: number; ys: number; top: number; n: number; hp: number; mo: number; rout: number; owner: number; chosen: boolean; type: UnitView['type']; wall: boolean; shattered: boolean }>();
+    for (const d of list) {
+      if (d.k !== 'unit' || !d.u?.rg) continue;
+      const u = d.u, rg = d.u.rg, p = worldToPx(d.x!, d.y!);
+      const top = p.py - (d.lift ?? 0) - unitTop(u.type, state.faction(u.owner));
+      const r = regs.get(rg) ?? { xs: 0, ys: 0, top: Infinity, n: 0, hp: 0, mo: 0, rout: 0, owner: u.owner, chosen: false, type: u.type, wall: false, shattered: false };
+      if (u.sw) r.wall = true;
+      if (u.sh) r.shattered = true;
+      r.xs += p.px;
+      r.ys += p.py;
+      r.top = Math.min(r.top, top);
+      r.n++;
+      r.hp += u.hp / state.statsOf(u.owner, u.type).hp;
+      r.mo += (u.morale ?? 100) / 100;
+      if (u.rout) r.rout++;
+      if (sel.units.has(u.id)) r.chosen = true;
+      regs.set(rg, r);
+    }
+    for (const r of regs.values()) {
+      if (r.n < 2) continue;
+      const x = r.xs / r.n, y = r.top - 10;
+      const color = state.color(r.owner);
+      const routing = r.rout * 2 >= r.n;
+      // Asta
+      ctx.fillStyle = '#3b2a1a';
+      ctx.fillRect(x - 0.75, y - 16, 1.5, 18);
+      // Paño (ondea un poco)
+      const wave = Math.sin(now / 260 + r.xs) * 1.2;
+      ctx.fillStyle = routing ? '#f4f1e8' : color;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.75, y - 16);
+      ctx.lineTo(x + 15, y - 15 + wave);
+      ctx.lineTo(x + 15, y - 7 + wave);
+      ctx.lineTo(x + 0.75, y - 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = r.chosen ? '#ffffff' : 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = r.chosen ? 1.2 : 0.8;
+      ctx.stroke();
+      ctx.fillStyle = routing ? '#333' : '#fff';
+      ctx.font = 'bold 7px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(r.n), x + 8, y - 9.3 + wave * 0.5);
+      ctx.textAlign = 'start';
+      // Vida (verde) y moral (azul) del regimiento.
+      const bar = (yy: number, frac: number, fg: string) => {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x - 8, yy, 16, 2.2);
+        ctx.fillStyle = fg;
+        ctx.fillRect(x - 8, yy, 16 * Math.max(0, Math.min(1, frac)), 2.2);
+      };
+      bar(y + 3, r.hp / r.n, '#3fb04f');
+      bar(y + 6, r.mo / r.n, r.mo / r.n < 0.45 ? '#ff9f43' : '#5ab0ff');
+      // Muro de escudos: un escudo junto al asta. Destrozado: el paño rasgado (una muesca oscura).
+      if (r.wall) {
+        ctx.fillStyle = '#c9a24a';
+        ctx.strokeStyle = '#3b2a1a';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.ellipse(x - 5, y - 10, 3, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      if (r.shattered) {
+        ctx.fillStyle = 'rgba(30,20,10,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(x + 15, y - 15 + wave);
+        ctx.lineTo(x + 9, y - 11 + wave);
+        ctx.lineTo(x + 15, y - 7 + wave);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  /** Flechas que cayeron: quedan clavadas un rato, inclinadas según de dónde vinieron. */
+  private stuck: { x: number; y: number; ang: number; t0: number }[] = [];
+  private drawStuckArrows(ctx: CanvasRenderingContext2D, now: number, inView: (x: number, y: number) => boolean): void {
+    if (!this.stuck.length) return;
+    this.stuck = this.stuck.filter((a) => now - a.t0 < STUCK_MS);
+    ctx.lineWidth = 1;
+    for (const a of this.stuck) {
+      if (!inView(a.x, a.y)) continue;
+      const p = worldToPx(a.x, a.y);
+      ctx.globalAlpha = Math.min(1, (STUCK_MS - (now - a.t0)) / 1500);
+      const dx = Math.cos(a.ang) * 4, dy = Math.sin(a.ang) * 2;
+      ctx.strokeStyle = '#4a3420';
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py);
+      ctx.lineTo(p.px - dx, p.py - 4 - dy);
+      ctx.stroke();
+      ctx.fillStyle = '#e8e1cc'; // plumas
+      ctx.fillRect(p.px - dx - 1, p.py - 5 - dy, 2, 1.5);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /** Flechas, golpes, muertes y derrumbes. Los efectos viejos se descartan. */
-  private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number): void {
+  private drawEffects(ctx: CanvasRenderingContext2D, state: ClientState, now: number, inView: (x: number, y: number) => boolean): void {
+    // Las flechas que terminan su vuelo quedan clavadas (algunas en el suelo, junto a quien alcanzaron).
+    for (const { e, t0 } of state.effects)
+      if (e.k === 'shot' && e.s !== 1 && e.s !== 2 && now - t0 >= effectMs(e)) {
+        this.stuck.push({ x: e.x2 + (Math.random() - 0.5) * 0.5, y: e.y2 + (Math.random() - 0.5) * 0.5, ang: Math.atan2(e.y2 - e.y1, e.x2 - e.x1), t0: now });
+        if (this.stuck.length > MAX_STUCK) this.stuck.shift();
+      }
     state.effects = state.effects.filter(({ e, t0 }) => now - t0 < effectMs(e));
     for (const item of state.effects) {
       const { e, t0 } = item;
@@ -713,12 +1010,13 @@ export class Renderer {
           const p = worldToPx(e.x, e.y);
           if (e.c && !item.fx) {
             item.fx = true;
+            if (inView(e.x, e.y)) this.shakeAt = now;
             this.particles.burst(p.px, p.py, 6, 'dust', now, 0.8);
           }
           const spark = (now - t0) / EFFECT_MS.hit;
           if (spark < 1) {
           ctx.globalAlpha = 1 - spark;
-          ctx.fillStyle = e.c ? '#ffb347' : '#fff3b0';
+          ctx.fillStyle = e.c ? '#ffb347' : e.b ? '#ffffff' : '#fff3b0';
           // Golpe de carga: más chispas y más grandes.
           const n = e.c ? 8 : 4, spread = e.c ? 10 : 5, sz = e.c ? 3 : 2;
           for (let i = 0; i < n; i++) {

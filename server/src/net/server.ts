@@ -12,6 +12,8 @@ import { TICK_MS } from '../../../shared/data.ts';
 import { parseClientMessage, type ServerMessage } from '../../../shared/protocol.ts';
 import type { Conn } from '../lobby/conn.ts';
 import { Lobby } from '../lobby/lobby.ts';
+import { Tunnel } from './tunnel.ts';
+import type { TunnelView } from '../../../shared/protocol.ts';
 import type { Room } from '../lobby/room.ts';
 
 export interface GameServerOptions {
@@ -27,6 +29,12 @@ export interface GameServerOptions {
   urls?: (port: number) => string[];
   /** Semilla fija de mapa (pruebas). */
   seed?: number;
+  /** Botón "modo online" del panel del profesor (index.ts lo activa; las pruebas no). */
+  tunnel?: boolean;
+  /** Abrir el túnel apenas arranca (Jugar online.bat). */
+  autoTunnel?: boolean;
+  /** Avisa los cambios del modo online (para mostrar el enlace en la consola). */
+  onTunnel?: (v: TunnelView) => void;
 }
 
 export interface RunningServer {
@@ -100,10 +108,25 @@ export function viaProxy(headers: Record<string, string | string[] | undefined>)
 
 export function startGameServer(opts: GameServerOptions): Promise<RunningServer> {
   let port = opts.port;
-  const lobby = new Lobby({
+  // Modo online: el enlace público va primero en las direcciones para los estudiantes.
+  const tunnel = opts.tunnel
+    ? new Tunnel(
+        () => port,
+        (v) => {
+          lobby.tunnelChanged();
+          opts.onTunnel?.(v);
+        },
+      )
+    : null;
+  const urls = () => {
+    const base = opts.urls?.(port) ?? [`http://localhost:${port}`];
+    return tunnel?.url ? [tunnel.url, ...base.filter((u) => u !== tunnel.url)] : base;
+  };
+  const lobby: Lobby = new Lobby({
     pin: opts.pin,
-    urls: () => opts.urls?.(port) ?? [`http://localhost:${port}`],
+    urls,
     seed: opts.seed !== undefined ? () => opts.seed! : undefined,
+    ...(tunnel ? { tunnel } : {}),
   });
 
   const http = createServer((req, res) => serveStatic(opts.staticDir, req, res));
@@ -152,6 +175,7 @@ export function startGameServer(opts: GameServerOptions): Promise<RunningServer>
     http.once('error', reject);
     http.listen(opts.port, opts.host ?? '0.0.0.0', () => {
       port = (http.address() as AddressInfo).port;
+      if (opts.autoTunnel) tunnel?.start();
       resolvePromise({
         port,
         lobby,
@@ -159,6 +183,7 @@ export function startGameServer(opts: GameServerOptions): Promise<RunningServer>
         close: () =>
           new Promise<void>((done) => {
             if (timer) clearInterval(timer);
+            tunnel?.stop();
             for (const c of wss.clients) c.terminate();
             wss.close();
             http.close(() => done());
@@ -204,6 +229,16 @@ function serveStatic(dir: string | undefined, req: IncomingMessage, res: ServerR
     return;
   }
   if (!isFile(file)) file = join(root, 'index.html');
+  // Caché: sin esto cada estudiante vuelve a bajar todo el arte (hasta ~120 MB) en cada visita,
+  // y por internet sale todo de la subida de la computadora del docente. Con estos encabezados
+  // el navegador lo guarda y Cloudflare (npm run online) lo sirve desde su red.
+  const headers = cacheHeaders(root, file);
+  const etag = headers.ETag;
+  if (etag && req.headers['if-none-match'] === etag) {
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
   // El archivo puede desaparecer justo ahora (p. ej. si se recompila con el servidor encendido).
   const stream = createReadStream(file);
   stream.once('error', () => {
@@ -211,9 +246,28 @@ function serveStatic(dir: string | undefined, req: IncomingMessage, res: ServerR
     res.end();
   });
   stream.once('open', () => {
-    res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream', ...headers });
     stream.pipe(res);
   });
+}
+
+/**
+ * Encabezados de caché de un archivo del cliente:
+ * - assets/ (nombres con huella, cambian al recompilar): para siempre.
+ * - art/ (hojas de sprites): un día, y después se revalida con la etiqueta (304 sin reenviar).
+ * - index.html y el resto: siempre se revalida (así una versión nueva llega enseguida).
+ */
+export function cacheHeaders(root: string, file: string): Record<string, string> {
+  const rel = file.slice(root.length + 1).split(sep).join('/');
+  let etag: string | undefined;
+  try {
+    const st = statSync(file);
+    etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+  } catch {
+    etag = undefined;
+  }
+  const cache = rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : rel.startsWith('art/') ? 'public, max-age=86400' : 'no-cache';
+  return etag ? { 'Cache-Control': cache, ETag: etag } : { 'Cache-Control': cache };
 }
 
 function isFile(path: string): boolean {

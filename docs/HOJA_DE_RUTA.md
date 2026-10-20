@@ -56,18 +56,18 @@ Legend: ✅ done · 🔜 next · ⬜ pending
 | 5.5 | Industrial: rifleman, machine gun, light vehicle, artillery | ✅ |
 | 5.6 | Modern: tank, mechanized infantry, heavy artillery, anti-tank, aircraft | ✅ |
 
-## Phase 6 — Fog of war, victory and balance 🔜
+## Phase 6 — Fog of war, victory and balance ✅ (wonder pending)
 | # | Step | Status |
 |---|---|---|
-| 6.1 | Fog of war filtered **on the server** (cannot be cheated), with shared vision between allies | ⬜ |
-| 6.2 | Victory by conquest, by domination (points) and by wonder | ⬜ |
-| 6.3 | Time limit, end-of-game screen with statistics | ⬜ |
-| 6.4 | Balance with test games | ⬜ |
+| 6.1 | Fog of war filtered **on the server** (cannot be cheated), with shared vision between allies | ✅ |
+| 6.2 | Victory by conquest, by domination (points) and by wonder | ✅ conquest, Sacred Hill, glory · ⬜ wonder |
+| 6.3 | Time limit, end-of-game screen with statistics | ✅ (charts + chronicle) |
+| 6.4 | Balance with test games | ✅ equal-cost matchup matrix + bot tournament (2026-10-16) |
 
-## Phase 7 — Finishing touches and setup ⬜
+## Phase 7 — Finishing touches and setup 🔜
 | # | Step | Status |
 |---|---|---|
-| 7.1 | Optimization for modest computers | ⬜ |
+| 7.1 | Optimization for modest computers | ✅ trimmed atlases, ImageBitmap, half-res copies, faster A* (2026-10-16) |
 | 7.2 | Interface polish and simple original sounds | ⬜ |
 | 7.3 | Easy setup for the teacher (double click, no Node.js install needed) | ⬜ |
 | 7.4 | Teacher guide and student guide | ⬜ |

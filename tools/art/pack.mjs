@@ -4,6 +4,7 @@
 //   abajo, los recortes de la máscara de equipo (para teñirlos con el color del jugador).
 
 import { Img } from './img.mjs';
+import { sheetWidth, shelfPack } from './repack.mjs';
 
 /**
  * anims: { nombre: { fs, dirs, n, base[d][i], mask[d][i], fps, loop, ax, ay } }
@@ -26,13 +27,15 @@ export function packSheet(anims) {
     if (x1 < 0) throw new Error(`animación vacía: ${name}`);
     blocks.push({ name, a, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
   }
-  const width = Math.max(...blocks.map((b) => b.w * b.a.n));
-  let y = 0;
-  for (const b of blocks) {
-    b.y = y;
-    y += b.h * b.a.dirs;
-  }
-  const baseH = y;
+  // Bloques en estantes de hasta MAX_W de ancho (hojas cuadradas: ningún lado pasa del límite de la GPU).
+  const rects = blocks.map((b) => ({ w: b.w * b.a.n, h: b.h * b.a.dirs }));
+  const width = sheetWidth(rects);
+  const shelves = shelfPack(rects, width);
+  blocks.forEach((b, i) => {
+    b.x = shelves.pos[i].x;
+    b.y = shelves.pos[i].y;
+  });
+  const baseH = shelves.height;
 
   // Recortes de máscara, en estantes de izquierda a derecha.
   const pieces = [];
@@ -64,7 +67,7 @@ export function packSheet(anims) {
   for (const b of blocks) {
     const m = [];
     for (let d = 0; d < b.a.dirs; d++)
-      for (let i = 0; i < b.a.n; i++) img.draw(b.a.base[d][i], b.x0, b.y0, b.w, b.h, i * b.w, b.y + d * b.h);
+      for (let i = 0; i < b.a.n; i++) img.draw(b.a.base[d][i], b.x0, b.y0, b.w, b.h, b.x + i * b.w, b.y + d * b.h);
     for (const p of pieces.filter((q) => q.b === b)) {
       if (!p.bb) {
         m.push(0, 0, 0, 0, 0, 0);
@@ -74,6 +77,7 @@ export function packSheet(anims) {
       m.push(p.mx, p.my, p.bb.w, p.bb.h, p.bb.x - b.x0, p.bb.y - b.y0);
     }
     meta.anims[b.name] = {
+      ...(b.x ? { x: b.x } : {}),
       y: b.y,
       w: b.w,
       h: b.h,

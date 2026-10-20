@@ -50,6 +50,30 @@ export function eraLabel(era: number): string {
   return ERAS[Math.max(0, Math.min(MAX_ERA, era) - 1)].label;
 }
 
+/**
+ * Etapas de la Edad Media (la era que más se juega): Alta, Plena y Baja. Se avanza con una
+ * tecnología en el Centro Urbano (y una pregunta de historia, si la sala las tiene). Cada etapa
+ * abre algo que se ve: la Plena, el mangonel y las fortalezas de piedra; la Baja, el trabuquete,
+ * ballesteros, piqueros y caballeros con armadura de placas.
+ */
+export const MEDIEVAL_ERA = 2;
+export const MEDIEVAL_STAGES = [
+  { label: 'Early Middle Ages', short: 'Early', years: 'AD 500–1000' },
+  { label: 'High Middle Ages', short: 'High', years: 'AD 1000–1300' },
+  { label: 'Late Middle Ages', short: 'Late', years: 'AD 1300–1500' },
+] as const;
+export const MAX_STAGE = MEDIEVAL_STAGES.length;
+export function stageLabel(stage: number): string {
+  return MEDIEVAL_STAGES[Math.max(1, Math.min(MAX_STAGE, stage)) - 1].label;
+}
+/**
+ * ¿Alcanza la etapa? `need` es la etapa medieval que pide algo (unidad, edificio, tecnología).
+ * Antes de la Edad Media decide la era; después de ella, todo lo medieval ya está abierto.
+ */
+export function stageReached(need: number | undefined, era: number, stage: number): boolean {
+  return !need || era !== MEDIEVAL_ERA || stage >= need;
+}
+
 // ---------- Combate ----------
 /** Tipo de unidad para las ventajas: quién le gana a quién. */
 export type Category = 'worker' | 'infantry' | 'ranged' | 'cavalry' | 'siege' | 'armor' | 'air' | 'building';
@@ -115,7 +139,9 @@ export type UnitType =
   | 'ram'
   | 'siege_tower'
   // General (héroe): uno por jugador
-  | 'general';
+  | 'general'
+  // Comunes de las etapas de la Edad Media: monje, mangonel (Plena) y trabuquete (Baja)
+  | 'monk' | 'mangonel' | 'counterweight_trebuchet';
 
 /**
  * Arma de la infantería de la Edad Media (piedra, papel o tijera, como en Total War):
@@ -155,6 +181,12 @@ export interface UnitDef {
   hero?: boolean;
   /** Torre de asedio: no pelea; pegada a una muralla enemiga, deja subir a la infantería. */
   docks?: boolean;
+  /** Etapa de la Edad Media desde la que se entrena (2 = Plena, 3 = Baja). */
+  stage?: number;
+  /** Sanador (monje): no pelea; cura a las unidades propias cercanas (vida por segundo). */
+  heals?: { radius: number; hps: number };
+  /** Piedras que salpican: esta fracción del daño a los enemigos a `radius` casillas del blanco. */
+  splash?: { radius: number; share: number };
   /** Para la interfaz: en qué es buena y en qué no. */
   strong: string;
   weak: string;
@@ -193,8 +225,8 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   archer: {
     label: 'Archer', hp: 35, speed: 1.4, sight: 6, pop: 1, cost: { wood: 45, metal: 20 }, trainTime: 16,
-    attack: ranged(5, 5, 2), armor: { melee: 0, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2,
-    strong: 'Attacks from afar. Good against infantry', weak: 'Fragile against cavalry',
+    attack: ranged(7, 5, 2), armor: { melee: 0, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2,
+    strong: 'Shoots from behind your line: thins spearmen and light infantry before they arrive', weak: 'Cavalry rides them down; shielded swordsmen walk through the arrows',
   },
   knight: {
     label: 'Knight', hp: 110, speed: 2.3, sight: 5, pop: 1, cost: { food: 70, metal: 70 }, trainTime: 24,
@@ -281,7 +313,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   // Mongols
   horse_archer: {
     label: 'Horse Archer', hp: 70, speed: 2.6, sight: 7, pop: 1, cost: { food: 60, wood: 50, metal: 30 }, trainTime: 20,
-    attack: ranged(6, 5, 1.6), armor: { melee: 0, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'mongols',
+    attack: ranged(7, 5, 1.6), armor: { melee: 0, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'mongols',
     strong: 'Shoots from horseback: hit and run', weak: 'Fragile against spearmen and archers',
   },
   keshig: {
@@ -310,24 +342,24 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   axe_thrower: {
     label: 'Axe Thrower', hp: 50, speed: 1.5, sight: 5, pop: 1, cost: { food: 50, wood: 40 }, trainTime: 16,
-    attack: ranged(9, 3, 2), armor: { melee: 1, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2, faction: 'germans',
+    attack: ranged(9, 4, 2), armor: { melee: 1, ranged: 1 }, category: 'ranged', era: 2, untilEra: 2, faction: 'germans',
     bonus: { infantry: 1.6 },
     strong: 'Thrown axes break infantry', weak: 'Very short range',
   },
   // Visigoths
   gothic_knight: {
-    label: 'Gothic Knight', hp: 130, speed: 2.2, sight: 5, pop: 1, cost: { food: 90, metal: 90 }, trainTime: 28,
+    label: 'Gothic Knight', hp: 130, speed: 2.2, sight: 5, pop: 1, cost: { food: 80, metal: 75 }, trainTime: 28,
     attack: melee(12, 1.8), armor: { melee: 3, ranged: 3 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
     strong: 'The heaviest cavalry', weak: 'Very expensive; loses to spearmen',
   },
   armored_archer: {
-    label: 'Armored Archer', hp: 55, speed: 1.3, sight: 6, pop: 1, cost: { wood: 50, metal: 40 }, trainTime: 18,
-    attack: ranged(6, 6, 2), armor: { melee: 2, ranged: 3 }, category: 'ranged', era: 2, untilEra: 2, faction: 'visigoths',
+    label: 'Armored Archer', hp: 55, speed: 1.3, sight: 6, pop: 1, cost: { wood: 50, metal: 30 }, trainTime: 18,
+    attack: ranged(9, 6, 2), armor: { melee: 2, ranged: 3 }, category: 'ranged', era: 2, untilEra: 2, faction: 'visigoths',
     strong: 'Armored: survives other archers', weak: 'Slow',
   },
   // Ostrogoths
   gothic_lancer: {
-    label: 'Gothic Lancer', hp: 110, speed: 2.6, sight: 5, pop: 1, cost: { food: 80, metal: 70 }, trainTime: 24,
+    label: 'Gothic Lancer', hp: 110, speed: 2.6, sight: 5, pop: 1, cost: { food: 80, metal: 85 }, trainTime: 24,
     attack: melee(10, 1.6), armor: { melee: 2, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'ostrogoths',
     bonus: { cavalry: 1.5 },
     strong: 'Fast shock cavalry: wins cavalry duels', weak: 'Loses to spearmen',
@@ -340,13 +372,13 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   // Vikings
   berserker: {
-    label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 70, wood: 30 }, trainTime: 18,
+    label: 'Berserker', hp: 70, speed: 1.7, sight: 4, pop: 1, cost: { food: 85, wood: 35 }, trainTime: 18,
     attack: melee(14, 1.4), armor: { melee: 0, ranged: 0 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
     bonus: { infantry: 1.3 }, regen: 1.5, weapon: 'blade',
     strong: 'Battle fury: the strongest attack on foot', weak: 'No armor',
   },
   huscarl: {
-    label: 'Huscarl', hp: 90, speed: 1.3, sight: 4, pop: 1, cost: { food: 80, metal: 50 }, trainTime: 22,
+    label: 'Huscarl', hp: 90, speed: 1.3, sight: 4, pop: 1, cost: { food: 80, metal: 65 }, trainTime: 22,
     attack: melee(11), armor: { melee: 3, ranged: 2 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
     bonus: { infantry: 1.4, building: 2 }, weapon: 'blade',
     strong: 'Elite guard with a great axe', weak: 'Expensive',
@@ -366,7 +398,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     strong: 'Huge range: flattens walls and forts', weak: 'Almost useless against units; very slow',
   },
   war_chariot: {
-    label: 'War Chariot', hp: 140, speed: 2.4, sight: 6, pop: 1, cost: { food: 90, wood: 60, metal: 30 }, trainTime: 26,
+    label: 'War Chariot', hp: 140, speed: 2.4, sight: 6, pop: 1, cost: { food: 90, wood: 40, metal: 30 }, trainTime: 26,
     attack: melee(10, 1.6), armor: { melee: 2, ranged: 1 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'gauls',
     bonus: { infantry: 1.5, ranged: 1.5, worker: 1.5 },
     strong: 'Scythed wheels crash through infantry and archers', weak: 'Loses to spearmen',
@@ -379,7 +411,7 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
   },
   javelin_rider: {
     label: 'Javelin Rider', hp: 85, speed: 2.5, sight: 6, pop: 1, cost: { food: 70, wood: 40, metal: 30 }, trainTime: 22,
-    attack: ranged(8, 4, 2), armor: { melee: 1, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
+    attack: ranged(9, 4, 2), armor: { melee: 1, ranged: 2 }, category: 'cavalry', era: 2, untilEra: 2, faction: 'visigoths',
     bonus: { cavalry: 1.5, ranged: 1.5 },
     strong: 'Mounted skirmisher: javelins hurt other riders', weak: 'Short range; loses to spearmen',
   },
@@ -393,6 +425,26 @@ export const UNIT_DEFS: Record<UnitType, UnitDef> = {
     attack: melee(10, 1.3), armor: { melee: 0, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2, faction: 'vikings',
     bonus: { ranged: 1.6, worker: 2, siege: 1.6 }, weapon: 'blade',
     strong: 'Wolf warriors: raid archers, workers and siege', weak: 'No armor; loses to cavalry',
+  },
+
+  // ---- Comunes de las etapas de la Edad Media (al final: los índices del codec no cambian) ----
+  monk: {
+    label: 'Monk', hp: 45, speed: 1.2, sight: 6, pop: 1, cost: { food: 40, metal: 80 }, trainTime: 28,
+    attack: melee(1, 3), armor: { melee: 0, ranged: 1 }, category: 'infantry', era: 2, untilEra: 2,
+    heals: { radius: 4, hps: 3 },
+    strong: 'Heals your soldiers around him (+3 health per second each). Several monks do not stack', weak: 'Does not fight: keep him behind your line',
+  },
+  mangonel: {
+    label: 'Mangonel', shot: 'shell', hp: 95, speed: 0.8, sight: 8, pop: 1, cost: { wood: 160, metal: 80 }, trainTime: 34,
+    attack: ranged(16, 7, 4.5), armor: { melee: 0, ranged: 4 }, category: 'siege', era: 2, untilEra: 2, stage: 2,
+    splash: { radius: 1.3, share: 0.6 },
+    strong: 'Throws stones over your line: hits whole blocks of infantry and archers, and damages buildings', weak: 'Slow and defenseless up close: cavalry destroys it',
+  },
+  counterweight_trebuchet: {
+    label: 'Counterweight Trebuchet', shot: 'shell', hp: 150, speed: 0.55, sight: 10, pop: 1, cost: { wood: 300, stone: 100, metal: 150 }, trainTime: 50,
+    attack: ranged(90, 12, 7.5), armor: { melee: 1, ranged: 6 }, category: 'siege', era: 2, untilEra: 2, stage: 3,
+    bonus: { building: 4, infantry: 0.4, cavalry: 0.4, ranged: 0.4, worker: 0.4 },
+    strong: 'The longest range of the Middle Ages: flattens walls, towers and fortresses', weak: 'Almost useless against units; very slow',
   },
 };
 
@@ -440,7 +492,11 @@ export type BuildingType =
   | 'archery_range' | 'stable' | 'tech_center' | 'tower' | 'wall' | 'gate'
   | 'workshop' | 'factory' | 'market' | 'fortress'
   // Edificio único de cada pueblo (Edad Media)
-  | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall';
+  | 'castrum' | 'ordu' | 'nemeton' | 'war_hall' | 'royal_hall' | 'royal_palace' | 'mead_hall'
+  // Monumento: si queda en pie terminado WONDER_HOLD_SECONDS, ese imperio gana (como en Age of Empires)
+  | 'wonder'
+  // Monasterio: entrena monjes (Edad Media)
+  | 'monastery';
 
 export interface BuildingDef {
   label: string;
@@ -470,6 +526,8 @@ export interface BuildingDef {
   buildable: boolean;
   /** Era desde la que se puede construir. */
   era: number;
+  /** Etapa de la Edad Media desde la que se puede construir (2 = Plena, 3 = Baja). */
+  stage?: number;
   /** Edificio único: solo lo construye este pueblo. */
   faction?: FactionId;
   /** Cura a las unidades propias cercanas (druidas del Nemeton). */
@@ -484,7 +542,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     label: 'Town Center',
     description: 'Your main base. Trains workers, researches the next age and shoots arrows.',
     size: 3, hp: 2000, cost: { wood: 275, stone: 100 }, buildTime: 120, popProvided: 5, dropoff: RESOURCE_TYPES,
-    trains: ['worker', 'general'], researches: ['era2', 'era3', 'era4', 'tools', 'wheelbarrow', 'plow', 'hand_cart'],
+    trains: ['worker', 'general'], researches: ['era2', 'stage2', 'stage3', 'era3', 'era4', 'tools', 'wheelbarrow', 'plow', 'hand_cart'],
     armor: { melee: 3, ranged: 6 }, sight: 8, attack: ranged(5, 6, 2), solid: true, buildable: false, era: 1,
   },
   house: {
@@ -519,9 +577,9 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     armor: DEFENSE, sight: 2, solid: true, field: { resource: 'wood', amount: 600, workers: 5, rate: 0.45, regrow: 1 }, buildable: true, era: 1,
   },
   barracks: {
-    label: 'Barracks', description: 'Trains the infantry of each age.',
+    label: 'Barracks', description: 'Trains the infantry of each age, and the siege engines of the Middle Ages.',
     size: 3, hp: 1200, cost: { wood: 150 }, buildTime: 40, popProvided: 0, dropoff: [],
-    trains: ['warrior', 'scout', 'spearman', 'swordsman', 'ram', 'siege_tower', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
+    trains: ['warrior', 'scout', 'spearman', 'swordsman', 'ram', 'siege_tower', 'mangonel', 'counterweight_trebuchet', 'rifleman', 'machine_gun', 'antitank'], researches: ['man_at_arms', 'pikeman', 'supplies', 'veteran_riflemen'],
     armor: DEFENSE, sight: 4, solid: true, buildable: true, era: 1,
   },
   archery_range: {
@@ -547,12 +605,12 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   },
   wall: {
     label: 'Wall', description: 'Blocks the way. Click where it starts and where it ends: one order builds the whole line.',
-    size: 1, hp: 700, cost: { stone: 5 }, buildTime: 6, popProvided: 0, dropoff: [], trains: [], researches: [],
+    size: 1, hp: 700, cost: { stone: 5 }, buildTime: 2, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: { melee: 5, ranged: 10 }, sight: 1, solid: true, buildable: true, era: 1,
   },
   gate: {
     label: 'Gate', description: 'Lets you and your allies through. Place it on your own wall to turn that section into a gate.',
-    size: 1, hp: 700, cost: { stone: 20 }, buildTime: 10, popProvided: 0, dropoff: [], trains: [], researches: [],
+    size: 1, hp: 700, cost: { stone: 20 }, buildTime: 5, popProvided: 0, dropoff: [], trains: [], researches: [],
     armor: { melee: 5, ranged: 10 }, sight: 2, solid: true, buildable: true, era: 1,
   },
   workshop: {
@@ -576,7 +634,7 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
   fortress: {
     label: 'Fortress', description: 'Stone stronghold in the style of your people: very tough, shoots arrows at everything nearby (airplanes too) and gives +10 population. Build it to defend your city.',
     size: 4, hp: 4800, cost: { wood: 200, stone: 600 }, buildTime: 120, popProvided: 10, dropoff: [], trains: [], researches: [],
-    armor: { melee: 6, ranged: 10 }, sight: 10, attack: ranged(12, 8, 1.5), solid: true, buildable: true, era: 2,
+    armor: { melee: 6, ranged: 10 }, sight: 10, attack: ranged(12, 8, 1.5), solid: true, buildable: true, era: 2, stage: 2,
   },
 
   // ---- Unique buildings (Medieval Age) ----
@@ -622,27 +680,41 @@ export const BUILDING_DEFS: Record<BuildingType, BuildingDef> = {
     trains: ['berserker', 'huscarl', 'ulfhednar'], researches: ['elite_berserker', 'elite_huscarl', 'elite_ulfhednar'],
     armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2, faction: 'vikings',
   },
+  // Al final de la lista: los índices de los demás (codec) no cambian.
+  wonder: {
+    label: 'Wonder', description: 'A great monument to your people. If it stands finished for 5 minutes, your empire wins. Everyone is warned when it is finished: they will come for it. Only one per empire; use many workers.',
+    size: 5, hp: 6000, cost: { food: 600, wood: 600, stone: 600, metal: 600 }, buildTime: 900, popProvided: 0, dropoff: [], trains: [], researches: [],
+    armor: { melee: 4, ranged: 12 }, sight: 6, solid: true, buildable: true, era: 2,
+  },
+  monastery: {
+    label: 'Monastery', description: 'Monks lived, prayed and copied books here. Trains Monks, who heal your soldiers nearby.',
+    size: 3, hp: 1400, cost: { wood: 175, stone: 75 }, buildTime: 45, popProvided: 0, dropoff: [], trains: ['monk'], researches: ['herbal_medicine'],
+    armor: DEFENSE, sight: 5, solid: true, buildable: true, era: 2,
+  },
 };
 /** Edificios que aparecen en el menú de construcción, en orden. */
 export const BUILD_MENU: readonly BuildingType[] = [
   'house', 'storehouse', 'farm', 'quarry', 'mine', 'woodlot', 'barracks', 'tower', 'wall', 'gate',
-  'archery_range', 'stable', 'tech_center', 'market', 'fortress',
+  'archery_range', 'stable', 'tech_center', 'market', 'monastery', 'fortress', 'wonder',
   'castrum', 'ordu', 'nemeton', 'war_hall', 'royal_hall', 'royal_palace', 'mead_hall',
   'workshop', 'factory',
 ];
 
-/** ¿Se puede entrenar esta unidad en esta era (y con este pueblo, si es única)? */
-export function unitAvailable(type: UnitType, era: number, faction?: FactionId): boolean {
+/**
+ * ¿Se puede entrenar esta unidad en esta era (y con este pueblo, si es única)? `stage` es la etapa
+ * de la Edad Media; si falta, no se mira (p. ej. la guía, que muestra la edad entera).
+ */
+export function unitAvailable(type: UnitType, era: number, faction?: FactionId, stage: number = MAX_STAGE): boolean {
   const d = UNIT_DEFS[type];
   if (d.faction && d.faction !== faction) return false;
-  return era >= d.era && era <= d.untilEra;
+  return era >= d.era && era <= d.untilEra && stageReached(d.stage, era, stage);
 }
 
-/** ¿Puede este pueblo construir este edificio en esta era? */
-export function buildingAvailable(type: BuildingType, era: number, faction?: FactionId): boolean {
+/** ¿Puede este pueblo construir este edificio en esta era (y etapa de la Edad Media)? */
+export function buildingAvailable(type: BuildingType, era: number, faction?: FactionId, stage: number = MAX_STAGE): boolean {
   const d = BUILDING_DEFS[type];
   if (d.faction && d.faction !== faction) return false;
-  return d.buildable && era >= d.era;
+  return d.buildable && era >= d.era && stageReached(d.stage, era, stage);
 }
 
 // ---------- Mercado ----------
@@ -665,10 +737,26 @@ export function sellPrice(price: number): number {
 
 /** Reparar cuesta esta fracción del precio del edificio (proporcional a la vida recuperada). */
 export const REPAIR_COST_FACTOR = 0.5;
-/** Elementos que caben en la cola de un edificio. */
-export const MAX_QUEUE = 5;
-/** Población máxima por jugador (límite de rendimiento para la clase). */
-export const POP_CAP_MAX = 75;
+/** Elementos que caben en la cola de un edificio (alcanza para un regimiento entero). */
+export const MAX_QUEUE = 10;
+/**
+ * Población máxima por jugador (lo que dan las casas, el Centro Urbano y algunos edificios). Un
+ * regimiento entero ocupa un solo lugar (su `pop`, 1 casi siempre), igual que un trabajador.
+ */
+export const POP_CAP_MAX = 60;
+/**
+ * Tope de seguridad de unidades (soldados y trabajadores) en toda la partida, repartido entre los
+ * jugadores: con un regimiento = 1 de población, sin esto 16 jugadores llegarían a ~5.000 unidades.
+ * Medido el 2026-10-19 (16 jugadores, batalla grande, con niebla): 3.100 unidades = 29 ms por paso
+ * (de 100) y 23 KB/s por alumno; 2.400 deja margen para un servidor modesto y para jugar por internet.
+ */
+export const UNIT_BUDGET = 2400;
+export const UNITS_PER_PLAYER_MIN = 150;
+export const UNITS_PER_PLAYER_MAX = 400;
+/** Unidades que puede tener cada jugador en una partida de `players` jugadores. */
+export function unitLimit(players: number): number {
+  return Math.max(UNITS_PER_PLAYER_MIN, Math.min(UNITS_PER_PLAYER_MAX, Math.floor(UNIT_BUDGET / Math.max(1, players))));
+}
 
 // ---------- Mejoras que suman facciones y tecnologías ----------
 export interface StatMods {
@@ -699,7 +787,9 @@ type BaseTechId =
   | 'forge' | 'armor_tech' | 'masonry' | 'ballistics' | 'machinery' | 'plating'
   | 'man_at_arms' | 'pikeman' | 'crossbow' | 'light_cavalry' | 'cavalier' | 'veteran_riflemen' | 'armored_cars'
   | 'supplies' | 'horse_breeding' | 'woodworking' | 'standard_arms' | 'masons_guild' | 'iron_casting' | 'mass_production';
-export type TechId = BaseTechId | `elite_${UniqueUnitType}`;
+/** Etapas de la Edad Media y la tecnología del monasterio (al final: los índices de las demás no cambian). */
+type StageTechId = 'stage2' | 'stage3' | 'herbal_medicine';
+export type TechId = BaseTechId | `elite_${UniqueUnitType}` | StageTechId;
 
 export interface TechDef {
   label: string;
@@ -712,6 +802,12 @@ export interface TechDef {
   requires?: BuildingType;
   /** Avance de era: la era a la que lleva. */
   advancesTo?: number;
+  /** Avance de etapa de la Edad Media: la etapa a la que lleva (2 = Plena, 3 = Baja). */
+  advancesStage?: number;
+  /** Etapa de la Edad Media que hace falta para investigarla (mientras se está en esa edad). */
+  stage?: number;
+  /** Los monjes curan esto por segundo de más (se suma). */
+  heal?: number;
   units?: Partial<Record<Category, StatMods>>;
   /** Mejora de un tipo de unidad concreto (evolución, como en AoE). */
   unitMods?: Partial<Record<UnitType, StatMods>>;
@@ -736,7 +832,7 @@ const BASE_TECHS: Record<BaseTechId, TechDef> = {
   },
   era3: {
     label: 'Advance to the Industrial Age', description: 'Firearms, artillery, factories and vehicles.',
-    cost: { food: 1600, stone: 500, metal: 800 }, time: 180, era: 2, requires: 'tech_center', advancesTo: 3,
+    cost: { food: 1600, stone: 500, metal: 800 }, time: 180, era: 2, stage: 3, requires: 'tech_center', advancesTo: 3,
   },
   era4: {
     label: 'Advance to the Modern Age', description: 'Tanks, anti-tank teams, mechanized infantry, heavy artillery and airplanes.',
@@ -845,13 +941,13 @@ const BASE_TECHS: Record<BaseTechId, TechDef> = {
     unitMods: { warrior: { hp: 1.3, attack: 1.35, armor: 1 } }, rename: { warrior: 'Man-at-Arms' },
   },
   pikeman: {
-    label: 'Pikeman', description: 'Spearmen become Pikemen: +30% health, +40% attack.',
-    cost: { food: 150, wood: 120 }, time: 40, era: 2,
+    label: 'Pikeman', description: 'Spearmen become Pikemen: +30% health, +40% attack. Late Middle Ages.',
+    cost: { food: 150, wood: 120 }, time: 40, era: 2, stage: 3,
     unitMods: { spearman: { hp: 1.3, attack: 1.4 } }, rename: { spearman: 'Pikeman' },
   },
   crossbow: {
-    label: 'Crossbowman', description: 'Archers become Crossbowmen: +40% attack, +15% health, +1 range.',
-    cost: { food: 125, metal: 75 }, time: 40, era: 2,
+    label: 'Crossbowman', description: 'Archers become Crossbowmen: +40% attack, +15% health, +1 range. Late Middle Ages.',
+    cost: { food: 125, metal: 75 }, time: 40, era: 2, stage: 3,
     unitMods: { archer: { attack: 1.4, hp: 1.15, range: 1 } }, rename: { archer: 'Crossbowman' },
   },
   light_cavalry: {
@@ -860,8 +956,8 @@ const BASE_TECHS: Record<BaseTechId, TechDef> = {
     unitMods: { scout: { hp: 1.5, attack: 1.5, armor: 1 } }, rename: { scout: 'Light Cavalry' },
   },
   cavalier: {
-    label: 'Cavalier', description: 'Knights become Cavaliers: +25% health, +25% attack, +1 armor.',
-    cost: { food: 250, metal: 150 }, time: 50, era: 2,
+    label: 'Cavalier', description: 'Knights in plate armor become Cavaliers: +25% health, +25% attack, +1 armor. Late Middle Ages.',
+    cost: { food: 250, metal: 150 }, time: 50, era: 2, stage: 3,
     unitMods: { knight: { hp: 1.25, attack: 1.25, armor: 1 } }, rename: { knight: 'Cavalier' },
   },
   veteran_riflemen: {
@@ -900,11 +996,32 @@ function eliteTechs(): Record<`elite_${UniqueUnitType}`, TechDef> {
   return out;
 }
 
-export const TECH_DEFS: Record<TechId, TechDef> = { ...BASE_TECHS, ...eliteTechs() };
+const STAGE_TECHS: Record<StageTechId, TechDef> = {
+  stage2: {
+    label: 'Advance to the High Middle Ages', description: 'AD 1000–1300: Mangonels for every people and stone Fortresses.',
+    cost: { food: 400, wood: 200, metal: 200 }, time: 50, era: 2, advancesStage: 2,
+  },
+  stage3: {
+    label: 'Advance to the Late Middle Ages',
+    description: 'AD 1300–1500: Counterweight Trebuchets, Crossbowmen, Pikemen and Cavaliers in plate armor. Needed for the Industrial Age.',
+    cost: { food: 700, wood: 300, stone: 150, metal: 400 }, time: 70, era: 2, stage: 2, advancesStage: 3,
+  },
+  herbal_medicine: {
+    label: 'Herbal Medicine', description: 'Monks heal 2 more health per second.',
+    cost: { food: 150, metal: 100 }, time: 40, era: 2, heal: 2,
+  },
+};
+
+export const TECH_DEFS: Record<TechId, TechDef> = { ...BASE_TECHS, ...eliteTechs(), ...STAGE_TECHS };
 
 /** ¿Es un avance de era? */
 export function isEraTech(t: TechId): boolean {
   return TECH_DEFS[t].advancesTo !== undefined;
+}
+
+/** ¿Es un avance de era o de etapa de la Edad Media? (lleva pregunta de historia y estrella) */
+export function isAdvanceTech(t: TechId): boolean {
+  return TECH_DEFS[t].advancesTo !== undefined || TECH_DEFS[t].advancesStage !== undefined;
 }
 
 /** ¿Es la evolución de una unidad (Piquero, élites…)? */
@@ -965,13 +1082,13 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     name: 'Mongols',
     hero: 'Khan',
     motto: 'The steppe is our home, the horse our wall',
-    units: { cavalry: { speed: 1.15, attack: 1.1 }, infantry: { hp: 0.8 } },
+    units: { cavalry: { speed: 1.15 }, infantry: { hp: 0.8 } },
     gather: { food: 1.1 },
     buildingHp: 0.85,
-    strengths: ['Cavalry: +15% speed and +10% attack', 'Food: +10% gathering'],
+    strengths: ['Cavalry: +15% speed', 'Food: +10% gathering'],
     weaknesses: ['Infantry: −20% health', 'Buildings: −15% health'],
-    traits: { trainSpeed: { cavalry: 1.25 }, fear: 1.2 },
-    abilities: ['Steppe riders: cavalry trains 25% faster', 'Terror of the steppe: their attacks break enemy morale 20% faster', 'The Ordu gives +10 population'],
+    traits: { trainSpeed: { cavalry: 1.15 }, fear: 1.1 },
+    abilities: ['Steppe riders: cavalry trains 15% faster', 'Terror of the steppe: their attacks break enemy morale 10% faster', 'The Ordu gives +10 population'],
   },
   gauls: {
     name: 'Gauls',
@@ -1001,7 +1118,8 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     hero: 'Dux',
     motto: 'Heirs of Rome, masters of Hispania',
     units: { cavalry: { hp: 1.15 }, ranged: { range: 1 }, infantry: { attack: 0.9 } },
-    strengths: ['Cavalry: +15% health', 'Ranged: +1 range'],
+    gather: { metal: 1.15 },
+    strengths: ['Cavalry: +15% health', 'Ranged: +1 range', 'Metal: +15% gathering (the mines of Hispania)'],
     weaknesses: ['Infantry: −10% attack'],
     traits: { charge: 1.8, resolve: 1.15 },
     abilities: ['Heavy charge: cavalry charges deal ×1.8 damage', 'Nobles of Toledo: soldiers lose 15% less morale', 'The Royal Hall is a drop-off for all resources'],
@@ -1037,6 +1155,84 @@ export function uniquesOf(faction: FactionId): { units: UnitType[]; building: Bu
     building: (Object.keys(BUILDING_DEFS) as BuildingType[]).find((b) => BUILDING_DEFS[b].faction === faction),
   };
 }
+
+// ---------- Regimientos (Total War): los soldados se mandan en bloque ----------
+/**
+ * Soldados por regimiento según su categoría. Se entrena el regimiento entero de una vez (un
+ * encargo = todos sus soldados), sale formado, se selecciona con un clic, marcha en formación y
+ * comparte la moral. Chicos a propósito: la clase juega en un servidor modesto.
+ */
+export const REGIMENT_SIZE: Partial<Record<Category, number>> = { infantry: 6, ranged: 6, cavalry: 4 };
+/** Un regimiento cuesta esta fracción de lo que costarían sus soldados de a uno. */
+export const REGIMENT_COST = 0.6;
+/** Tiempo de entrenamiento: el de un soldado + esta fracción por cada soldado más. */
+export const REGIMENT_TIME_PER_EXTRA = 0.25;
+/** Moral por segundo que pierden los que siguen firmes cuando huye una parte del regimiento (× fracción que huye). */
+export const REGIMENT_PANIC = 10;
+/** Fracción del regimiento que tiene que huir para que cunda el pánico. */
+export const REGIMENT_PANIC_FROM = 0.3;
+
+/** Soldados por regimiento de un tipo (0 = no forma regimientos: trabajadores, General, máquinas). */
+export function regimentSize(type: UnitType): number {
+  const def = UNIT_DEFS[type];
+  if (def.hero || def.heals) return 0; // el General y los monjes van de a uno
+  return REGIMENT_SIZE[def.category] ?? 0;
+}
+
+// ---------- Muro de escudos, bosques, moral destrozada y rodeados (Total War) ----------
+/** Muro de escudos: velocidad, daño de proyectiles que recibe y armadura extra cuerpo a cuerpo. */
+export const SHIELD_WALL_SPEED = 0.5;
+export const SHIELD_WALL_RANGED = 0.35;
+export const SHIELD_WALL_ARMOR = 2;
+/** Dentro o junto a un bosque: los proyectiles hacen esta fracción del daño, y no se puede cargar. */
+export const FOREST_COVER = 0.6;
+/** Moral por segundo que pierde un soldado rodeado (enemigos por tres lados o más). */
+export const SURROUND_MORALE = 6;
+/** Tras huir esta cantidad de veces, la tropa queda destrozada: solo se reagrupa junto a su ciudad. */
+export const SHATTER_AFTER = 2;
+export const SHATTER_RALLY_RADIUS = 9;
+
+/** Tipos que pelean sin escudo (armas a dos manos, sin armadura o de otra época). */
+const NO_SHIELD = new Set<UnitType>(['worker', 'monk', 'fanatic', 'berserker', 'chosen_axeman', 'gothic_warband', 'ulfhednar', 'axe_thrower', 'warrior']);
+/** ¿Lleva escudo? Infantería cuerpo a cuerpo de las eras antiguas (no los de dos manos ni los guerreros). */
+export function shieldBearer(type: UnitType): boolean {
+  const def = UNIT_DEFS[type];
+  return def.category === 'infantry' && def.attack.type === 'melee' && def.era <= 2 && !NO_SHIELD.has(type) && !def.shot;
+}
+
+// ---------- Proyectiles y munición (Total War) ----------
+/** Velocidad de vuelo (casillas por segundo): flechas, jabalinas/hondas y balas. */
+export const PROJECTILE_SPEED = { arrow: 14, javelin: 10, bullet: 60 } as const;
+/** Distancia (casillas) desde el punto de caída en la que el proyectil todavía alcanza a alguien. */
+export const PROJECTILE_HIT_RADIUS = 0.55;
+/** Desvío del tiro: fracción de la distancia (los veteranos apuntan mejor). */
+export const PROJECTILE_SPREAD = 0.06;
+/** Munición inicial de un tipo (Infinity = no se le acaba: armas de fuego, máquinas, cuerpo a cuerpo). */
+export function ammoFor(type: UnitType): number {
+  const def = UNIT_DEFS[type];
+  if (def.attack.type !== 'ranged' || def.shot) return Infinity;
+  return def.category === 'ranged' || def.category === 'cavalry' ? AMMO : Infinity;
+}
+/**
+ * Si el objetivo mira hacia el tirador y lleva escudo, el daño se multiplica por esto. Con 0,45 los
+ * arqueros no le ganaban a nada a igual costo (medido: perdían incluso apostados contra lanceros);
+ * con 0,6 (y flechas de 7) le ganan a los lanceros y siguen perdiendo con espadas y caballería.
+ */
+export const SHIELD_BLOCK = 0.6;
+/** Disparos por soldado a distancia (las máquinas y las armas de fuego no se quedan sin munición). */
+export const AMMO = 24;
+/** Munición que se recupera por segundo cerca de un edificio propio que entrena tropas. */
+export const AMMO_RESUPPLY = 2;
+export const AMMO_RESUPPLY_RADIUS = 8;
+
+// ---------- Choque de la carga (Total War) ----------
+/** Segundos en el suelo de un soldado derribado por una carga de caballería. */
+export const KNOCKDOWN_SECONDS = 1.6;
+/** Casillas que retrocede el derribado. */
+export const KNOCKDOWN_PUSH = 0.5;
+/** Enemigos extra que se lleva por delante una carga (además del objetivo) y su daño relativo. */
+export const CHARGE_TRAMPLE = 2;
+export const CHARGE_TRAMPLE_DAMAGE = 0.5;
 
 // ---------- Moral y flancos (idea de Total War: Attila) ----------
 /**
@@ -1087,6 +1283,13 @@ export const GUARD_LEASH = 3;
 /** Hostigamiento (arqueros): si un enemigo cuerpo a cuerpo se acerca a esta distancia, retroceden tanto así. */
 export const SKIRMISH_DIST = 2.2;
 export const SKIRMISH_STEP = 3.5;
+/**
+ * Marchando con una orden de mover simple: si un enemigo militar se les pega a esta fracción de su
+ * visión (como mínimo GUARD_ENGAGE casillas), traban combate y después siguen hacia su destino.
+ */
+export const ENGAGE_NEAR = 0.3;
+/** Disparo en marcha: un tirador a pie que camina recarga así de más lento (el jinete arquero, normal). */
+export const MOVING_FIRE_SLOW = 1.35;
 /** Veteranía: bajas para cada rango (1, 2, 3) y lo que da cada rango. */
 export const RANK_KILLS = [2, 5, 10] as const;
 export const RANK_DAMAGE = 0.08;
@@ -1147,6 +1350,8 @@ export const HILL_RADIUS = 3;
 export const HILL_HOLD_SECONDS = 300;
 export const HILL_MIN_SOLDIERS = 3;
 export const HILL_MIN_ERA = 2;
+/** Maravilla: segundos que debe quedar en pie, terminada, para ganar. */
+export const WONDER_HOLD_SECONDS = 300;
 /** Gloria (desempate al acabarse el tiempo). */
 export const GLORY = { kill: 3, city: 250, hillSecond: 1, era: 50, gathered: 0.02, alive: 100 } as const;
 
@@ -1192,6 +1397,17 @@ export const ABILITY_IDS = Object.keys(ABILITIES) as AbilityId[];
 /** Carga de caballería: tras unos segundos sin pelear, el primer golpe cuerpo a cuerpo hace más daño. */
 export const CHARGE_BONUS = 1.5;
 export const CHARGE_READY_SEC = 4;
+
+// ---------- Caballos con peso (Total War): arranque, giros y carga que atraviesa ----------
+/** Segundos que tarda un jinete en llegar a toda velocidad, y con qué fracción arranca. */
+export const CAV_ACCEL_SECONDS = 1.2;
+export const CAV_START_SPEED = 0.35;
+/** Grados por segundo que puede girar un caballo (los giros cerrados cuestan impulso). */
+export const CAV_TURN_DEG = 220;
+/** Casillas antes del destino en las que un jinete que marcha (no carga) va frenando hasta parar. */
+export const CAV_BRAKE_TILES = 1.2;
+/** Casillas que sigue de largo un jinete tras el choque de su carga contra infantería sin lanzas. */
+export const CHARGE_THROUGH_TILES = 2;
 
 // ---------- Armas de la Edad Media (lanza > caballería > espada > lanza) ----------
 /** La lanza contra la caballería: mínimo ×3,5 (las lanzas de élite, más). */

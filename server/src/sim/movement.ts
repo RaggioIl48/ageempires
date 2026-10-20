@@ -1,7 +1,7 @@
 // Movimiento: seguir caminos, mover grupos en formación y separar unidades
 // que quedan amontonadas en el mismo punto.
 
-import { CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category } from '../../../shared/data.ts';
+import { CAV_ACCEL_SECONDS, CAV_BRAKE_TILES, CAV_START_SPEED, CAV_TURN_DEG, CLIMB_SECONDS, TICK_RATE, WALK_FATIGUE, WALK_SPEED, FATIGUE_FORMATION, FATIGUE_PER_TILE, UNIT_DEFS, UPHILL_MIN_SPEED, WALL_SPEED_CLIMBER, WALL_SPEED_DEFENDER, type Category, SHIELD_WALL_SPEED } from '../../../shared/data.ts';
 import { fatigueOf, spend } from './fatigue.ts';
 import type { Formation } from '../../../shared/protocol.ts';
 import { formationLayout, rankOf } from '../../../shared/formation.ts';
@@ -13,8 +13,13 @@ import { WALL, type Point, type Unit, type World } from './world.ts';
 export function moveUnits(world: World, dt: number): void {
   const bodies = bucketBodies(world);
   for (const u of world.units.values()) {
-    if (u.path.length === 0) continue;
+    if (u.path.length === 0 || u.down > 0) {
+      // Parado (o derribado): pierde el impulso en ~0,6 s (salvo en medio del choque de una carga).
+      if (u.momentum > 0 && !(u.passUntil > world.tick)) u.momentum = u.down > 0 ? 0 : Math.max(0, u.momentum - dt / 0.6);
+      continue;
+    }
     const stats = world.statsOf(u);
+    const horse = UNIT_DEFS[u.type].category === 'cavalry' && !stats.flies;
     world.setWalker(u);
     // En formación, todos marchan al paso del más lento.
     const speed = u.routing > 0 ? stats.speed * 1.2 : u.state === 'moving' && u.speedCap > 0 ? Math.min(stats.speed, u.speedCap) : stats.speed;
@@ -22,8 +27,34 @@ export function moveUnits(world: World, dt: number): void {
     const wallMode = world.onWall(u);
     const wallSpeed = wallMode === 1 || wallMode === 3 ? WALL_SPEED_DEFENDER : wallMode === 2 ? WALL_SPEED_CLIMBER : 1;
     const wasOnWall = wallMode !== 0;
-    const pace = u.walking && u.state === 'moving' ? WALK_SPEED : 1;
+    const pace = (u.walking && u.state === 'moving' ? WALK_SPEED : 1) * (u.wall ? SHIELD_WALL_SPEED : 1);
     let budget = speed * dt * slope * fatigueOf(u.stamina).speed * wallSpeed * pace;
+    // Caballo con peso (Total War): gira de a poco (un giro cerrado le cuesta impulso) y arranca
+    // despacio hasta tomar velocidad. El camino es el mismo; cambia el ritmo y hacia dónde mira.
+    let heading: number | null = null;
+    if (horse) {
+      const wp = u.path[0];
+      const want = Math.atan2(wp.y - u.y, wp.x - u.x), cur = Math.atan2(u.fy, u.fx);
+      const delta = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
+      const max = ((CAV_TURN_DEG * Math.PI) / 180) * dt;
+      if (Math.hypot(wp.x - u.x, wp.y - u.y) > 1e-6) heading = cur + Math.max(-max, Math.min(max, delta));
+      // Lo que no alcanza a girar en este paso lo frena (dar media vuelta a galope no se puede).
+      const behind = Math.max(0, Math.abs(delta) - max) / Math.PI;
+      u.momentum = Math.min(u.momentum, 1 - behind * 1.4);
+      u.momentum = Math.min(1, Math.max(0, u.momentum) + dt / CAV_ACCEL_SECONDS);
+      budget *= CAV_START_SPEED + (1 - CAV_START_SPEED) * u.momentum;
+      // Al llegar (marchando, no cargando) frena de a poco en vez de clavarse en el lugar.
+      if (u.state === 'moving') {
+        let left = 0, px = u.x, py = u.y;
+        for (const p of u.path) {
+          left += Math.hypot(p.x - px, p.y - py);
+          px = p.x;
+          py = p.y;
+          if (left >= CAV_BRAKE_TILES) break;
+        }
+        if (left < CAV_BRAKE_TILES) budget *= Math.max(0.4, left / CAV_BRAKE_TILES);
+      }
+    }
     const walked = budget;
     while (budget > 0 && u.path.length > 0) {
       const wp = u.path[0];
@@ -37,7 +68,11 @@ export function moveUnits(world: World, dt: number): void {
         if (block) {
           const around = sidestep(world, bodies, u, (nx - u.x) / step, (ny - u.y) / step, step);
           if (around) [nx, ny] = around;
-          else if (isEnemy(world, u.owner, block.owner)) break; // contra la línea enemiga se frena: a pelear
+          else if (isEnemy(world, u.owner, block.owner) && !(u.passUntil > world.tick)) break; // contra la línea enemiga se frena: a pelear
+          else if (isEnemy(world, u.owner, block.owner)) {
+            // Carga que atraviesa: pasa entre los enemigos (ya los derribó el choque) y los aparta.
+            shove(world, block, u, (wp.x - u.x) / d, (wp.y - u.y) / d);
+          }
           else {
             // Un compañero quieto: pasa despacio y lo corre a un lado.
             step *= 0.35;
@@ -48,17 +83,18 @@ export function moveUnits(world: World, dt: number): void {
         }
       }
       // El camino pudo quedar viejo (p. ej. se construyó algo encima): no atravesar paredes.
-      if (!stats.flies && !world.isWalkable(Math.floor(nx), Math.floor(ny))) {
+      if (!stats.flies && !stepOk(world, u.x, u.y, nx, ny)) {
         rerouteBlocked(world, u);
         break;
       }
-      if (step > 1e-6) [u.fx, u.fy] = [(nx - u.x) / step, (ny - u.y) / step]; // mira hacia donde camina
+      if (step > 1e-6 && heading === null) [u.fx, u.fy] = [(nx - u.x) / step, (ny - u.y) / step]; // mira hacia donde camina
       u.x = nx;
       u.y = ny;
       budget -= step;
       if (step >= d || Math.hypot(wp.x - u.x, wp.y - u.y) < 0.05) u.path.shift();
       else if (step < Math.min(d, budget + step) - 1e-6) break; // rodeó o se frenó: sigue el próximo paso
     }
+    if (heading !== null) [u.fx, u.fy] = [Math.cos(heading), Math.sin(heading)];
     // Sube a una muralla enemiga desde el suelo: con escalas tarda; por una torre acoplada, no.
     if (!wasOnWall && world.onWall(u) >= 2) {
       const i = Math.floor(u.y) * world.size + Math.floor(u.x);
@@ -118,7 +154,7 @@ function sidestep(world: World, bodies: Map<number, Unit[]>, u: Unit, dx: number
   for (const a of [0.6, -0.6, 1.15, -1.15]) {
     const c = Math.cos(a), s = Math.sin(a);
     const x = u.x + (dx * c - dy * s) * step, y = u.y + (dx * s + dy * c) * step;
-    if (world.isWalkable(Math.floor(x), Math.floor(y)) && !blockerAt(world, bodies, u, x, y)) return [x, y];
+    if (stepOk(world, u.x, u.y, x, y) && !blockerAt(world, bodies, u, x, y)) return [x, y];
   }
   return null;
 }
@@ -159,6 +195,7 @@ export function moveGroup(
   world.walker = units[0].owner;
   // Los puestos pueden caer sobre la muralla solo si todos son de a pie.
   world.walkerFoot = units.every((u) => ['infantry', 'ranged'].includes(UNIT_DEFS[u.type].category));
+  world.walkerWalls = false; // un grupo en marcha no usa la muralla de pasillo
   // Al arrastrar un frente (face), siempre en filas.
   if (face && formation === 'loose') formation = 'line';
   const ranked = formation !== 'loose' && (units.length > 1 || face !== undefined);
@@ -239,12 +276,12 @@ export function manWalls(world: World, units: Unit[], tx: number, ty: number): b
   for (const { u, spot } of assignNearest(units, tiles, tiles[0])) {
     u.task = null;
     u.chaseGoal = null;
+    u.hold = true; // defienden su tramo (y con eso pueden subir a la muralla)
+    u.post = { ...spot };
     u.path = pathToPoint(world, u, spot.x, spot.y) ?? [];
     u.state = u.path.length ? 'moving' : 'idle';
     u.speedCap = 0;
     u.arriveFace = null;
-    u.hold = true; // defienden su tramo
-    u.post = { ...spot };
   }
   return true;
 }
@@ -323,6 +360,7 @@ export function uphill(world: World, u: Unit): number {
 export function freeSpot(world: World, p: Point, taken: Set<number>, owner = 0): Point | null {
   if (owner) world.walker = owner;
   world.walkerFoot = false; // los puestos sueltos, siempre en el suelo
+  world.walkerWalls = false;
   return freeNear(world, p, taken);
 }
 
@@ -428,7 +466,7 @@ export function separateUnits(world: World): void {
 function nudge(world: World, u: Unit, dx: number, dy: number): void {
   const nx = u.x + dx, ny = u.y + dy;
   world.setWalker(u);
-  if (world.isWalkable(Math.floor(nx), Math.floor(ny))) {
+  if (stepOk(world, u.x, u.y, nx, ny)) {
     u.x = nx;
     u.y = ny;
   }
@@ -436,4 +474,15 @@ function nudge(world: World, u: Unit, dx: number, dy: number): void {
 
 function dist2(a: Point, b: Point): number {
   return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+}
+
+/**
+ * ¿Puede dar este paso corto? La casilla de llegada tiene que ser transitable y, si sube o baja de
+ * una muralla propia, tiene que ser por el lado de adentro (ver World.wallStepOk).
+ */
+function stepOk(world: World, x0: number, y0: number, x1: number, y1: number): boolean {
+  const tx = Math.floor(x1), ty = Math.floor(y1);
+  if (!world.isWalkable(tx, ty)) return false;
+  const from = Math.floor(y0) * world.size + Math.floor(x0), to = ty * world.size + tx;
+  return from === to || !world.inBounds(Math.floor(x0), Math.floor(y0)) || world.wallStepOk(from, to);
 }

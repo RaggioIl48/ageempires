@@ -11,8 +11,10 @@ import { Minimap } from './minimap.ts';
 import type { Net } from './net.ts';
 import { Renderer } from './render.ts';
 import { ClientState } from './state.ts';
-import { Camera } from './view.ts';
+import { Camera, renderDpr } from './view.ts';
 import { PerfMeter, perfVerdict } from './perf.ts';
+import { Sound } from './sound.ts';
+import { LoadingScreen } from './loading.ts';
 
 export class GameView {
   readonly state = new ClientState();
@@ -32,8 +34,13 @@ export class GameView {
   private lastMini = 0;
   private lastPing = 0;
   private perfOpen = false;
+  /** Pantalla de carga en curso (una por bienvenida) y cuánto tardó la última. */
+  private readonly loading = new LoadingScreen();
+  loadMs = 0;
   private readonly perfBox = document.getElementById('perf')!;
   readonly perf = new PerfMeter();
+  /** Sonido de batalla (M = silencio). */
+  readonly sound = new Sound();
   active = false;
 
   constructor(private readonly net: Net) {
@@ -67,14 +74,20 @@ export class GameView {
     box.classList.remove('hidden');
     box.dataset.level = v.level;
     box.innerHTML = this.perfOpen
-      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs`
+      ? `<b>● ${v.text}</b><br>${Math.round(s.fps)} fps · draw ${s.drawMs.toFixed(1)} ms<br>ping ${Math.round(s.ping)} ms · server ${s.serverMs.toFixed(1)} ms/step (worst ${Math.round(s.serverMaxMs ?? 0)})<br>worst frame ${Math.round(s.hitchMs ?? 0)} ms · ${this.perf.hitches} stutters · loaded in ${(this.loadMs / 1000).toFixed(1)} s<br>${this.state.units.size} units · ${this.renderer.particles.pool.filter((p) => p.alive).length} puffs<br><small>${Object.entries(this.renderer.timings).map(([k, ms]) => `${k} ${ms.toFixed(1)}`).join(' · ')}</small>`
       : `● ${Math.round(s.ping)} ms`;
   }
 
   /** Mensajes de la partida (bienvenida, cambios, jugadores). */
   handle(msg: ServerMessage): void {
+    const battlesBefore = this.state.battles.length;
     this.state.apply(msg, performance.now());
+    if (msg.t === 'd' && this.active) {
+      const w = this.cam.width / this.cam.zoom, h = this.cam.height / this.cam.zoom;
+      this.sound.onEvents(this.state.lastEvents, { cx: this.cam.cx, cy: this.cam.cy, w, h }, this.state.battles.length > battlesBefore);
+    }
     if (msg.t === 'welcome') {
+      this.showLoading();
       this.renderer.setMap(this.state);
       this.minimap.reset();
       this.cam.mapSize = this.state.size;
@@ -91,6 +104,26 @@ export class GameView {
     this.war.update();
   }
 
+  /**
+   * Pantalla de carga: tapa la partida mientras se preparan las hojas de los pueblos en juego y sus
+   * colores (si no, cada tipo de soldado nuevo traía un tirón). Si tarda (internet lenta), a los 6 s
+   * aparece "Jugar ya" y a los 30 s se entra igual: lo que falte se sigue cargando de fondo.
+   */
+  private showLoading(): void {
+    const players = [...this.state.players.values()].map((p) => ({ faction: p.faction, color: p.color }));
+    const me = this.state.spectator ? undefined : { faction: this.state.faction(this.state.you), color: this.state.color(this.state.you) };
+    this.loading.show({
+      players,
+      me,
+      tick: () => this.state.tick,
+      ctx: this.ctx,
+      onDone: (ms) => {
+        this.loadMs = ms;
+        this.perf.resetHitches();
+      },
+    });
+  }
+
   /** Al empezar: la cámara sobre el Centro Urbano propio (o el centro del mapa si es el profesor). */
   private centerOnStart(): void {
     this.needCenter = false;
@@ -104,7 +137,7 @@ export class GameView {
   }
 
   resize(): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = renderDpr();
     this.cam.width = window.innerWidth;
     this.cam.height = window.innerHeight;
     this.canvas.width = Math.round(this.cam.width * dpr);
@@ -120,7 +153,7 @@ export class GameView {
     if (!this.active || this.state.size === 0) return;
     this.input.update(dt);
     this.state.updateVision(now);
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = renderDpr();
     const ctx = this.ctx;
     const t0 = performance.now();
     this.renderer.draw(ctx, dpr, this.cam, this.state, this.input.sel, this.input.markers, this.input.ghost, now, this.input.frontDrag);

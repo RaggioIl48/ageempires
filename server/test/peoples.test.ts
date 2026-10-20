@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, TECH_DEFS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
 import { parseClientMessage } from '../../shared/protocol.ts';
-import { unitStats } from '../../shared/stats.ts';
+import { trainTime, unitStats } from '../../shared/stats.ts';
 import { wallLine } from '../../shared/wall.ts';
 import { generateWorld } from '../src/sim/mapgen.ts';
 import { completeTech } from '../src/sim/production.ts';
@@ -59,12 +59,13 @@ describe('historical peoples', () => {
   it('a unique building trains only its own people’s units', () => {
     const { g, w } = medievalGame();
     const castrum = w.addBuilding('castrum', 1, 15, 15)!;
+    w.addBuilding('house', 1, 22, 22); // población para un regimiento entero (6)
     g.enqueue(1, { kind: 'train', buildingId: castrum.id, unit: 'berserker' }); // Viking unit
     g.enqueue(1, { kind: 'train', buildingId: castrum.id, unit: 'legionary' });
     g.step();
     expect(castrum.queue.map((q) => q.unit)).toEqual(['legionary']);
     const secs = runUntil(g, () => [...w.units.values()].some((u) => u.type === 'legionary'));
-    expect(secs).toBeLessThan(UNIT_DEFS.legionary.trainTime + 2);
+    expect(secs).toBeLessThan(trainTime('legionary') + 2);
   });
 
   it('the Castrum shoots like a tower; the Ordu gives +10 population', () => {

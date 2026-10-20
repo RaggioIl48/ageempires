@@ -2,7 +2,7 @@
 // (fuerza de cada bando, caídos, reloj, "ir a la batalla" y "retirarse"), el menú para
 // marchar sobre una ciudad enemiga y el resultado de cada batalla.
 
-import { FACTIONS, HILL_MIN_ERA, HILL_MIN_SOLDIERS, RESOURCE_LABELS, RESOURCE_TYPES, UNIT_DEFS } from '../../shared/data.ts';
+import { FACTIONS, HILL_MIN_ERA, HILL_MIN_SOLDIERS, RESOURCE_LABELS, RESOURCE_TYPES, UNIT_DEFS, WONDER_HOLD_SECONDS } from '../../shared/data.ts';
 import type { BattleResultView, BattleView } from '../../shared/protocol.ts';
 import type { Input } from './input.ts';
 import type { Net } from './net.ts';
@@ -85,7 +85,7 @@ export class WarPanel {
       if (m.owner === s.you && m.home) rows.push(`<div class="war-row">🏠 Your army (${m.n}) returns home · <b>${m.left} s</b></div>`);
       else if (m.owner === s.you) rows.push(`<div class="war-row">🚩 Your army (${m.n}) marches on ${name(m.target)}'s city · arrives in <b>${m.left} s</b></div>`);
       else if (m.target === s.you) rows.push(`<div class="war-row alarm">⚠ An army of ${m.n} soldiers from ${name(m.owner)} marches on your city · <b>${m.left} s</b> — prepare your defenses!</div>`);
-      else rows.push(`<div class="war-row">🚩 ${name(m.owner)} (${m.n}) → ${name(m.target)} · ${m.left} s</div>`);
+      else rows.push(`<div class="war-row small">🚩 ${name(m.owner)} → ${name(m.target)} · ${m.left} s</div>`);
     }
     for (const b of s.battles) {
       // Al empezar una batalla que uno lanzó, la cámara va hacia ella.
@@ -93,17 +93,47 @@ export class WarPanel {
         this.seenBattles.add(b.id);
         if (b.a === s.you) this.cam.centerOn(b.x, b.y);
       }
-      rows.push(this.battleHtml(b));
+      rows.push(b.a === s.you || b.d === s.you || s.spectator ? this.battleHtml(b) : this.battleLine(b));
+    }
+    // Lo propio primero; si hay muchas, las ajenas se resumen (el panel no debe tapar el campo).
+    const MAX_ROWS = 5;
+    if (rows.length > MAX_ROWS) {
+      const extra = rows.length - MAX_ROWS + 1;
+      rows.splice(MAX_ROWS - 1, rows.length, `<div class="war-row small muted">+ ${extra} more battles and marches elsewhere</div>`);
     }
     const hill = this.hillHtml();
     if (hill) rows.unshift(hill);
+    rows.unshift(...this.wonderRows());
     const html = rows.join('');
     if (html !== this.lastHtml) {
       this.lastHtml = html;
       el('war-panel').innerHTML = html;
       el('war-panel').classList.toggle('hidden', html === '');
     }
-    if (!this.showing && s.battleResults.length) this.showResult(s.battleResults.shift()!);
+    while (!this.showing && s.battleResults.length) {
+      const r = s.battleResults.shift()!;
+      // Las batallas de otros: un aviso pequeño al costado, no una ventana en el medio.
+      if (r.a !== s.you && r.d !== s.you && !s.spectator) {
+        s.notices.push(`⚔ ${s.players.get(r.winner)?.name ?? 'Someone'} won the battle for ${s.players.get(r.d)?.name ?? 'a'}'s city`);
+        continue;
+      }
+      this.showResult(r);
+    }
+  }
+
+  /** Maravillas terminadas: de quién y cuánto le falta para ganar (hay que destruirlas). */
+  private wonderRows(): string[] {
+    const s = this.state;
+    return (s.victory.wonders ?? []).map(([owner, left]) => {
+      const mine = owner === s.you;
+      const who = esc(s.players.get(owner)?.name ?? `Player ${owner}`);
+      const done = WONDER_HOLD_SECONDS - left;
+      return `<div class="war-row hill ${mine ? 'attack' : 'defend'}" title="A finished Wonder that stands for ${mmss(WONDER_HOLD_SECONDS)} wins the game">
+      <div class="war-title">🏛 Wonder of <i style="background:${s.color(owner)}"></i><b>${who}</b> <span class="war-time">⏱ ${mmss(left)}</span></div>
+      <div class="war-bar"><div style="width:${Math.round((done / WONDER_HOLD_SECONDS) * 100)}%;background:${s.color(owner)}"></div></div>
+      <div class="muted">${mine ? 'Defend it until the clock reaches zero to win' : 'Destroy it before the clock reaches zero!'}</div>
+    </div>`;
+    });
   }
 
   /** Colina Sagrada: quién la tiene y cuánto le falta para ganar. */
@@ -128,6 +158,13 @@ export class WarPanel {
     </div>`;
   }
 
+  /** Batalla entre otros: una sola línea (el detalle no le hace falta a quien no pelea). */
+  private battleLine(b: BattleView): string {
+    const s = this.state;
+    const name = (id: number) => esc(s.players.get(id)?.name ?? `Player ${id}`);
+    return `<div class="war-row small">⚔ ${name(b.a)} → ${name(b.d)} <span class="war-time">⏱ ${mmss(b.left)}</span> <button class="tiny" data-go="${b.id}">👁</button></div>`;
+  }
+
   private battleHtml(b: BattleView): string {
     const s = this.state;
     const name = (id: number) => esc(s.players.get(id)?.name ?? `Player ${id}`);
@@ -143,6 +180,8 @@ export class WarPanel {
       <div class="war-buttons"><button class="tiny" data-go="${b.id}">👁 Go to battle</button>${b.a === s.you ? `<button class="tiny" data-retreat="${b.id}">🏳 Retreat</button>` : ''}</div>
     </div>`;
   }
+
+  private resultTimer = 0;
 
   private showResult(r: BattleResultView): void {
     this.showing = r;
@@ -174,7 +213,13 @@ export class WarPanel {
       </table>
       ${r.buildings ? `<p>Buildings destroyed: <b>${r.buildings}</b></p>` : ''}
       ${loot ? `<p>Loot: <b>${loot}</b></p>` : ''}
-      <button class="big primary" data-close>OK</button>`;
+      <button class="primary" data-close>OK</button>`;
     box.classList.remove('hidden');
+    // Tarjeta al costado que se cierra sola: no detiene el juego.
+    window.clearTimeout(this.resultTimer);
+    this.resultTimer = window.setTimeout(() => {
+      this.showing = null;
+      box.classList.add('hidden');
+    }, 15_000);
   }
 }

@@ -3,6 +3,7 @@
 // caminen en zigzag de casilla en casilla.
 
 import { freeTilesAround, WALL, type Point, type World } from './world.ts';
+import { TILE_GRASS } from '../../../shared/data.ts';
 import type { UnitType } from '../../../shared/data.ts';
 
 const SQRT2 = Math.SQRT2;
@@ -10,6 +11,10 @@ const DIRS: readonly [number, number, number][] = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
   [1, 1, SQRT2], [1, -1, SQRT2], [-1, 1, SQRT2], [-1, -1, SQRT2],
 ];
+// Las mismas direcciones en arreglos planos (el bucle interno del A* es lo más caliente del servidor).
+const DX = Int8Array.from(DIRS, (d) => d[0]);
+const DY = Int8Array.from(DIRS, (d) => d[1]);
+const DC = Float64Array.from(DIRS, (d) => d[2]);
 
 /**
  * Si el punto de partida es una unidad, las puertas de su dueño y de sus
@@ -17,12 +22,32 @@ const DIRS: readonly [number, number, number][] = [
  */
 function useWalker(world: World, from: Point): void {
   const u = from as { owner?: number; type?: UnitType };
-  if (u.owner !== undefined && u.type !== undefined) world.setWalker({ owner: u.owner, type: u.type });
-  else if (u.owner !== undefined) world.walker = u.owner;
+  if (u.owner !== undefined && u.type !== undefined) world.setWalker(from as Parameters<World['setWalker']>[0]);
+  else if (u.owner !== undefined) {
+    world.walker = u.owner;
+    world.walkerWalls = false;
+  }
 }
 
 /** Límite de casillas exploradas por búsqueda (protege el tick del servidor). */
 export const MAX_EXPANSIONS = 20_000;
+/**
+ * Presupuesto de casillas exploradas por paso de simulación para las persecuciones de combate.
+ * Sin él, cien soldados que persiguen algo inalcanzable (detrás de una muralla) exploran 20 000
+ * casillas cada uno en el mismo paso y el servidor se traba (medido: pasos de 80+ ms; en el plan
+ * gratuito de Render, casi un segundo). Las que no entran esperan al paso siguiente.
+ */
+export const PATH_BUDGET = 60_000;
+let spent = 0;
+/** Al empezar cada paso de simulación. */
+export function resetPathBudget(): void {
+  spent = 0;
+}
+/** ¿Queda presupuesto de búsqueda en este paso? */
+export function pathBudgetLeft(): boolean {
+  return spent < PATH_BUDGET;
+}
+
 /** Desempate: favorece seguir avanzando hacia el destino (explora muchas menos casillas). */
 const TIE_BREAK = 1.001;
 
@@ -69,7 +94,7 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
 
   prepareBuffers(size * size);
   const s = stamp;
-  const heap = new MinHeap();
+  heap.clear();
   const h = (x: number, y: number) => {
     const dx = Math.abs(x + 0.5 - aim.x), dy = Math.abs(y + 0.5 - aim.y);
     return (Math.max(dx, dy) + (SQRT2 - 1) * Math.min(dx, dy)) * TIE_BREAK;
@@ -85,7 +110,10 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
   while (heap.size > 0) {
     const cur = heap.pop();
     if (closed[cur] === s) continue;
-    if (goals.has(cur)) return smooth(world, from, reconstruct(cur, size));
+    if (goals.has(cur)) {
+      spent += expansions;
+      return smooth(world, from, reconstruct(cur, size));
+    }
     closed[cur] = s;
     const cx = cur % size, cy = (cur - cx) / size;
     const hc = h(cx, cy);
@@ -94,13 +122,23 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
       best = cur;
     }
     if (++expansions > MAX_EXPANSIONS) break;
-    for (const [dx, dy, cost] of DIRS) {
+    // Casillas vecinas transitables (8 bits): las rectas primero, las diagonales sin cortar esquinas.
+    let open = 0;
+    for (let k = 0; k < 4; k++) if (walkable(world, cx + DX[k], cy + DY[k])) open |= 1 << k;
+    for (let k = 0; k < 8; k++) {
+      const dx = DX[k], dy = DY[k], cost = DC[k];
+      if (k < 4) {
+        if (!(open & (1 << k))) continue;
+      } else {
+        // Diagonal: no atravesar esquinas de obstáculos (bits de las dos rectas que la forman).
+        if (!(open & (dx > 0 ? 1 : 2)) || !(open & (dy > 0 ? 4 : 8))) continue;
+        if (!walkable(world, cx + dx, cy + dy)) continue;
+      }
       const nx = cx + dx, ny = cy + dy;
-      if (!world.isWalkable(nx, ny)) continue;
-      // Diagonal: no atravesar esquinas de obstáculos.
-      if (dx !== 0 && dy !== 0 && (!world.isWalkable(cx + dx, cy) || !world.isWalkable(cx, cy + dy))) continue;
       const ni = ny * size + nx;
       if (closed[ni] === s) continue;
+      // A la muralla propia se sube y se baja solo por el lado de adentro de la ciudad.
+      if (world.solid[cur] !== world.solid[ni] && !world.wallStepOk(cur, ni)) continue;
       // Subir a una muralla cuesta (escaleras o escalas): se prefiere el suelo si hay otro camino.
       const ng = gCost[cur] + cost + (world.solid[ni] === WALL ? (world.ramps.has(ni) && world.rampFor(world.walker, ni) ? 0.5 : 4) : 0);
       if (seen[ni] !== s || ng < gCost[ni]) {
@@ -111,6 +149,7 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
       }
     }
   }
+  spent += expansions;
   if (partial && best !== start) return smooth(world, from, reconstruct(best, size));
   return null;
 }
@@ -190,9 +229,14 @@ export function clearLine(world: World, a: Point, b: Point): boolean {
   const px = (-dy / len) * 0.3, py = (dx / len) * 0.3;
   const steps = Math.ceil(len / 0.25);
   const ax = Math.floor(a.x), ay = Math.floor(a.y);
+  let prev = ay * world.size + ax;
   for (let s = 0; s <= steps; s++) {
     const t = s / steps;
     const x = a.x + dx * t, y = a.y + dy * t;
+    // La línea del centro no puede bajar de la muralla propia por el lado de afuera.
+    const cur = Math.floor(y) * world.size + Math.floor(x);
+    if (cur !== prev && world.inBounds(Math.floor(x), Math.floor(y)) && !world.wallStepOk(prev, cur)) return false;
+    prev = cur;
     for (const k of [0, 1, -1]) {
       // La casilla de salida puede estar ocupada (p. ej. unidad pegada a un árbol).
       const cx = Math.floor(x + px * k), cy = Math.floor(y + py * k);
@@ -205,45 +249,63 @@ export function clearLine(world: World, a: Point, b: Point): boolean {
   return true;
 }
 
-/** Montículo binario mínimo de índices con prioridad. */
+/** Fast path de World.isWalkable: pasto sin nada encima se resuelve sin llamar a nada más. */
+function walkable(world: World, x: number, y: number): boolean {
+  const size = world.size;
+  if (x < 0 || y < 0 || x >= size || y >= size) return false;
+  const i = y * size + x;
+  if (world.solid[i] === 0) return world.tiles[i] === TILE_GRASS;
+  return world.isWalkable(x, y);
+}
+
+/** Montículo binario mínimo de índices con prioridad (memoria reutilizada entre búsquedas). */
 class MinHeap {
-  private items: number[] = [];
-  private prio: number[] = [];
-  get size(): number {
-    return this.items.length;
+  private items = new Int32Array(1024);
+  private prio = new Float64Array(1024);
+  size = 0;
+  clear(): void {
+    this.size = 0;
   }
   push(item: number, p: number): void {
+    if (this.size === this.items.length) {
+      const items = new Int32Array(this.size * 2), prio = new Float64Array(this.size * 2);
+      items.set(this.items);
+      prio.set(this.prio);
+      this.items = items;
+      this.prio = prio;
+    }
     const a = this.items, q = this.prio;
-    let i = a.length;
-    a.push(item);
-    q.push(p);
+    let i = this.size++;
     while (i > 0) {
       const parent = (i - 1) >> 1;
-      if (q[parent] <= q[i]) break;
-      [a[i], a[parent]] = [a[parent], a[i]];
-      [q[i], q[parent]] = [q[parent], q[i]];
+      if (q[parent] <= p) break;
+      a[i] = a[parent];
+      q[i] = q[parent];
       i = parent;
     }
+    a[i] = item;
+    q[i] = p;
   }
   pop(): number {
     const a = this.items, q = this.prio;
     const top = a[0];
-    const lastItem = a.pop()!, lastPrio = q.pop()!;
-    if (a.length > 0) {
-      a[0] = lastItem;
-      q[0] = lastPrio;
+    const n = --this.size;
+    if (n > 0) {
+      const item = a[n], p = q[n];
       let i = 0;
       for (;;) {
-        const l = 2 * i + 1, r = l + 1;
-        let m = i;
-        if (l < a.length && q[l] < q[m]) m = l;
-        if (r < a.length && q[r] < q[m]) m = r;
-        if (m === i) break;
-        [a[i], a[m]] = [a[m], a[i]];
-        [q[i], q[m]] = [q[m], q[i]];
+        const l = 2 * i + 1;
+        if (l >= n) break;
+        const m = l + 1 < n && q[l + 1] < q[l] ? l + 1 : l;
+        if (q[m] >= p) break;
+        a[i] = a[m];
+        q[i] = q[m];
         i = m;
       }
+      a[i] = item;
+      q[i] = p;
     }
     return top;
   }
 }
+const heap = new MinHeap();

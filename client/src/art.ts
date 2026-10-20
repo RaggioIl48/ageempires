@@ -12,8 +12,11 @@ import { stickyRow } from './motion.ts';
 import { attackFrame, defaultHit } from './attackSync.ts';
 
 interface AnimMeta {
-  /** Fila superior del bloque; w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
-  y: number;
+  /** Esquina del bloque (x: columna, si la hoja tiene las animaciones lado a lado; y: fila);
+   *  w×h = tamaño de cada cuadro; n = cuadros; d = direcciones. */
+  x?: number;
+  /** Sin `r`: fila del bloque. Con `r` (atlas recortado) no se usa. */
+  y?: number;
   w: number;
   h: number;
   n: number;
@@ -25,12 +28,18 @@ interface AnimMeta {
   /** Cuadro del impacto del ataque (corte, estocada, disparo); si falta, la mitad. */
   hit?: number;
   loop: boolean;
+  /** Zancada: casillas que avanza el cuerpo en un ciclo (tools/art/stride.mjs). */
+  st?: number;
+  /** Atlas recortado (tools/art/trim.mjs): 6 números por cuadro [x, y, w, h, dx, dy] (dx, dy dentro de la celda). */
+  r?: number[];
   /** Recortes de color de equipo: 6 números por cuadro [x, y, w, h, dx, dy]. */
   m: number[];
 }
 
 interface SheetMeta {
   file: string;
+  /** Copia liviana (media resolución): la que se usa a tamaño normal (ver tools/art/lo.mjs). */
+  lo?: string;
   scale: number;
   /** Orden de las filas: 'lpc4' = N, O, S, E · 'oga8' = S, SE, E, NE, N, NO, O, SO. */
   o: 'lpc4' | 'oga8';
@@ -97,8 +106,15 @@ let manifest: Manifest | null = null;
 let experimental: Manifest | null = null;
 let buildingArt: BuildingArt | null = null;
 let loading: Promise<void> | null = null;
+/**
+ * Imagen ya decodificada, lista para dibujar. Se guarda como ImageBitmap: con imágenes comunes
+ * (<img>) el navegador tiene un tope de memoria de imágenes decodificadas (~400–500 MB) y al
+ * pasarlo vuelve a decodificar y subir a la GPU en CADA cuadro. Medido en este equipo: 300 dibujos
+ * desde 75 hojas = 3,7 s por cuadro (el juego "se congela"); con ImageBitmap, 22 ms con 100 hojas.
+ */
+export type ArtImage = HTMLImageElement | ImageBitmap;
 /** Imagen de cada hoja; null = falló (se usa el dibujo de formas). */
-const images = new Map<string, HTMLImageElement | null>();
+const images = new Map<string, ArtImage | null>();
 const ready = new Set<string>();
 const tints = new Map<string, HTMLCanvasElement>();
 /** Sube cada vez que termina de cargar una imagen o un retrato (para redibujar la interfaz). */
@@ -120,24 +136,57 @@ export function loadArt(): Promise<void> {
 }
 
 /** Imagen de un archivo de arte, o null si aún no cargó (y la pide). */
-function artImage(file: string): HTMLImageElement | null {
+function artImage(file: string): ArtImage | null {
   if (ready.has(file)) return images.get(file)!;
   if (!images.has(file)) {
     const img = new Image();
-    img.decoding = 'async';
     images.set(file, img);
-    img.onload = () => {
+    const done = (out: ArtImage) => {
+      if (images.get(file) !== img) {
+        if (out instanceof ImageBitmap) out.close(); // se liberó mientras cargaba
+        return;
+      }
+      images.set(file, out);
       ready.add(file);
       artVersion++;
+      wake(file);
     };
-    img.onerror = () => images.set(file, null);
+    img.onload = () => {
+      // Decodificar fuera del hilo del juego (sin tirón al aparecer una unidad nueva).
+      if (typeof createImageBitmap === 'function') createImageBitmap(img).then(done, () => done(img));
+      else done(img);
+    };
+    img.onerror = () => {
+      images.set(file, null);
+      wake(file);
+    };
     img.src = `${BASE}art/${file}`;
   }
   return null;
 }
 
+/** Promesa que se cumple cuando la imagen está lista (o falló): para la pantalla de carga. */
+const waiters = new Map<string, (() => void)[]>();
+function whenLoaded(file: string): Promise<void> {
+  if (ready.has(file) || images.get(file) === null) return Promise.resolve();
+  artImage(file);
+  return new Promise((done) => waiters.set(file, [...(waiters.get(file) ?? []), done]));
+}
+function wake(file: string): void {
+  for (const done of waiters.get(file) ?? []) done();
+  waiters.delete(file);
+}
+
+/** Libera una imagen (y su memoria de video, si es un ImageBitmap). */
+function dropImage(file: string): void {
+  const img = images.get(file);
+  if (img instanceof ImageBitmap) img.close();
+  images.delete(file);
+  ready.delete(file);
+}
+
 export interface BuildingSprite {
-  img: HTMLImageElement;
+  img: ArtImage;
   /** Zonas con el color del jugador, ya teñidas (si la imagen las tiene y cargaron). */
   tint?: HTMLCanvasElement | null;
   /** Rectángulo de dibujo en px del mundo. */
@@ -185,7 +234,7 @@ function placeSprite(sp: SpriteDef, cx: number, cy: number, k: number, color?: s
 }
 
 /** Imagen gris teñida con un color (se guarda por imagen y color). */
-function tintImage(key: string, img: HTMLImageElement, color: string): HTMLCanvasElement {
+function tintImage(key: string, img: ArtImage, color: string): HTMLCanvasElement {
   const k = `${key}|${color}`;
   let c = tints.get(k);
   if (!c) {
@@ -211,7 +260,16 @@ export function wallPiece(faction: FactionId, piece: keyof WallPieces, cx: numbe
   return sp ? placeSprite(sp, cx, cy, 1, color) : null;
 }
 
+/** Solo para el visor de animaciones (preview.html): hoja forzada por 'pueblo/tipo'. */
+const forced = new Map<string, string>();
+export function forceSheet(faction: FactionId, type: UnitType, id: string | null): void {
+  if (id) forced.set(`${faction}/${type}`, id);
+  else forced.delete(`${faction}/${type}`);
+}
+
 function sheetId(faction: FactionId, type: UnitType): string | undefined {
+  const f = forced.get(`${faction}/${type}`);
+  if (f && manifest?.sheets[f]) return f;
   // Primero la experimental, pero solo si su imagen ya está lista (si falla o tarda, la normal).
   const ex = experimental?.units[`${faction}/${type}`] ?? experimental?.units[`*/${type}`];
   if (ex && experimental!.sheets[ex] && artImage(experimental!.sheets[ex].file)) return ex;
@@ -222,26 +280,50 @@ function sheetId(faction: FactionId, type: UnitType): string | undefined {
 const sheetMeta = (id: string): SheetMeta => experimental?.sheets[id] ?? manifest!.sheets[id];
 
 /** Imagen lista de una hoja, o null (y la pide si aún no se pidió). */
-function imageOf(_id: string, sheet: SheetMeta): HTMLImageElement | null {
+function imageOf(_id: string, sheet: SheetMeta): ArtImage | null {
   return artImage(sheet.file);
 }
 
 /** Recortes de equipo teñidos con el color del jugador (uno por hoja y color). */
-function tintOf(id: string, img: HTMLImageElement, sheet: SheetMeta, color: string): HTMLCanvasElement {
-  const key = `${id}|${color}`;
+/**
+ * Cuánto tiempo por cuadro se puede gastar preparando máscaras de equipo nuevas. Al empezar una
+ * batalla aparecen de golpe decenas de tipos × colores (medido: 600 ms seguidos); así se reparten
+ * en varios cuadros y, mientras tanto, la unidad se dibuja sin su color un instante.
+ */
+const TINT_BUDGET_MS = 4;
+let tintWindow = 0, tintSpent = 0;
+
+/**
+ * Las máscaras de color se guardan a media resolución de la hoja que tiñen: son manchas de tela de
+ * un solo color (no se nota) y cada una es una textura de video. Con 74 tipos × 8 colores ocupaban
+ * ~1,8 GB y acercaban el juego al límite de la tarjeta gráfica (tirones otra vez); así, la cuarta parte.
+ */
+export const TINT_SCALE = 0.5;
+
+function tintOf(id: string, img: ArtImage, sheet: SheetMeta, color: string, q = 1, force = false): HTMLCanvasElement | null {
+  const key = `${id}|${color}|${q}`;
   let c = tints.get(key);
   if (!c) {
+    const t0 = performance.now();
+    if (t0 - tintWindow > 12) {
+      tintWindow = t0;
+      tintSpent = 0;
+    }
+    if (!force && tintSpent >= TINT_BUDGET_MS) return null;
+    const top = Math.floor(sheet.maskY * q);
+    const w = img.width, h = Math.max(1, img.height - top);
     c = document.createElement('canvas');
-    c.width = img.width;
-    c.height = Math.max(1, img.height - sheet.maskY);
+    c.width = Math.max(1, Math.ceil(w * TINT_SCALE));
+    c.height = Math.max(1, Math.ceil(h * TINT_SCALE));
     const g = c.getContext('2d')!;
-    g.drawImage(img, 0, sheet.maskY, c.width, c.height, 0, 0, c.width, c.height);
+    g.drawImage(img, 0, top, w, h, 0, 0, c.width, c.height);
     g.globalCompositeOperation = 'multiply';
     g.fillStyle = color;
     g.fillRect(0, 0, c.width, c.height);
     g.globalCompositeOperation = 'destination-in';
-    g.drawImage(img, 0, sheet.maskY, c.width, c.height, 0, 0, c.width, c.height);
+    g.drawImage(img, 0, top, w, h, 0, 0, c.width, c.height);
     tints.set(key, c);
+    tintSpent += performance.now() - t0;
   }
   return c;
 }
@@ -272,8 +354,39 @@ function rowOf(u: UnitView, sheet: SheetMeta, dirs: number, face: number): numbe
 }
 
 /** Qué animación corresponde a lo que está haciendo la unidad. */
-function animName(u: UnitView): string {
-  if (u.walk === 1) return 'walk';
+/**
+ * Velocidades (casillas/s) para pasar del trote al galope y volver. Con un solo umbral, un jinete
+ * que andaba justo en ese valor (frenando, apretado en formación) cambiaba de paso varias veces
+ * por segundo; con dos, se queda en el paso que traía hasta que la diferencia es clara.
+ */
+const GALLOP_FROM = 2.0;
+const TROT_BELOW = 1.65;
+/** Infantería: a la carrera desde 1,0 casillas/s (en modo "caminar" van a ~0,85) y vuelve al paso por debajo de 0,9. */
+const RUN_FROM = 1.0;
+const WALK_BELOW = 0.9;
+const galloping = new Set<number>();
+
+function animName(u: UnitView, sheet?: SheetMeta): string {
+  // Jinetes: trote al marchar, galope al correr o cargar.
+  if (u.walk === 1) {
+    if (!sheet?.anims.run) return 'walk';
+    // Carga (Total War): atacando en movimiento, el jinete golpea al galope y atraviesa la línea.
+    if (u.state === 'attacking' && sheet.anims.charge) {
+      galloping.add(u.id);
+      return 'charge';
+    }
+    const sp = u.sp ?? 0;
+    const rider = !!sheet.anims.charge;
+    const [up, down] = rider ? [GALLOP_FROM, TROT_BELOW] : [RUN_FROM, WALK_BELOW];
+    if (galloping.has(u.id) ? sp < down : sp < up) {
+      galloping.delete(u.id);
+      return 'walk';
+    }
+    if (galloping.size > 5000) galloping.clear();
+    galloping.add(u.id);
+    return 'run';
+  }
+  galloping.delete(u.id);
   switch (u.state) {
     case 'attacking':
       return u.type === 'worker' ? 'chop' : 'attack';
@@ -311,20 +424,73 @@ export function drawSpriteUnit(
   const id = sheetId(faction, u.type);
   if (!id) return null;
   const sheet = sheetMeta(id);
-  const img = imageOf(id, sheet);
+  const img = pick(ctx, sheet, now);
   if (!img) return null;
-  const name = animName(u);
+  const name = animName(u, sheet);
   const a = sheet.anims[name] ?? sheet.anims.idle;
   const t = now / 1000 + u.id * 0.37;
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
-  const pace = name === 'walk' && u.sp ? Math.min(1.5, Math.max(0.45, u.sp / 1.4)) : 1;
+  // El trote de un caballo se calcula para ~1,5 casillas/s y el galope para ~2,5.
+  const rider = !!sheet.anims.charge;
+  const base = rider ? (name === 'run' || name === 'charge' ? 2.5 : 1.5) : 1.4;
+  const pace = (name === 'walk' || name === 'run') && u.sp ? Math.min(1.4, Math.max(0.55, u.sp / base)) : 1;
   // Ataque: sincronizado con el golpe real del servidor (preparación, impacto, recuperación).
+  // Con la zancada medida: los pies (o cascos) apoyados quedan quietos sobre el suelo. Sin ella, el
+  // ritmo de antes (proporcional a la velocidad). Acotado por si una medición quedó rara.
+  const marching = (name === 'walk' || name === 'run' || name === 'charge') && u.sp;
+  // La carga va sobre el galope: misma zancada.
+  const stride = a.st ?? (name === 'charge' ? sheet.anims.run?.st : undefined);
+  const fps = marching && stride ? Math.min(a.fps * 3, Math.max(a.fps * 0.5, (u.sp! / stride) * a.n)) : a.fps * pace;
   const f =
     name === 'attack' && u.cool
       ? attackFrame(now, u.ha, { n: a.n, fps: a.fps, hit: a.hit ?? defaultHit(a.n), cooldownMs: u.cool }).frame
-      : Math.floor(t * a.fps * pace) % a.n;
-  drawShadow(ctx, x, y, shadow);
-  return drawFrame(ctx, id, sheet, img, a, rowOf(u, sheet, a.d, face), f, x, y, color);
+      : Math.floor(t * fps) % a.n;
+  if (sheet.anims.run) drawLongShadow(ctx, x, y, face, shadow);
+  else drawShadow(ctx, x, y, shadow);
+  const row = rowOf(u, sheet, a.d, face);
+  // Transición: al cambiar de animación (caminar → quieto → atacar), el cuadro anterior se
+  // desvanece en unos 120 ms en vez de cortar de golpe.
+  const tr = blendOf(u.id, name, row, f, now);
+  if (tr && sheet.anims[tr.name]) {
+    const pa = sheet.anims[tr.name];
+    ctx.globalAlpha = tr.alpha;
+    drawFrame(ctx, id, sheet, img, pa, Math.min(tr.row, pa.d - 1), Math.min(tr.frame, pa.n - 1), x, y, color);
+    ctx.globalAlpha = 1 - tr.alpha * 0.6;
+  }
+  const info = drawFrame(ctx, id, sheet, img, a, row, f, x, y, color);
+  ctx.globalAlpha = 1;
+  // Golpe recibido: un destello claro breve sobre la figura.
+  if (u.hf) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = u.hf * 0.45;
+    drawFrame(ctx, id, sheet, img, a, row, f, x, y, color);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  return info;
+}
+
+/** Duración de la transición entre animaciones (ms). */
+const BLEND_MS = 120;
+/** Última animación dibujada de cada unidad (para la transición). */
+const lastAnim = new Map<number, { name: string; row: number; frame: number; since: number; prev?: { name: string; row: number; frame: number } }>();
+function blendOf(id: number, name: string, row: number, frame: number, now: number): { name: string; row: number; frame: number; alpha: number } | null {
+  if (lastAnim.size > 5000) lastAnim.clear();
+  const s = lastAnim.get(id);
+  if (!s) {
+    lastAnim.set(id, { name, row, frame, since: -Infinity });
+    return null;
+  }
+  if (s.name !== name) {
+    s.prev = { name: s.name, row: s.row, frame: s.frame };
+    s.since = now;
+    s.name = name;
+  }
+  s.row = row;
+  s.frame = frame;
+  const k = (now - s.since) / BLEND_MS;
+  if (!s.prev || k >= 1) return null;
+  return { ...s.prev, alpha: 1 - k };
 }
 
 /** Sombra difusa de una figura (degradado ya pintado: barato y suave). */
@@ -348,6 +514,26 @@ export function drawShadow(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.drawImage(shadowImg, x - w / 2 + half * 0.28, y - h / 2 + half * 0.08, w, h);
 }
 
+/**
+ * Sombra de un jinete: alargada en el sentido en que mira el caballo (sobre el suelo, aplastada por
+ * la perspectiva). La sombra redonda de un soldado a pie hacía que el caballo pareciera flotar.
+ */
+export function drawLongShadow(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, half: number): void {
+  drawShadow(ctx, x, y, half); // la base, bajo las patas
+  ctx.save();
+  ctx.translate(x + half * 0.28, y + half * 0.1);
+  ctx.scale(1, 0.5);
+  ctx.rotate(face);
+  ctx.globalAlpha *= 0.85;
+  const w = half * 4.6, h = half * 1.5;
+  ctx.drawImage(shadowCanvas(), -w / 2, -h / 2, w, h);
+  ctx.restore();
+}
+function shadowCanvas(): HTMLCanvasElement {
+  if (!shadowImg) drawShadow(document.createElement('canvas').getContext('2d')!, 0, 0, 1);
+  return shadowImg!;
+}
+
 /** Cuadro de la animación de morir (para los caídos), o false si la unidad no tiene. */
 export function drawDyingUnit(
   ctx: CanvasRenderingContext2D,
@@ -363,7 +549,7 @@ export function drawDyingUnit(
   if (!id) return false;
   const sheet = sheetMeta(id);
   const a = sheet.anims.die;
-  const img = a ? imageOf(id, sheet) : null;
+  const img = a ? pick(ctx, sheet, performance.now()) : null;
   if (!a || !img) return false;
   const f = Math.min(a.n - 1, Math.floor(age * a.fps));
   drawFrame(ctx, id, sheet, img, a, dirRow(sheet.o, a.d, face), f, x, y, color);
@@ -374,7 +560,7 @@ function drawFrame(
   ctx: CanvasRenderingContext2D,
   id: string,
   sheet: SheetMeta,
-  img: HTMLImageElement,
+  pk: Picked,
   a: AnimMeta,
   d: number,
   f: number,
@@ -384,16 +570,97 @@ function drawFrame(
 ): SpriteInfo {
   const s = sheet.scale;
   const dx = x - a.ax * s, dy = y - a.ay * s;
-  ctx.drawImage(img, f * a.w, a.y + d * a.h, a.w, a.h, dx, dy, a.w * s, a.h * s);
+  const { img, q } = pk;
+  if (a.r) {
+    // Atlas recortado: cada cuadro guarda su rectángulo y dónde va dentro de la celda.
+    const k = (d * a.n + f) * 6;
+    const w = a.r[k + 2], h = a.r[k + 3];
+    if (w && h) ctx.drawImage(img, a.r[k] * q, a.r[k + 1] * q, w * q, h * q, dx + a.r[k + 4] * s, dy + a.r[k + 5] * s, w * s, h * s);
+  } else ctx.drawImage(img, ((a.x ?? 0) + f * a.w) * q, ((a.y ?? 0) + d * a.h) * q, a.w * q, a.h * q, dx, dy, a.w * s, a.h * s);
   if (a.m.length) {
     const k = (d * a.n + f) * 6;
     const mw = a.m[k + 2], mh = a.m[k + 3];
     if (mw && mh) {
-      const tint = tintOf(id, img, sheet, color);
-      ctx.drawImage(tint, a.m[k], a.m[k + 1] - sheet.maskY, mw, mh, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
+      const tint = tintOf(id, img, sheet, color, q);
+      const top = Math.floor(sheet.maskY * q);
+      const t = TINT_SCALE;
+      if (tint) ctx.drawImage(tint, a.m[k] * q * t, (a.m[k + 1] * q - top) * t, mw * q * t, mh * q * t, dx + a.m[k + 4] * s, dy + a.m[k + 5] * s, mw * s, mh * s);
     }
   }
   return { top: (sheet.anims.idle ?? a).ay * s, team: a.m.length > 0 };
+}
+
+/** Imagen elegida para dibujar una hoja y su escala respecto de la original (0,5 = la liviana). */
+interface Picked {
+  img: ArtImage;
+  q: number;
+}
+
+/** Escala de pantalla del lienzo (zoom × densidad de píxeles). */
+const zoomOf = (ctx: CanvasRenderingContext2D) => {
+  const t = ctx.getTransform();
+  return Math.hypot(t.a, t.b);
+};
+
+/** Hasta qué escala (px de pantalla por px de la hoja original) alcanza la copia liviana. */
+const LO_UNTIL = 1.0;
+/** Copias livianas activas (el visor de animaciones las apaga para comparar). */
+let lodEnabled = true;
+export function setLod(on: boolean): void {
+  lodEnabled = on;
+}
+/** Cuándo se necesitó por última vez la resolución original de cada hoja. */
+const fullNeeded = new Map<string, number>();
+/** Tras cuántos ms sin necesitar la original (con la liviana lista) se la libera. */
+const EVICT_AFTER_MS = 60_000;
+/**
+ * Hojas completas ya en uso (con mucho zoom). Al acercar la cámara a un ejército, varias pasaban a
+ * la vez de la liviana a la completa: cada una es una textura grande que la GPU recibe en ese cuadro
+ * (y su máscara de color a tamaño completo). Se promueve una cada PROMOTE_MS; las demás siguen con la
+ * liviana un instante, que a esa distancia casi no se nota.
+ */
+const promoted = new Set<string>();
+const PROMOTE_MS = 400;
+let lastPromote = 0;
+let lastEvict = 0;
+
+/**
+ * Imagen para dibujar una hoja: la liviana a tamaño normal (1/4 de la memoria), la original solo
+ * con mucho zoom. Mientras llega la que corresponde, se usa la otra si ya está.
+ */
+function pick(ctx: CanvasRenderingContext2D, sheet: SheetMeta, now: number): Picked | null {
+  if (now - lastEvict > 5000) evictIdle(now);
+  const full = (): ArtImage | null => (ready.has(sheet.file) ? images.get(sheet.file)! : null);
+  if (sheet.lo && lodEnabled) {
+    const lo = artImage(sheet.lo);
+    if (sheet.scale * zoomOf(ctx) <= LO_UNTIL) {
+      if (lo) return { img: lo, q: 0.5 };
+      const f = full();
+      return f ? { img: f, q: 1 } : null;
+    }
+    fullNeeded.set(sheet.file, now);
+    const f = artImage(sheet.file);
+    if (f && !promoted.has(sheet.file) && (now - lastPromote >= PROMOTE_MS || !lo)) {
+      promoted.add(sheet.file);
+      lastPromote = now;
+    }
+    if (f && promoted.has(sheet.file)) return { img: f, q: 1 };
+    return lo ? { img: lo, q: 0.5 } : f ? { img: f, q: 1 } : null;
+  }
+  const f = artImage(sheet.file);
+  return f ? { img: f, q: 1 } : null;
+}
+
+/** Libera las originales que hace rato no hacen falta (para eso está la liviana) y sus máscaras. */
+function evictIdle(now: number): void {
+  lastEvict = now;
+  const sheets = { ...(manifest?.sheets ?? {}), ...(experimental?.sheets ?? {}) };
+  for (const [id, sh] of Object.entries(sheets)) {
+    if (!sh.lo || !ready.has(sh.file) || now - (fullNeeded.get(sh.file) ?? 0) < EVICT_AFTER_MS) continue;
+    dropImage(sh.file);
+    promoted.delete(sh.file);
+    for (const key of [...tints.keys()]) if (key.startsWith(`${id}|`) && key.endsWith('|1')) tints.delete(key);
+  }
 }
 
 /** Cantidad de especies de árboles con imagen. */
@@ -428,7 +695,8 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   const key = `${id}|${color}|${size}`;
   if (portraits.has(key)) return portraits.get(key)!;
   const sheet = sheetMeta(id);
-  const img = imageOf(id, sheet);
+  const q = sheet.lo ? 0.5 : 1;
+  const img = artImage(sheet.lo ?? sheet.file);
   const a = sheet.anims.idle;
   if (!img || !a) return null;
   portraits.set(key, null);
@@ -439,11 +707,15 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
   frame.width = a.w;
   frame.height = a.h;
   const g = frame.getContext('2d')!;
-  g.drawImage(img, 0, a.y + d * a.h, a.w, a.h, 0, 0, a.w, a.h);
+  if (a.r) {
+    const k = d * a.n * 6;
+    if (a.r[k + 2] && a.r[k + 3]) g.drawImage(img, a.r[k] * q, a.r[k + 1] * q, a.r[k + 2] * q, a.r[k + 3] * q, a.r[k + 4], a.r[k + 5], a.r[k + 2], a.r[k + 3]);
+  } else g.drawImage(img, (a.x ?? 0) * q, ((a.y ?? 0) + d * a.h) * q, a.w * q, a.h * q, 0, 0, a.w, a.h);
   const k = d * a.n * 6;
   if (a.m.length && a.m[k + 2]) {
-    const tint = tintOf(id, img, sheet, color);
-    g.drawImage(tint, a.m[k], a.m[k + 1] - sheet.maskY, a.m[k + 2], a.m[k + 3], a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
+    const tint = tintOf(id, img, sheet, color, q, true)!;
+    const t = TINT_SCALE;
+    g.drawImage(tint, a.m[k] * q * t, (a.m[k + 1] * q - Math.floor(sheet.maskY * q)) * t, a.m[k + 2] * q * t, a.m[k + 3] * q * t, a.m[k + 4], a.m[k + 5], a.m[k + 2], a.m[k + 3]);
   }
   // Recorte cuadrado: medio cuerpo (a pie) o la figura entera (jinetes y máquinas).
   const side = wide ? Math.max(a.w, a.h) : Math.round(a.ay * 0.72);
@@ -459,6 +731,90 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
     artVersion++;
   });
   return null;
+}
+
+/**
+ * Precarga las hojas de las unidades de un pueblo (al entrar a la partida), de a una cada tanto
+ * para no competir con el resto de la carga: así la primera tropa ya aparece con su dibujo.
+ */
+/**
+ * Pantalla de carga: deja listo lo que va a usar ESTA partida antes de empezar a dibujarla, para que
+ * no haya tirones cuando aparece por primera vez cada tipo de soldado (bajar la hoja, decodificarla y
+ * teñir su color de equipo). Solo lo necesario: las hojas livianas de los pueblos que juegan (la
+ * completa se sigue pidiendo al acercar mucho el zoom), los edificios y árboles, y la máscara de
+ * cada pueblo con el color de cada jugador que lo usa. Todo el arte junto serían ~400 MB de video.
+ */
+export async function preloadGame(
+  players: { faction: FactionId; color: string }[],
+  onProgress: (done: number, total: number) => void,
+  warm?: CanvasRenderingContext2D,
+): Promise<void> {
+  await loadArt();
+  if (!manifest) return;
+  const m = manifest;
+  // Hojas de unidades de cada pueblo en juego (y las comunes '*/'), con los colores que las usan.
+  const sheetColors = new Map<string, Set<string>>();
+  for (const p of players)
+    for (const [key, id] of Object.entries(m.units)) {
+      if (!key.startsWith(`${p.faction}/`) && !key.startsWith('*/')) continue;
+      if (!m.sheets[id]) continue;
+      if (!sheetColors.has(id)) sheetColors.set(id, new Set());
+      sheetColors.get(id)!.add(p.color);
+    }
+  const files = new Set<string>();
+  for (const id of sheetColors.keys()) files.add(m.sheets[id].lo ?? m.sheets[id].file);
+  for (const sp of Object.values(buildingArt?.sprites ?? {})) files.add(sp.file);
+  const tints: [string, string][] = [];
+  for (const [id, colors] of sheetColors) if (Object.values(m.sheets[id].anims).some((a) => a.m.length)) for (const c of colors) tints.push([id, c]);
+  const total = files.size + tints.length;
+  let done = 0;
+  onProgress(0, total);
+  // Imágenes: varias a la vez (el navegador reparte las descargas).
+  await Promise.all([...files].map((f) => whenLoaded(f).then(() => onProgress(++done, total))));
+  // Que la GPU ya tenga cada hoja: un dibujo de 1 px (bajo la pantalla de carga) la sube ahora y no
+  // cuando aparece por primera vez ese soldado (por ejemplo, un ejército que sale de la niebla).
+  if (warm)
+    for (const f of files) {
+      const img = images.get(f);
+      if (img && ready.has(f)) warm.drawImage(img, 0, 0, 1, 1, 0, 0, 1, 1);
+    }
+  // Máscaras de color: unas cuantas por cuadro, para que la barra de progreso siga moviéndose.
+  for (let i = 0; i < tints.length; i++) {
+    const [id, color] = tints[i];
+    const sheet = m.sheets[id];
+    const img = images.get(sheet.lo ?? sheet.file);
+    if (img && ready.has(sheet.lo ?? sheet.file)) {
+      const tint = tintOf(id, img, sheet, color, sheet.lo ? 0.5 : 1, true);
+      if (warm && tint) warm.drawImage(tint, 0, 0, 1, 1, 0, 0, 1, 1);
+    }
+    onProgress(++done, total);
+    if (i % 4 === 3) await new Promise((r) => requestAnimationFrame(() => r(null)));
+  }
+}
+
+/**
+ * En la sala de espera: baja (sin decodificar) el arte del pueblo elegido y los edificios, para que la
+ * pantalla de carga de la partida solo tenga que prepararlos. Queda en la caché del navegador (el
+ * servidor la permite por un día). Una sola vez por pueblo; si cambia de pueblo, baja el nuevo.
+ */
+const prefetched = new Set<string>();
+export function prefetchFaction(faction: FactionId): void {
+  void loadArt().then(() => {
+    if (!manifest) return;
+    const files: string[] = [];
+    for (const [key, id] of Object.entries(manifest.units)) {
+      const sheet = manifest.sheets[id];
+      if (sheet && (key.startsWith(`${faction}/`) || key.startsWith('*/'))) files.push(sheet.lo ?? sheet.file);
+    }
+    for (const sp of Object.values(buildingArt?.sprites ?? {})) files.push(sp.file);
+    // De a una por vez: en el Wi-Fi del aula no compite con lo que necesitan los demás.
+    let chain = Promise.resolve();
+    for (const f of files) {
+      if (prefetched.has(f) || ready.has(f)) continue;
+      prefetched.add(f);
+      chain = chain.then(() => fetch(`${BASE}art/${f}`).then((r) => r.blob()).then(() => undefined, () => undefined));
+    }
+  });
 }
 
 /** ¿Hay hoja para esta unidad? (para mostrar créditos o decidir sombras). */

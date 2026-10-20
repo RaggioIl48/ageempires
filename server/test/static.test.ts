@@ -10,12 +10,12 @@ let server: RunningServer;
 let base: string;
 
 /** Raw GET (without normalizing the path, like an attacker would). */
-function get(path: string): Promise<{ status: number; body: string }> {
+function get(path: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined> }> {
   return new Promise((resolve, reject) => {
-    const req = request({ host: '127.0.0.1', port: server.port, path, method: 'GET' }, (res) => {
+    const req = request({ host: '127.0.0.1', port: server.port, path, method: 'GET', headers }, (res) => {
       let body = '';
       res.on('data', (d) => (body += d));
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body, headers: res.headers }));
     });
     req.on('error', reject);
     req.end();
@@ -27,6 +27,8 @@ beforeAll(async () => {
   mkdirSync(join(base, 'dist', 'assets'), { recursive: true });
   writeFileSync(join(base, 'dist', 'index.html'), '<h1>juego</h1>');
   writeFileSync(join(base, 'dist', 'assets', 'app.js'), 'console.log(1)');
+  mkdirSync(join(base, 'dist', 'art'), { recursive: true });
+  writeFileSync(join(base, 'dist', 'art', 'units.png'), 'PNG');
   writeFileSync(join(base, 'secreto.txt'), 'NO DEBE VERSE');
   server = await startGameServer({ port: 0, pin: '1234', autoTick: false, staticDir: join(base, 'dist') });
 });
@@ -54,6 +56,19 @@ describe('static files', () => {
       expect(r.body).not.toContain('NO DEBE VERSE');
     });
   }
+
+  it('files are cached (built code forever, art for a day) and re-checked with a 304', async () => {
+    expect((await get('/assets/app.js')).headers['cache-control']).toContain('immutable');
+    const art = await get('/art/units.png');
+    expect(art.headers['cache-control']).toBe('public, max-age=86400');
+    const etag = art.headers.etag as string;
+    expect(etag).toBeTruthy();
+    const again = await get('/art/units.png', { 'If-None-Match': etag });
+    expect(again.status).toBe(304);
+    expect(again.body).toBe('');
+    // La página siempre se revalida: una versión nueva del juego llega enseguida.
+    expect((await get('/')).headers['cache-control']).toBe('no-cache');
+  });
 
   it('a malformed URL does not crash the server', async () => {
     expect((await get('/%E0%A4%A')).status).toBe(400);

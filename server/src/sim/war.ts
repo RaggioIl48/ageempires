@@ -69,7 +69,7 @@ export function startMarch(world: World, owner: number, units: Unit[], target: n
     id: world.nextWarId++,
     owner,
     target,
-    units: soldiers.map((u) => ({ type: u.type, hp: u.hp, kills: u.kills, guard: u.guard })),
+    units: soldiers.map((u) => ({ type: u.type, hp: u.hp, kills: u.kills, guard: u.guard, reg: u.reg })),
     from,
     arriveTick: world.tick + secs * TICK_RATE,
     home: false,
@@ -158,6 +158,7 @@ function deploy(world: World, owner: number, units: March['units'], at: Point, f
     u.kills = s.kills ?? 0; // los veteranos siguen siéndolo
     u.stamina = Math.min(u.stamina, MARCH_STAMINA); // la marcha forzada cansa
     u.guard = s.guard ?? false;
+    u.reg = s.reg ?? 0; // sigue en su regimiento (ocupa un solo lugar de población)
     out.push(u);
   });
   return out;
@@ -282,7 +283,7 @@ function endBattle(world: World, b: Battle, end: BattleEnd): void {
     const back: March['units'] = [];
     for (const u of [...world.units.values()])
       if (u.owner === b.attacker && isSoldier(u) && inField(b, u.x, u.y)) {
-        back.push({ type: u.type, hp: u.hp, kills: u.kills, guard: u.guard });
+        back.push({ type: u.type, hp: u.hp, kills: u.kills, guard: u.guard, reg: u.reg });
         world.units.delete(u.id);
       }
     marchHome(world, b.attacker, back, { x: b.x, y: b.y });

@@ -25,9 +25,10 @@ import {
   type FactionId,
   type ResourceType,
   type TechId,
-  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId } from '../../shared/data.ts';
+  type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId, regimentSize, shieldBearer, SHIELD_WALL_ARMOR,
+  MEDIEVAL_ERA, MEDIEVAL_STAGES, POP_CAP_MAX, isAdvanceTech, stageLabel, stageReached } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
-import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost } from '../../shared/stats.ts';
+import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost, trainCost, trainTime } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
 import { unitPortrait } from './art.ts';
 import { ACTION_KEYS, ARMY_GROUPS, type ArmyGroup, type Input } from './input.ts';
@@ -82,6 +83,9 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
   general: '<svg viewBox="0 0 16 16"><path d="M3 2 L3 15" stroke="#6b5234" stroke-width="1.4"/><path d="M3 2 L13 3.5 L11 6 L13 8.5 L3 8 Z" fill="currentColor" stroke="#f0c14b" stroke-width="0.8"/><path d="M8 11 L9 13 L11.2 13.2 L9.6 14.6 L10.1 16 L8 15 L5.9 16 L6.4 14.6 L4.8 13.2 L7 13 Z" fill="#f0c14b"/></svg>',
   siege_tower: '<svg viewBox="0 0 16 16"><path d="M4 15 L5 3 L11 3 L12 15 Z" fill="#7d5431"/><path d="M5 3 L8 1 L11 3 Z" fill="#5a3d26"/><path d="M5.5 6 H10.5 M5.3 9 H10.7 M5.1 12 H10.9" stroke="#3b2818"/><path d="M11 5 L15 6" stroke="#9a9a9a" stroke-width="1.4"/><circle cx="5" cy="15" r="1.2" fill="#222"/><circle cx="11" cy="15" r="1.2" fill="#222"/></svg>',
   ram: '<svg viewBox="0 0 16 16"><path d="M2 9 L8 4 L14 9 Z" fill="#7d5431"/><rect x="2" y="9" width="12" height="3" fill="#5a3d26"/><rect x="0" y="7.5" width="5" height="2" fill="#9a9a9a"/><circle cx="4" cy="13" r="2" fill="#3b2818"/><circle cx="12" cy="13" r="2" fill="#3b2818"/><path d="M8 4 L8 2 L11 2.8 L8 3.6" fill="currentColor"/></svg>',
+  monk: '<svg viewBox="0 0 16 16"><path d="M4 15 L5.5 7 L10.5 7 L12 15 Z" fill="#6e5a44"/><circle cx="8" cy="5" r="3.2" fill="#5c4a37"/><ellipse cx="8.3" cy="5.4" rx="1.9" ry="2.1" fill="#e2b68c"/><path d="M5.5 10.5 H10.5" stroke="currentColor" stroke-width="1.4"/><path d="M13.5 15 V2.5 M12 4.5 H15" stroke="#7a5532" stroke-width="1.2"/></svg>',
+  mangonel: '<svg viewBox="0 0 16 16"><path d="M1 13 L15 13" stroke="#6b4a2b" stroke-width="1.8"/><circle cx="3.5" cy="14" r="1.6" fill="#3b2818"/><circle cx="12.5" cy="14" r="1.6" fill="#3b2818"/><path d="M9 13 V6 M12 13 V6 M8 6 H13" stroke="#7d5431" stroke-width="1.3"/><path d="M5 12 L2 5" stroke="#8b6a3e" stroke-width="1.6"/><circle cx="2" cy="4.2" r="1.6" fill="#8a8a8a"/><path d="M14.5 13 V8 L16 9 L14.5 10" fill="currentColor" stroke="#3a3a3a" stroke-width="0.6"/></svg>',
+  counterweight_trebuchet: '<svg viewBox="0 0 16 16"><path d="M1 14 L15 14" stroke="#6b4a2b" stroke-width="1.6"/><path d="M4 14 L8 5 L12 14" stroke="#7d5431" stroke-width="1.4" fill="none"/><path d="M12 8 L2 1" stroke="#8b6a3e" stroke-width="1.4"/><rect x="10" y="7.5" width="5" height="5" fill="#4a4a4a"/><path d="M2 1 L2 4" stroke="#3b2818" stroke-width="0.8"/><circle cx="2" cy="4.6" r="1.1" fill="#8a8a8a"/><path d="M1 14 L1 9 L3.5 10 L1 11" fill="currentColor"/></svg>',
   tech: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="#c9ccd1" stroke="#6d7077" stroke-width="1.6" stroke-dasharray="2.2 1.3"/><circle cx="8" cy="8" r="2" fill="#6d7077"/></svg>',
   era: '<svg viewBox="0 0 16 16"><path d="M8 1 L10 6 L15.5 6.3 L11.2 9.6 L12.7 15 L8 12 L3.3 15 L4.8 9.6 L0.5 6.3 L6 6 Z" fill="#f0c14b" stroke="#a87b1f" stroke-width="0.8"/></svg>',
 };
@@ -89,7 +93,8 @@ const ICONS: Record<ResourceType | 'pop' | UnitType | 'tech' | 'era', string> = 
 /** Ícono de una tecnología: estrella (era), la unidad que evoluciona, o un engranaje. */
 function techIcon(t: TechId): string {
   const def = TECH_DEFS[t];
-  if (def.advancesTo) return ICONS.era;
+  if (isAdvanceTech(t)) return ICONS.era;
+  if (def.heal) return ICONS.monk;
   const unit = def.unitMods ? (Object.keys(def.unitMods)[0] as UnitType) : undefined;
   return unit ? ICONS[unit] : ICONS.tech;
 }
@@ -203,6 +208,11 @@ export class Hud {
         case 'pace':
           this.input.togglePace();
           return this.update();
+        case 'amove':
+          this.input.toggleAttackMove();
+          return this.update();
+        case 'shieldwall':
+          return this.input.toggleShieldWall();
       }
     });
     el('army-bar').addEventListener('click', (e) => {
@@ -316,9 +326,13 @@ export class Hud {
         <div class="sub"><span class="icon mini">${ICONS.worker}</span>${e.workers[r]} · +${e.perMinute[r]}/min</div></div>
       </div>`,
     ).join('');
-    const full = e.pop >= e.popCap;
-    const pop = `<div class="res ${full ? 'warn' : ''}" title="Population: units / limit (build houses to raise it)"><span class="icon">${ICONS.pop}</span>
-      <div><div class="amount">${e.pop}/${e.popCap}</div><div class="sub">Population</div></div></div>`;
+    // Un regimiento entero ocupa un lugar. Abajo, las unidades de verdad y el tope de la partida.
+    const army = e.unitCap ? e.units ?? 0 : 0;
+    const full = e.pop >= e.popCap || (!!e.unitCap && army >= e.unitCap);
+    const tip = `Population: a whole regiment takes 1 place, like a worker. Build houses to raise it (maximum ${POP_CAP_MAX}).` +
+      (e.unitCap ? `\nUnits: ${army} of ${e.unitCap} allowed per player in this game (so the server stays fast).` : '');
+    const pop = `<div class="res ${full ? 'warn' : ''}" title="${esc(tip)}"><span class="icon">${ICONS.pop}</span>
+      <div><div class="amount">${e.pop}/${e.popCap}</div><div class="sub">${e.unitCap ? `${army}/${e.unitCap} units` : 'Population'}</div></div></div>`;
     setHtml(el('resources'), res + pop);
 
     const idle = el('btn-idle');
@@ -329,14 +343,16 @@ export class Hud {
     if (me) {
       const f = FACTIONS[me.faction];
       const era = this.state.eraOf(me.id);
-      const techs = techsOf(this.state.techsOf(me.id)).filter((t) => !TECH_DEFS[t].advancesTo);
+      const techs = techsOf(this.state.techsOf(me.id)).filter((t) => !isAdvanceTech(t));
+      // En la Edad Media se muestra también la etapa (Alta, Plena, Baja).
+      const stage = era === MEDIEVAL_ERA ? MEDIEVAL_STAGES[this.state.stageOf(me.id) - 1] : undefined;
       const tip =
         `${f.name}: «${f.motto}»\n\nStrong in:\n• ${f.strengths.join('\n• ')}\n\nWeak in:\n• ${f.weaknesses.join('\n• ')}` +
         `\n\nAbilities:\n✦ ${f.abilities.join('\n✦ ')}` +
-        `\n\n${eraLabel(era)}\nTechnologies: ${techs.length ? techs.map((t) => TECH_DEFS[t].label).join(', ') : 'none yet'}` +
+        `\n\n${eraLabel(era)}${stage ? ` · ${stage.label} (${stage.years})` : ''}\nTechnologies: ${techs.length ? techs.map((t) => TECH_DEFS[t].label).join(', ') : 'none yet'}` +
         '\n\nClick: go to your Town Center (you advance the age there)';
       const box = el('faction');
-      setHtml(box, `<i style="background:${me.color}"></i>${esc(f.name)} <span class="era-tag"><span class="icon mini">${ICONS.era}</span>${ERAS[era - 1].short}</span>`);
+      setHtml(box, `<i style="background:${me.color}"></i>${esc(f.name)} <span class="era-tag"><span class="icon mini">${ICONS.era}</span>${ERAS[era - 1].short}${stage ? ` · ${stage.short}` : ''}</span>`);
       box.title = tip;
     }
     this.renderPlayerDots();
@@ -433,18 +449,21 @@ export class Hud {
     const n = u.crew ?? 1;
     const crew =
       u.task && u.owner === this.state.you
-        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}% per trip</b>` : ` · ${CREW_SIZE - n} more nearby for +${CREW_PCT}%`}</div>`
+        ? `<div class="row ${n >= CREW_SIZE ? 'up' : 'muted'}" title="${CREW_SIZE} or more workers gathering the same resource close together: each trip delivers +${CREW_PCT}%">👥 Crew ${n}/${CREW_SIZE}${n >= CREW_SIZE ? ` · <b>+${CREW_PCT}%</b>` : ''}</div>`
         : '';
-    return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique}</h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
-      <div class="row">${doing}</div>${carry}${crew}${MORALE_CATS.includes(def.category) ? moraleRow(u) : ''}
-      <div class="stats">
-        <div>Attack ${mark(st.attack.damage, def.attack.damage)} (${range})</div>
-        <div>Armor ${mark(st.armor.melee, def.armor.melee)} / ${mark(st.armor.ranged, def.armor.ranged)}</div>
-        <div>Speed ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · Health ${mark(st.hp, def.hp)}</div>
-        ${extras.length ? `<div class="up">${extras.join(' · ')}</div>` : ''}
-        <div class="muted">${CATEGORY_LABELS[st.category]}${st.flies ? ' (flies)' : ''} · ${esc(def.strong)}. ${esc(def.weak)}.</div>
-        ${counterHtml(u.type)}
-      </div>`;
+    // Compacto: lo que hace falta mirar en plena batalla. La descripción, contra quién sirve y quién
+    // le gana van en el ⓘ (al pasar el mouse), en la pantalla de carga y en 📖 Army: antes el panel
+    // ocupaba media pantalla y tapaba el campo.
+    const urgent = [u.st !== undefined && (u.st ?? 100) < 60 ? `💧 ${u.st}%` : '', u.guard ? '🛡 Guard' : '', u.rank ? `${'▲'.repeat(u.rank)} ${RANK_NAMES[u.rank]}` : '', u.cl ? '🪜 Climbing' : '', u.buff ? (u.buff === 1 ? '📯 Inspired' : '🛡 Holding') : ''].filter(Boolean);
+    const info = [
+      `${CATEGORY_LABELS[st.category]}${st.flies ? ' (flies)' : ''}: ${def.strong}. ${def.weak}.`,
+      goodAgainst(u.type).length ? `Good against: ${goodAgainst(u.type).join(', ')}` : '',
+      weakAgainst(u.type).length ? `Weak against: ${weakAgainst(u.type).join(', ')}` : '',
+      ...extras,
+    ].filter(Boolean).join('\n');
+    return `<h3>${esc(this.state.labelOf(u.owner, u.type))}${elite}${unique} <span class="info-tip" title="${esc(info)}">ⓘ</span></h3>${this.ownerLine(u.owner)}${hpBar(u.hp, st.hp)}
+      <div class="row">${doing}${urgent.length ? ` · <span class="up">${urgent.join(' · ')}</span>` : ''}</div>${carry}${crew}${MORALE_CATS.includes(def.category) ? moraleRow(u) : ''}
+      <div class="stats compact">⚔ ${mark(st.attack.damage, def.attack.damage)} ${range} · 🛡 ${mark(st.armor.melee, def.armor.melee)}/${mark(st.armor.ranged, def.armor.ranged)} · 👟 ${mark(st.speed, def.speed, (v) => v.toFixed(1))} · ❤ ${mark(st.hp, def.hp)}</div>`;
   }
 
   private buildingInfo(b: BuildingView): string {
@@ -452,7 +471,7 @@ export class Hud {
     const max = this.state.maxHpOf(b);
     let html = `<h3>${def.label}</h3>${this.ownerLine(b.owner)}${hpBar(b.hp, max)}`;
     if (b.progress < 1) return html + `<div class="row">Under construction: <b>${Math.floor(b.progress * 100)}%</b></div>`;
-    html += `<div class="row muted">${esc(def.description)}</div>`;
+    html = html.replace('</h3>', ` <span class="info-tip" title="${esc(def.description)}">ⓘ</span></h3>`);
     const field = BUILDING_DEFS[b.type].field;
     if (field) html += `<div class="row"><span class="icon mini">${ICONS[field.resource]}</span><b>${b.stock ?? 0}</b> ${RESOURCE_LABELS[field.resource]} left${field.workers > 1 ? ` · up to ${field.workers} workers` : ''}</div>`;
     if (def.popProvided) html += `<div class="row">Population: +${def.popProvided}</div>`;
@@ -474,14 +493,38 @@ export class Hud {
   private renderBottom(): void {
     const sel = this.input.sel;
     const units = [...sel.units].map((id) => this.state.units.get(id)?.v).filter((u): u is UnitView => !!u);
-    const cards = units
-      .slice(0, 36)
-      .map((u) => {
-        const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
-        return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
+    // Tarjetas: una por regimiento (Total War), con vida, moral y munición promedio; el resto, una por unidad.
+    const regs = new Map<number, UnitView[]>();
+    const singles: UnitView[] = [];
+    for (const u of units) {
+      if (u.rg) {
+        const list = regs.get(u.rg) ?? [];
+        list.push(u);
+        regs.set(u.rg, list);
+      } else singles.push(u);
+    }
+    const bar = (cls: string, frac: number) => `<div class="${cls}"><div style="width:${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%"></div></div>`;
+    const regCards = [...regs.values()].map((list) => {
+      const u = list[0];
+      const maxHp = this.state.statsOf(u.owner, u.type).hp;
+      const hp = list.reduce((s, m) => s + m.hp / maxHp, 0) / list.length;
+      const morale = list.reduce((s, m) => s + (m.morale ?? 100), 0) / list.length / 100;
+      const routing = list.filter((m) => m.rout).length;
+      const ammo = list.some((m) => m.am !== undefined) ? list.reduce((s, m) => s + (m.am ?? 100), 0) / list.length / 100 : null;
+      const size = regimentSize(u.type);
+      const shattered = list.some((m) => m.sh);
+      const state = routing * 2 >= list.length ? (shattered ? '💔 Shattered' : '🏳 Routing') : morale < 0.45 ? '⚠ Wavering' : list.some((m) => m.sw) ? '🛡 Shield wall' : '';
+      const tip = `${this.state.labelOf(u.owner, u.type)} regiment: ${list.length}/${size} men · health ${Math.round(hp * 100)}% · morale ${Math.round(morale * 100)}%${ammo !== null ? ` · ammo ${Math.round(ammo * 100)}%` : ''}${state ? ` · ${state}` : ''}`;
+      return `<div class="card reg ${state ? 'warn' : ''}" data-id="${u.id}" title="${esc(tip)}" style="color:${this.state.color(u.owner)}">
+        ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<span class="count">${list.length}</span>
+        ${bar('hp', hp)}${bar('mo', morale)}${ammo !== null ? bar('am', ammo) : ''}</div>`;
+    });
+    const singleCards = singles.map((u) => {
+      const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
+      return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
           ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
-      })
-      .join('');
+    });
+    const cards = [...regCards, ...singleCards].slice(0, 36).join('');
     if (this.state.spectator) {
       setHtml(el('selection-grid'), this.economyTable());
       setHtml(el('actions'), this.teacherActions());
@@ -537,10 +580,16 @@ export class Hud {
         return `<button class="act" data-action="build" data-arg="${type}" ${ok ? '' : 'disabled'} title="${esc(def.description)}">
           <span class="key">${ACTION_KEYS[i]}</span><b>${def.label}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
       }).join('');
-      const next = BUILD_MENU.filter((t) => !menu.includes(t)).map((t) => BUILDING_DEFS[t]);
-      const locked = next.length
-        ? `<p class="hint">In the ${eraLabel(next[0].era)}: ${next.filter((d) => d.era === next[0].era).map((d) => d.label).join(', ')}.</p>`
-        : '';
+      const era = this.state.eraOf(this.state.you), stage = this.state.stageOf(this.state.you);
+      const faction = this.state.faction(this.state.you);
+      const next = BUILD_MENU.filter((t) => !menu.includes(t) && (!BUILDING_DEFS[t].faction || BUILDING_DEFS[t].faction === faction)).map((t) => BUILDING_DEFS[t]);
+      // Lo que abre la siguiente etapa de la Edad Media (Plena: fortalezas) o la siguiente era.
+      const byStage = next.filter((d) => d.era <= era && !stageReached(d.stage, era, stage));
+      const locked = byStage.length
+        ? `<p class="hint">In the ${stageLabel(byStage[0].stage!)}: ${byStage.map((d) => d.label).join(', ')}.</p>`
+        : next.length
+          ? `<p class="hint">In the ${eraLabel(next[0].era)}: ${next.filter((d) => d.era === next[0].era).map((d) => d.label).join(', ')}.</p>`
+          : '';
       return `${buttons}<button class="act small" data-action="stop" title="Stop">■ Stop</button>${locked}
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click: resource = gather · enemy = attack · foundation or damaged building = build/repair.</p>`;
@@ -572,11 +621,20 @@ export class Hud {
       const pace = soldiers > 0
         ? `<button class="act small ${this.input.pace === 'run' ? 'on' : ''}" data-action="pace" title="Walk: slower but they barely tire. Run: full speed, but they get tired. Double right click = run just that order.">${this.input.pace === 'run' ? '🏃 Run' : '🚶 Walk'} <span class="key">R</span></button>`
         : '';
+      const amove = soldiers > 0
+        ? `<button class="act small ${this.input.attackMove ? 'on' : ''}" data-action="amove" title="Attack-move: they advance to the point you right click next and fight every enemy they meet on the way. Shortcut: Ctrl + right click. Shift + right click: add the order to a queue (one after the other).">⚔ Attack-move</button>`
+        : '';
+      const shieldIds = own.filter((id) => { const t = this.state.units.get(id)?.v.type; return t !== undefined && shieldBearer(t); });
+      const wallOn = shieldIds.length > 0 && shieldIds.every((id) => this.state.units.get(id)?.v.sw);
+      const wall = shieldIds.length
+        ? `<button class="act small ${wallOn ? 'on' : ''}" data-action="shieldwall" title="Shield wall (F): the infantry with shields locks shields. Arrows do 35 % damage, +${SHIELD_WALL_ARMOR} melee armor and a cavalry charge from the front does not knock them down, but they march at half speed. Good against archers and charges.">🛡 Shield wall: ${wallOn ? 'ON' : 'off'} <span class="key">F</span></button>`
+        : '';
       const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${abilities}${formation}${pace}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
+      return `${abilities}${formation}${pace}${amove}${wall}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
         <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it, face forward and hold their spot.
+        <b>Ctrl</b> + right click: attack-move · <b>Shift</b> + right click: queue the order. Clicking a soldier selects his whole regiment.
         Idle troops attack the enemies they see on their own.</p>`;
     }
     if (b) {
@@ -604,14 +662,14 @@ export class Hud {
     const u = UNIT_DEFS[type];
     const st = this.state.statsOf(this.state.you, type);
     const name = this.state.labelOf(this.state.you, type);
-    const cost = unitCost(type, this.state.techsOf(this.state.you));
+    const cost = trainCost(type, this.state.techsOf(this.state.you));
     const ok = !have || canAfford(have, cost);
-    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${u.trainTime} s`;
+    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${Math.round(trainTime(type))} s${regimentSize(type) ? `\nOne order = a regiment of ${regimentSize(type)} soldiers (40 % cheaper than one by one). Shift + click: 5 orders.` : ''}`;
     const icon = iconOf(type, this.state.faction(this.state.you), this.state.color(this.state.you));
     const portrait = icon.startsWith('<img');
     return `<button class="act with-icon ${portrait ? 'with-portrait' : ''}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${icon}</span>
-      <b>${esc(name)}${u.faction ? ' ⚜' : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
+      <b>${esc(name)}${u.faction ? ' ⚜' : ''}${regimentSize(type) ? ` <span class="squad">×${regimentSize(type)}</span>` : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
   }
 
   /** Botón del Mercado: comprar o vender un lote. */
@@ -635,7 +693,7 @@ export class Hud {
     const missing = t.requires && !this.input.hasFinished(t.requires) ? BUILDING_DEFS[t.requires].label : '';
     const ok = !missing && (!have || canAfford(have, t.cost));
     const tip = `${t.label}: ${t.description}\n${t.time} s${missing ? `\nYou need a finished ${missing}.` : ''}`;
-    const kind = t.advancesTo ? 'era-btn' : t.unitMods ? 'upgrade-btn' : 'tech-btn';
+    const kind = isAdvanceTech(tech) ? 'era-btn' : t.unitMods ? 'upgrade-btn' : 'tech-btn';
     return `<button class="act with-icon ${kind}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${techIcon(tech)}</span>${t.unitMods ? '<span class="up-badge">⬆</span>' : ''}
       <b>${t.label}</b><span class="costs">${missing ? `<span class="cost short">Needs: ${esc(missing)}</span>` : costHtml(t.cost, have)}</span></button>`;
@@ -664,15 +722,6 @@ export class Hud {
     this.notices = this.notices.filter((n) => n.until > now).slice(-4);
     setHtml(el('notices'), this.notices.map((n) => `<div class="notice">${esc(n.text)}</div>`).join(''));
   }
-}
-
-/** Contra quién es buena y quién le gana (sale de las tablas de combate). */
-function counterHtml(type: UnitType): string {
-  const good = goodAgainst(type), weak = weakAgainst(type);
-  return (
-    (good.length ? `<div class="counter good">⚔ Good against: ${esc(good.join(', '))}</div>` : '') +
-    (weak.length ? `<div class="counter bad">⚠ Weak against: ${esc(weak.join(', '))}</div>` : '')
-  );
 }
 
 /** Categorías con moral (como en el servidor). */

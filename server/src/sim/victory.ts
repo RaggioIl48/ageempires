@@ -4,6 +4,7 @@
 //   y sus edificios quedan en ruinas. Gana el último en pie (o la última alianza).
 // · Colina Sagrada: el que mantiene la cima de la colina central (con al menos 3 soldados y sin
 //   enemigos cerca) durante 5 minutos en total, gana. Solo cuenta desde la Edad Media.
+// · Maravilla (Age of Empires): si una queda en pie terminada 5 minutos, su imperio gana.
 // · Si se acaba el tiempo, gana quien tiene más Gloria (bajas, ciudades tomadas, colina, era…).
 
 import {
@@ -14,6 +15,7 @@ import {
   HILL_RADIUS,
   TICK_RATE,
   UNIT_DEFS,
+  WONDER_HOLD_SECONDS,
 } from '../../../shared/data.ts';
 import type { VictoryView } from '../../../shared/protocol.ts';
 import type { World } from './world.ts';
@@ -73,6 +75,8 @@ export function updateVictory(world: World): void {
   }
   updateHill(world);
   if (world.outcome) return;
+  updateWonders(world);
+  if (world.outcome) return;
   // Último en pie (o última alianza), si la partida empezó con al menos 2 jugadores.
   if (world.players.size >= 2) {
     const left = alive(world).map((p) => p.id);
@@ -119,6 +123,33 @@ function updateHill(world: World): void {
   if (changed) world.victoryVersion++;
 }
 
+/** Maravillas: aviso al terminarse o caer, cuenta regresiva y victoria. */
+function updateWonders(world: World): void {
+  const name = (id: number) => world.players.get(id)?.name ?? `Player ${id}`;
+  for (const [id, since] of world.wonders) {
+    const b = world.buildings.get(id);
+    if (b && b.progress >= 1 && !world.players.get(b.owner)?.defeated) {
+      if ((world.tick - since) % TICK_RATE === 0) world.victoryVersion++;
+      if (world.tick - since >= WONDER_HOLD_SECONDS * TICK_RATE) {
+        const winners = alive(world).filter((q) => q.id === b.owner || world.relation(q.id, b.owner) === 'ally').map((q) => q.id);
+        world.outcome = { winners, reason: `${name(b.owner)}'s Wonder stood for ${WONDER_HOLD_SECONDS / 60} minutes!` };
+        return;
+      }
+      continue;
+    }
+    world.wonders.delete(id);
+    world.victoryVersion++;
+    if (b) continue;
+    world.announce(`🏛 A Wonder has fallen! The countdown stops.`, 'fall');
+  }
+  for (const b of world.buildings.values()) {
+    if (b.type !== 'wonder' || b.progress < 1 || world.wonders.has(b.id)) continue;
+    world.wonders.set(b.id, world.tick);
+    world.victoryVersion++;
+    world.announce(`🏛 ${name(b.owner)} finished a Wonder! If it stands for ${WONDER_HOLD_SECONDS / 60} minutes, they win. Destroy it!`, 'battle');
+  }
+}
+
 /** Se acabó el tiempo: gana quien tiene más Gloria (y sus aliados, si están en pie). */
 export function decideByGlory(world: World): { winners: number[]; reason: string } {
   const ranked = alive(world).sort((a, b) => gloryOf(world, b.id) - gloryOf(world, a.id));
@@ -132,11 +163,17 @@ export function decideByGlory(world: World): { winners: number[]; reason: string
 export function victoryView(world: World): VictoryView {
   const h = world.hill;
   const defeated = [...world.players.values()].filter((p) => p.defeated).map((p) => p.id);
-  if (!h) return { defeated };
+  const wonders: [number, number][] = [];
+  for (const [id, since] of world.wonders) {
+    const b = world.buildings.get(id);
+    if (b) wonders.push([b.owner, Math.max(0, WONDER_HOLD_SECONDS - Math.floor((world.tick - since) / TICK_RATE))]);
+  }
+  if (!h) return wonders.length ? { defeated, wonders } : { defeated };
   const secs = (id: number) => Math.floor((world.players.get(id)?.hillTicks ?? 0) / TICK_RATE);
   const leaders = [...world.players.values()].filter((p) => p.hillTicks > 0).sort((a, b) => b.hillTicks - a.hillTicks);
   return {
     defeated,
+    ...(wonders.length ? { wonders } : {}),
     hill: {
       x: h.x,
       y: h.y,

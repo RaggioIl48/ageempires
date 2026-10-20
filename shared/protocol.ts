@@ -76,8 +76,20 @@ export interface UnitView {
   fc?: number;
   /** Paso del servidor en que dio su último golpe (si fue hace poco): para animar el impacto a tiempo. */
   sk?: number;
+  /** Regimiento (Total War): los soldados con el mismo número se seleccionan y mandan juntos. */
+  rg?: number;
+  /** Munición que le queda (0–100 %), solo soldados a distancia con munición limitada. */
+  am?: number;
+  /** 1 = derribado por una carga (en el suelo un momento). */
+  dn?: 1;
+  /** 1 = en muro de escudos. */
+  sw?: 1;
+  /** 1 = destrozado (huyó varias veces: solo se reagrupa en su ciudad). */
+  sh?: 1;
   /** Solo en el cliente: velocidad real (casillas/s), para animar el paso. */
   sp?: number;
+  /** Solo en el cliente: destello al recibir un golpe (1 = recién golpeado … 0). */
+  hf?: number;
   /** Solo en el cliente: cuándo llegó la confirmación del último golpe (ms) y la espera real entre golpes (ms). */
   ha?: number;
   cool?: number;
@@ -128,6 +140,9 @@ export interface EconomyView {
   resources: Resources;
   pop: number;
   popCap: number;
+  /** Unidades de verdad (un regimiento cuenta todos sus soldados) y el tope de la partida por jugador. */
+  units?: number;
+  unitCap?: number;
   /** Trabajadores por tarea. 'idle' = sin nada que hacer. */
   workers: Record<ResourceType | 'idle' | 'other', number>;
   /** Recurso entregado en el último minuto. */
@@ -137,10 +152,16 @@ export interface EconomyView {
 /** Cosas que pasaron en este paso (para efectos visuales). */
 export type GameEvent =
   /** s: 0 flecha, 1 bala, 2 proyectil de cañón. */
-  | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number }
+  /** ms = tiempo de vuelo (proyectiles que vuelan: el daño llega al caer). */
+  | { k: 'shot'; x1: number; y1: number; x2: number; y2: number; s?: number; ms?: number }
   /** c: 1 = golpe de carga (más grande). */
-  | { k: 'hit'; x: number; y: number; c?: 1; fl?: 1 | 2 }
-  | { k: 'death'; x: number; y: number }
+  /** c = carga; fl = flanco (1) o espalda (2); b = el escudo paró el tiro. */
+  | { k: 'hit'; x: number; y: number; c?: 1; fl?: 1 | 2; b?: 1 }
+  /**
+   * d = hacia dónde iba el golpe mortal (0–15, sectores de 22,5° en el plano del mapa);
+   * h = golpe brutal (carga, jinete, máquina): el caído sale despedido.
+   */
+  | { k: 'death'; x: number; y: number; d?: number; h?: 1 }
   /** Entrega con bonificación de cuadrilla: o = dueño, r = recurso (índice), n = cantidad. */
   | { k: 'gain'; x: number; y: number; o: number; r: number; n: number }
   | { k: 'destroyed'; x: number; y: number; size: number }
@@ -173,6 +194,8 @@ export interface RoomSettings {
   diplomacy: 'free' | 'locked';
   /** Chat entre jugadores (el profesor puede apagarlo). */
   chat: boolean;
+  /** Modo pruebas: la clave de recursos (ver TEST_KEY en room.ts) funciona para todos. */
+  testMode?: boolean;
   /** Niebla de guerra: cada uno ve solo lo que ven sus tropas y las de sus aliados. */
   fog: boolean;
   /** Pausa táctica automática al empezar cada batalla (segundos; 0 = no). */
@@ -335,11 +358,26 @@ export type Formation = (typeof FORMATIONS)[number];
 
 export type Command =
   /** formation: 'line' = filas (infantería adelante, a distancia detrás, caballería a los lados), 'column' = columna angosta, 'loose' = grupo suelto. */
-  | { kind: 'move'; unitIds: number[]; x: number; y: number; formation?: Formation; front?: FrontLine; /** true = los soldados caminan (si falta, corren). */ walk?: boolean }
+  | {
+      kind: 'move';
+      unitIds: number[];
+      x: number;
+      y: number;
+      formation?: Formation;
+      front?: FrontLine;
+      /** true = los soldados caminan (si falta, corren). */
+      walk?: boolean;
+      /** true = atacar-moviendo: pelean con lo que encuentren en el camino y siguen. */
+      amove?: boolean;
+      /** true = se agrega a la cola (Shift): se cumple después de lo que estén haciendo. */
+      queue?: boolean;
+    }
   /** Marcha forzada de los soldados elegidos hacia la ciudad del jugador `target`. */
   | { kind: 'march'; unitIds: number[]; target: number }
   | { kind: 'ability'; unitIds: number[]; ability: AbilityId }
   | { kind: 'stance'; unitIds: number[]; guard: boolean }
+  /** Muro de escudos (solo la infantería con escudo). */
+  | { kind: 'shieldwall'; unitIds: number[]; on: boolean }
   /** El atacante se retira de una batalla: sus soldados vuelven a casa. */
   | { kind: 'retreat'; battleId: number }
   | { kind: 'stop'; unitIds: number[] }
@@ -389,7 +427,9 @@ export type ClientMessage =
   /** Respuesta a la pregunta para avanzar de era. */
   | { t: 'quizAnswer'; id: number; choice: number }
   /** Medir la conexión (el servidor contesta con un pong). */
-  | { t: 'ping'; n: number };
+  | { t: 'ping'; n: number }
+  /** Profesor (en el computador del servidor): abrir o cerrar el modo online (túnel de Cloudflare). */
+  | { t: 'tunnel'; on: boolean };
 
 // ---------- Servidor -> Cliente ----------
 
@@ -409,8 +449,17 @@ export interface HillView {
 }
 
 /** Victoria: la Colina Sagrada (si el mapa la tiene) y los imperios caídos. */
+/** Modo online (túnel rápido de Cloudflare abierto desde el panel del profesor). */
+export interface TunnelView {
+  state: 'off' | 'starting' | 'on' | 'missing' | 'error';
+  url?: string;
+  message?: string;
+}
+
 export interface VictoryView {
   hill?: HillView;
+  /** Maravillas terminadas: [dueño, segundos que le faltan para ganar]. */
+  wonders?: [number, number][];
   defeated: number[];
 }
 
@@ -460,6 +509,8 @@ export type ServerMessage =
   | { t: 'kicked'; message: string }
   /** Respuesta al profesor: salas existentes y direcciones para los estudiantes. */
   | { t: 'teacherOk'; rooms: RoomSummary[]; urls: string[] }
+  /** Estado del modo online y las direcciones para los estudiantes (cambian al abrirlo o cerrarlo). */
+  | ({ t: 'tunnel'; urls: string[]; canToggle: boolean } & TunnelView)
   | { t: 'rooms'; rooms: RoomSummary[] }
   | {
       t: 'welcome';
@@ -474,9 +525,9 @@ export type ServerMessage =
   | DeltaMessage
   | { t: 'paused'; paused: boolean; /** Pausa táctica automática: segundos que dura. */ secs?: number; /** 1 si la causó una batalla que empieza. */ battle?: 1 }
   /** Respuesta a un ping: `ms` = cuánto tarda el servidor en cada paso de esta partida (promedio). */
-  | { t: 'pong'; n: number; ms: number }
+  | { t: 'pong'; n: number; ms: number; mx?: number }
   /** Pregunta para avanzar de era (las opciones ya vienen mezcladas). */
-  | { t: 'quiz'; id: number; era: number; q: string; options: string[] }
+  | { t: 'quiz'; id: number; era: number; stage?: number; q: string; options: string[] }
   /** Resultado: si acertó, el avance empieza; si no, puede volver a intentar en `wait` segundos. */
   | { t: 'quizResult'; ok: boolean; answer: string; fact?: string; wait?: number }
   | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[]; history?: HistorySample[]; chronicle?: ChronicleEntry[] }
@@ -548,6 +599,7 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (s.diplomacy !== undefined && s.diplomacy !== 'free' && s.diplomacy !== 'locked') return null;
   if (s.chat !== undefined && typeof s.chat !== 'boolean') return null;
   if (s.fog !== undefined && typeof s.fog !== 'boolean') return null;
+  if (s.testMode !== undefined && typeof s.testMode !== 'boolean') return null;
   if (s.battlePause !== undefined && (!Number.isInteger(s.battlePause) || (s.battlePause as number) < 0 || (s.battlePause as number) > 60)) return null;
   if (s.quiz !== undefined && s.quiz !== 'off' && s.quiz !== 'history' && s.quiz !== 'custom') return null;
   let questions: QuizQuestion[] | undefined;
@@ -572,6 +624,7 @@ function parseSettings(v: unknown): RoomSettings | null {
     fog: (s.fog as boolean | undefined) ?? true,
     battlePause: (s.battlePause as number | undefined) ?? 15,
     quiz: (s.quiz as QuizMode | undefined) ?? 'history',
+    ...(s.testMode === true ? { testMode: true } : {}),
     ...(questions?.length ? { questions } : {}),
   };
 }
@@ -606,6 +659,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: 'leave' };
     case 'unwatch':
       return { t: 'unwatch' };
+    case 'tunnel':
+      return typeof m.on === 'boolean' ? { t: 'tunnel', on: m.on } : null;
     case 'setTeam':
       return isCode(m.code) && isId(m.memberId) && Number.isInteger(m.team) && (m.team as number) >= 0 && (m.team as number) <= 8
         ? { t: 'setTeam', code: m.code, memberId: m.memberId, team: m.team as number }
@@ -701,6 +756,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
           ? { kind: 'move', unitIds, x: c.x, y: c.y, formation: c.formation as Formation }
           : { kind: 'move', unitIds, x: c.x, y: c.y };
         if (c.walk === true) m.walk = true;
+        if (c.amove === true) m.amove = true;
+        if (c.queue === true) m.queue = true;
         const f = c.front as Record<string, unknown> | undefined;
         if (f && typeof f === 'object' && isCoord(f.fx) && isCoord(f.fy) && isCoord(f.width)) {
           const len = Math.hypot(f.fx, f.fy);
@@ -714,6 +771,8 @@ function parseCommand(c: Record<string, unknown>): Command | null {
       return isId(c.target) ? { kind: 'march', unitIds, target: c.target } : null;
     case 'stance':
       return typeof c.guard === 'boolean' ? { kind: 'stance', unitIds, guard: c.guard } : null;
+    case 'shieldwall':
+      return typeof c.on === 'boolean' ? { kind: 'shieldwall', unitIds, on: c.on } : null;
     case 'ability':
       return (ABILITY_IDS as readonly unknown[]).includes(c.ability) ? { kind: 'ability', unitIds, ability: c.ability as AbilityId } : null;
     case 'gather':

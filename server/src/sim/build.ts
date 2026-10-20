@@ -100,6 +100,7 @@ export function updateBuilders(world: World, dt: number): void {
       b.hp = Math.min(b.maxHp, b.hp + dp * b.maxHp);
       if (b.progress >= 1 - 1e-9) {
         b.progress = 1;
+        world.buildingVersion++;
         for (const u of builders) afterWork(world, u, b);
       }
     } else {

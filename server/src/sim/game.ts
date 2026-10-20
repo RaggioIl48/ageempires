@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
+import { AMMO, SHATTER_AFTER, shieldBearer, BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf, stageLabel, stageReached } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -28,10 +28,13 @@ import { updateMorale } from './morale.ts';
 import { updateVision } from './vision.ts';
 import { tires, updateFatigue } from './fatigue.ts';
 import { updateSiege } from './siege.ts';
-import { pathToRect } from './pathfinding.ts';
+import { pathToRect, resetPathBudget } from './pathfinding.ts';
 import { gloryOf, updateVictory } from './victory.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
+import { resupply, updateKnockdowns, updateProjectiles } from './projectiles.ts';
+import { regimentPanic } from './regiment.ts';
+import { clearOrders, queueMoves, setAttackMove, updateOrders } from './orders.ts';
 
 /** Radio (casillas) en el que un grupo de trabajadores se reparte los recursos. */
 const GROUP_SPREAD_RADIUS = 4;
@@ -60,13 +63,18 @@ export class Game {
     w.tick++;
     w.events = [];
     w.walker = 0;
+    resetPathBudget();
     const dt = TICK_MS / 1000;
     for (const { playerId, cmd } of this.queue) this.apply(playerId, cmd);
     this.queue = [];
     updateDiplomacy(w);
     updateProduction(w, dt);
     updateCombat(w, dt);
+    updateProjectiles(w);
+    updateKnockdowns(w);
+    resupply(w);
     updateMorale(w, dt);
+    regimentPanic(w, dt);
     updateBuffs(w);
     updateHealing(w, dt);
     moveUnits(w, dt);
@@ -74,6 +82,7 @@ export class Game {
     updateGatherers(w, dt);
     updateBuilders(w, dt);
     removeDead(w);
+    updateOrders(w);
     recordHistory(w);
     updateWar(w);
     updateVictory(w);
@@ -141,6 +150,8 @@ export class Game {
       .filter((u): u is Unit => u !== undefined && u.owner === playerId && u.hp > 0 && u.routing === 0); // los que huyen no obedecen
     if (units.length === 0) return;
     const workers = units.filter((u) => u.type === 'worker');
+    // Una orden nueva borra el atacar-moviendo y la cola (salvo las que se agregan a la cola).
+    if (cmd.kind !== 'stance' && cmd.kind !== 'ability' && cmd.kind !== 'shieldwall' && !(cmd.kind === 'move' && cmd.queue)) clearOrders(units);
     switch (cmd.kind) {
       case 'stop':
         for (const u of units) stopWork(u);
@@ -153,6 +164,16 @@ export class Game {
           u.post = cmd.guard ? (last ? { x: last.x, y: last.y } : { x: u.x, y: u.y }) : null;
         }
         break;
+      case 'shieldwall': {
+        // Solo los que llevan escudo; en muro marchan (no corren).
+        const shields = units.filter((u) => shieldBearer(u.type));
+        if (!shields.length) return w.notify(playerId, 'Only infantry with shields can form a shield wall');
+        for (const u of shields) {
+          u.wall = cmd.on;
+          if (cmd.on) u.walking = true;
+        }
+        break;
+      }
       case 'ability': {
         const error = useAbility(w, units, cmd.ability);
         if (error) w.notify(playerId, error);
@@ -164,6 +185,11 @@ export class Game {
         break;
       }
       case 'move':
+        // Shift: a la cola (los que están quietos salen en el próximo paso).
+        if (cmd.queue) {
+          queueMoves(w, units, clamp(cmd.x, 0, w.size - 0.01), clamp(cmd.y, 0, w.size - 0.01), cmd.amove === true);
+          break;
+        }
         if (!cmd.front && manWalls(w, units, Math.floor(cmd.x), Math.floor(cmd.y))) break;
         moveGroup(
           w,
@@ -175,6 +201,7 @@ export class Game {
           cmd.front?.width,
           cmd.walk !== true,
         );
+        if (cmd.amove) setAttackMove(units);
         break;
       case 'gather': {
         const node = w.nodes.get(cmd.targetId);
@@ -199,6 +226,9 @@ export class Game {
           }
         }
         if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
+        if (!stageReached(def.stage, w.eraOf(playerId), w.stageOf(playerId))) return w.notify(playerId, `${def.label}: you need the ${stageLabel(def.stage!)}`);
+        if (cmd.building === 'wonder' && [...w.buildings.values()].some((o) => o.owner === playerId && o.type === 'wonder'))
+          return w.notify(playerId, 'You already have a Wonder: only one per empire');
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
         if (error) return w.notify(playerId, error);
         if (!w.spend(playerId, buildingCost(cmd.building, w.techsOf(playerId)))) return w.notify(playerId, 'Not enough resources');
@@ -254,6 +284,15 @@ export class Game {
             }
           } else w.notify(playerId, 'Siege towers go to enemy walls: right click a wall section');
           units = units.filter((u) => !UNIT_DEFS[u.type].docks);
+          if (!units.length) return;
+        }
+        // Monjes: no pelean; acompañan al ataque y se quedan a un par de casillas, curando.
+        const healers = units.filter((u) => UNIT_DEFS[u.type].heals);
+        if (healers.length) {
+          const c = t.kind === 'unit' ? t.unit : { x: t.building.tx + t.building.size / 2, y: t.building.ty + t.building.size / 2 };
+          const near = healers[0], d = Math.hypot(c.x - near.x, c.y - near.y) || 1, back = Math.min(d, 3);
+          moveGroup(w, healers, c.x - ((c.x - near.x) / d) * back, c.y - ((c.y - near.y) / d) * back);
+          units = units.filter((u) => !UNIT_DEFS[u.type].heals);
           if (!units.length) return;
         }
         // A los aviones solo los alcanzan los ataques a distancia.
@@ -444,6 +483,11 @@ function unitView(u: Unit, tick: number): UnitView {
   v.fc = (Math.round(Math.atan2(u.fy, u.fx) / (Math.PI / 4)) + 8) % 8;
   // Último golpe (si fue en los últimos 10 s): el cliente anima el impacto en ese instante.
   if (Number.isFinite(u.lastStrike) && tick - u.lastStrike <= STRIKE_MEMORY) v.sk = u.lastStrike;
+  if (u.reg) v.rg = u.reg;
+  if (Number.isFinite(u.ammo)) v.am = Math.round((100 * u.ammo) / AMMO);
+  if (u.down > 0) v.dn = 1;
+  if (u.wall) v.sw = 1;
+  if (u.routs >= SHATTER_AFTER) v.sh = 1;
   if (isHero(u)) v.cd = [Math.max(0, Math.ceil((u.ready.inspire - tick) / TICK_RATE)), Math.max(0, Math.ceil((u.ready.hold - tick) / TICK_RATE))];
   return v;
 }

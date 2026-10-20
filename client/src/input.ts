@@ -22,8 +22,9 @@ import {
   type TechId,
   type TradeResource,
   type UnitType,
-  TRADE_RESOURCES,
-} from '../../shared/data.ts';
+  MEDIEVAL_ERA,
+  stageReached,
+  TRADE_RESOURCES, shieldBearer } from '../../shared/data.ts';
 import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
 import { dragFacing, formationLayout, rankOf } from '../../shared/formation.ts';
@@ -184,8 +185,10 @@ export class Input {
     this.sel.units.clear();
     this.sel.building = null;
     this.sel.node = null;
-    if (p?.kind === 'unit') this.sel.units.add(p.id);
-    else if (p?.kind === 'building') this.sel.building = p.id;
+    if (p?.kind === 'unit') {
+      this.sel.units.add(p.id);
+      this.expandRegiments();
+    } else if (p?.kind === 'building') this.sel.building = p.id;
     else if (p?.kind === 'node') this.sel.node = p.id;
     this.ghost = null;
     this.onSelectionChange();
@@ -236,15 +239,15 @@ export class Input {
   /** Edificios que se pueden construir en la era actual (incluye el edificio único del propio pueblo). */
   buildMenu(): BuildingType[] {
     const s = this.state;
-    return BUILD_MENU.filter((t) => buildingAvailable(t, s.eraOf(s.you), s.faction(s.you)));
+    return BUILD_MENU.filter((t) => buildingAvailable(t, s.eraOf(s.you), s.faction(s.you), s.stageOf(s.you)));
   }
 
   /** Unidades y tecnologías disponibles ahora en un edificio propio. */
   buildingActions(b: BuildingView): BuildingAction[] {
     const s = this.state;
-    const era = s.eraOf(s.you), mask = s.techsOf(s.you);
+    const era = s.eraOf(s.you), mask = s.techsOf(s.you), stage = s.stageOf(s.you);
     const def = BUILDING_DEFS[b.type];
-    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era, s.faction(s.you))).map((unit) => ({ kind: 'train', unit }));
+    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era, s.faction(s.you), stage)).map((unit) => ({ kind: 'train', unit }));
     const queued = new Set<TechId>();
     for (const o of s.buildings.values()) if (o.owner === s.you) for (const q of o.queue ?? []) if (q.tech) queued.add(q.tech);
     for (const tech of def.researches) {
@@ -252,6 +255,9 @@ export class Input {
       if (hasTech(mask, tech) || queued.has(tech)) continue;
       if (t.faction && t.faction !== s.faction(s.you)) continue;
       if (t.advancesTo !== undefined ? t.advancesTo !== era + 1 : era < t.era) continue;
+      // Etapas de la Edad Media: solo la siguiente, y lo de una etapa posterior queda oculto hasta llegar.
+      if (t.advancesStage !== undefined && (era !== MEDIEVAL_ERA || t.advancesStage !== stage + 1)) continue;
+      if (!stageReached(t.stage, era, stage)) continue;
       out.push({ kind: 'research', tech });
     }
     if (def.market) for (const resource of TRADE_RESOURCES) for (const buy of [true, false]) out.push({ kind: 'trade', resource, buy });
@@ -272,6 +278,22 @@ export class Input {
     this.net.command({ kind: 'stance', unitIds: ids, guard: !all });
   }
 
+  /** Soldados propios elegidos que llevan escudo (pueden formar el muro de escudos). */
+  ownShields(): number[] {
+    return this.ownSelected().filter((id) => {
+      const t = this.state.units.get(id)?.v.type;
+      return t !== undefined && shieldBearer(t);
+    });
+  }
+
+  /** Muro de escudos (F): lo forman o lo deshacen los que llevan escudo. */
+  toggleShieldWall(): void {
+    const ids = this.ownShields();
+    if (!ids.length) return;
+    const all = ids.every((id) => this.state.units.get(id)?.v.sw);
+    this.net.command({ kind: 'shieldwall', unitIds: ids, on: !all });
+  }
+
   /** Generales propios seleccionados. */
   ownGenerals(): number[] {
     return this.ownSelected().filter((id) => this.state.units.get(id)?.v.type === 'general');
@@ -288,7 +310,11 @@ export class Input {
     const b = this.ownBuilding();
     if (!b || b.progress < 1) return;
     const a = this.buildingActions(b)[index];
-    if (a?.kind === 'train') this.net.command({ kind: 'train', buildingId: b.id, unit: a.unit });
+    // Soldados: cada encargo es un regimiento entero (sale formado). Shift: cinco encargos seguidos.
+    if (a?.kind === 'train') {
+      const shift = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+      for (let k = 0; k < (shift ? 5 : 1); k++) this.net.command({ kind: 'train', buildingId: b.id, unit: a.unit });
+    }
     else if (a?.kind === 'research') this.net.command({ kind: 'research', buildingId: b.id, tech: a.tech });
     else if (a?.kind === 'trade') this.net.command({ kind: 'trade', buildingId: b.id, resource: a.resource, buy: a.buy });
   }
@@ -337,6 +363,7 @@ export class Input {
     }
     // Respuesta inmediata: giran hacia donde se hizo clic (el servidor confirma enseguida).
     this.state.aimAt(ids, x, y, now);
+    const extra = this.orderFlags();
 
     if (target?.kind === 'unit' || target?.kind === 'building') {
       const owner =
@@ -380,8 +407,38 @@ export class Input {
     // Los soldados marchan en la formación elegida; los trabajadores, sueltos.
     const soldiers = ids.filter((id) => this.state.units.get(id)?.v.type !== 'worker').length;
     const formation = soldiers >= 2 ? this.formation : 'loose';
-    this.net.command({ kind: 'move', unitIds: ids, x, y, formation, ...(this.runNow() ? {} : { walk: true }) });
-    mark(x, y, '#7dff8a');
+    this.net.command({ kind: 'move', unitIds: ids, x, y, formation, ...(this.runNow() ? {} : { walk: true }), ...extra });
+    mark(x, y, extra.amove ? '#ff9f43' : extra.queue ? '#b8f5c0' : '#7dff8a');
+  }
+
+  /** Atacar-moviendo (Ctrl, o el botón ⚔ de la barra) y cola de órdenes (Shift). El botón se usa una vez. */
+  attackMove = false;
+  private orderFlags(): { amove?: true; queue?: true } {
+    const ctrl = this.keys.has('ControlLeft') || this.keys.has('ControlRight');
+    const shift = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+    const amove = ctrl || this.attackMove;
+    if (this.attackMove) {
+      this.attackMove = false;
+      this.onSelectionChange();
+    }
+    return { ...(amove ? { amove: true as const } : {}), ...(shift ? { queue: true as const } : {}) };
+  }
+
+  /** Arma (o desarma) el atacar-moviendo para el próximo clic derecho. */
+  toggleAttackMove(): void {
+    this.attackMove = !this.attackMove;
+    this.onSelectionChange();
+  }
+
+  /** Regimientos: si hay un soldado propio elegido, se elige todo su regimiento. */
+  private expandRegiments(): void {
+    const regs = new Set<number>();
+    for (const id of this.sel.units) {
+      const v = this.state.units.get(id)?.v;
+      if (v && v.owner === this.state.you && v.rg) regs.add(v.rg);
+    }
+    if (!regs.size) return;
+    for (const cu of this.state.units.values()) if (cu.v.owner === this.state.you && cu.v.rg && regs.has(cu.v.rg)) this.sel.units.add(cu.v.id);
   }
 
   // ---------- Frente de formación (arrastrar con el clic derecho) ----------
@@ -445,6 +502,7 @@ export class Input {
       formation: this.frontFormation(),
       front: { fx: f.face.x, fy: f.face.y, width: Math.hypot(f.b.x - f.a.x, f.b.y - f.a.y) },
       ...(this.runNow() ? {} : { walk: true }),
+      ...this.orderFlags(),
     });
     const now = performance.now();
     this.state.aimAt(ids, x, y, now);
@@ -670,8 +728,11 @@ export class Input {
       return;
     }
     if (additive && target?.kind === 'unit' && this.state.units.get(target.id)?.v.owner === this.state.you) {
-      if (this.sel.units.has(target.id)) this.sel.units.delete(target.id);
-      else this.sel.units.add(target.id);
+      // Con Shift se suma o se quita el regimiento entero.
+      const rg = this.state.units.get(target.id)!.v.rg;
+      const ids = rg ? [...this.state.units.values()].filter((cu) => cu.v.owner === this.state.you && cu.v.rg === rg).map((cu) => cu.v.id) : [target.id];
+      if (this.sel.units.has(target.id)) for (const id of ids) this.sel.units.delete(id);
+      else for (const id of ids) this.sel.units.add(id);
       this.sel.building = null;
       this.sel.node = null;
       this.onSelectionChange();
@@ -694,6 +755,7 @@ export class Input {
       const cy = s.sy - 10 * this.cam.zoom;
       if (s.sx >= x0 && s.sx <= x1 && cy >= y0 && cy <= y1) this.sel.units.add(cu.v.id);
     }
+    this.expandRegiments();
     this.onSelectionChange();
   }
 
@@ -737,6 +799,11 @@ export class Input {
     // R: caminar / correr.
     if (e.code === 'KeyR' && this.ownWorkersSelected().length === 0 && !this.ownBuilding() && this.ownSoldiers().length > 0) {
       this.togglePace();
+      return;
+    }
+    // F: muro de escudos de la infantería con escudo elegida.
+    if (e.code === 'KeyF' && this.ownWorkersSelected().length === 0 && !this.ownBuilding() && this.ownShields().length > 0) {
+      this.toggleShieldWall();
       return;
     }
     // G: modo guardia de los soldados elegidos.

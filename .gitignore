@@ -7,3 +7,4 @@ tools/art/.cache/
 
 # Arte experimental de prueba (licencia sin confirmar): solo local, no se publica.
 client/public/art/experimental/
+dist-portable/

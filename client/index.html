@@ -60,6 +60,7 @@
           <button type="submit">Enter</button>
         </form>
         <div id="teacher-main" class="hidden">
+          <div id="online-box" class="online-box hidden"></div>
           <form id="form-room" class="new-room">
             <h3>New game</h3>
             <label>Players <select id="in-max"></select></label>
@@ -104,6 +105,12 @@
               <select id="in-fog">
                 <option value="1" selected>On (you only see what your troops see)</option>
                 <option value="0">Off (the whole map is visible)</option>
+              </select>
+            </label>
+            <label>Test mode (resource key in chat)
+              <select id="in-test">
+                <option value="0" selected>Off (only works when one student plays alone)</option>
+                <option value="1">On (anyone can type the key)</option>
               </select>
             </label>
             <label>Questions to advance an age
@@ -166,6 +173,19 @@
     <!-- Screen overlays (connection, pause, end of game) -->
     <div id="overlay" class="hidden"></div>
     <div id="paused" class="hidden">⏸ The teacher paused the game</div>
+    <div id="loading" class="hidden">
+      <canvas id="loading-art"></canvas>
+      <div class="loading-top">
+        <h1>Classroom Empires</h1>
+        <div id="loading-people"></div>
+      </div>
+      <aside id="loading-cards" class="panel"></aside>
+      <div class="loading-bottom">
+        <p id="loading-tip"></p>
+        <div class="loading-bar"><div id="loading-fill"></div></div>
+        <div class="loading-row"><small id="loading-text">Preparing the armies…</small><button id="loading-go" class="big primary" disabled>Preparing…</button></div>
+      </div>
+    </div>
     <div id="ended" class="hidden"></div>
     <!-- Question to advance an age -->
     <div id="quiz" class="overlay hidden"><div class="quiz-box panel"></div></div>

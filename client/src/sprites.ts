@@ -331,7 +331,7 @@ export function buildingHeight(type: BuildingView['type']): number {
   return {
     town_center: 90, house: 50, storehouse: 44, farm: 6, quarry: 30, mine: 40, woodlot: 40, barracks: 64, fortress: 110,
     archery_range: 40, stable: 50, tech_center: 66, market: 40, tower: 86, wall: 26, gate: 32, workshop: 72, factory: 86,
-    castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62,
+    castrum: 62, ordu: 50, nemeton: 58, war_hall: 60, royal_hall: 62, royal_palace: 70, mead_hall: 62, wonder: 150, monastery: 86,
   }[type];
 }
 
@@ -361,14 +361,70 @@ function drawArt(ctx: CanvasRenderingContext2D, a: BuildingSprite): void {
 function drawWallTile(ctx: CanvasRenderingContext2D, b: BuildingView, color: string, faction: FactionId): boolean {
   const c = worldToPx(b.tx + 0.5, b.ty + 0.5);
   const at = (dx: number, dy: number) => wallAt(b.tx + dx, b.ty + dy, b.owner);
+  const n = at(0, -1), w = at(-1, 0), e = at(1, 0), s = at(0, 1);
+  // Columna solo en extremos, esquinas y cruces; en un tramo recto, pared lisa (antes había una
+  // columna en cada casilla y la muralla parecía una fila de postes).
+  const straight = (n && s && !w && !e) || (w && e && !n && !s);
   const pieces: (keyof WallPieces)[] =
     b.type === 'gate'
-      ? [at(-1, 0) || at(1, 0) ? 'gateU' : 'gateV']
-      : [...(at(0, -1) ? ['n' as const] : []), ...(at(-1, 0) ? ['w' as const] : []), 'post', ...(at(1, 0) ? ['e' as const] : []), ...(at(0, 1) ? ['s' as const] : [])];
+      ? [w || e ? 'gateU' : 'gateV']
+      : [...(n ? ['n' as const] : []), ...(w ? ['w' as const] : []), ...(straight ? [] : ['post' as const]), ...(e ? ['e' as const] : []), ...(s ? ['s' as const] : [])];
   const arts = pieces.map((p) => wallPiece(faction, p, c.px, c.py, color));
   if (arts.some((a) => !a)) return false;
   for (const a of arts) drawArt(ctx, a!);
+  if (b.type === 'gate' && b.progress >= 1) gateDoors(ctx, b, w || e, gateOpen(b.id));
   return true;
+}
+
+/** Cuánto está abierta cada puerta (0 … 1); lo fija el dibujo de la escena. */
+let gateOpen: (id: number) => number = () => 0;
+export function setGateLookup(f: (id: number) => number): void {
+  gateOpen = f;
+}
+
+/**
+ * Las dos hojas de madera de una puerta, dentro del arco. Cerradas tapan el paso; al abrirse giran
+ * sobre sus bisagras (90° con un vaivén al final) y dejan ver el pasaje. `alongX`: la muralla
+ * corre de oeste a este (el paso va de norte a sur); si no, al revés.
+ */
+function gateDoors(ctx: CanvasRenderingContext2D, b: { tx: number; ty: number }, alongX: boolean, open: number): void {
+  const H = 18, half = 0.27, mid = 0.5;
+  const at = (a: number, p: number) => (alongX ? worldToPx(b.tx + a, b.ty + mid + p) : worldToPx(b.tx + mid + p, b.ty + a));
+  const l = at(mid - half, 0), r = at(mid + half, 0);
+  // Recorte: el hueco del arco (las hojas abiertas no se dibujan encima de la muralla).
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(l.px, l.py + 1);
+  ctx.lineTo(r.px, r.py + 1);
+  ctx.lineTo(r.px, r.py - H + 4);
+  ctx.quadraticCurveTo((l.px + r.px) / 2, (l.py + r.py) / 2 - H - 5, l.px, l.py - H + 4);
+  ctx.closePath();
+  ctx.clip();
+  // El arte de la puerta ya trae hojas pintadas: al abrir, el pasaje se ve oscuro (y las hojas giran).
+  if (open > 0) {
+    ctx.globalAlpha = Math.min(1, open * 3);
+    poly(ctx, [l.px, l.py + 1, r.px, r.py + 1, r.px, r.py - H - 6, l.px, l.py - H - 6], '#1c130b');
+    ctx.globalAlpha = 1;
+  }
+  // Ángulo con un pequeño rebote al terminar de abrir (ease-out con sobrepaso).
+  const k = open <= 0 ? 0 : open >= 1 ? 1 : 1 + 2.2 * (open - 1) ** 3 + 1.2 * (open - 1) ** 2;
+  const ang = Math.min(1.62, k * (Math.PI / 2));
+  for (const side of [-1, 1]) {
+    const hinge = mid + side * half; // bisagra en cada costado del arco
+    const len = half;
+    const tipA = hinge - side * Math.cos(ang) * len, tipP = -Math.sin(ang) * len;
+    const h = at(hinge, 0), t = alongX ? worldToPx(b.tx + tipA, b.ty + mid + tipP) : worldToPx(b.tx + mid + tipP, b.ty + tipA);
+    // Más oscura de canto que de frente.
+    const face = 0.55 + 0.45 * Math.cos(ang);
+    poly(ctx, [h.px, h.py, t.px, t.py, t.px, t.py - H, h.px, h.py - H], shade('#7a5230', face));
+    // Tablones y dos herrajes.
+    for (const f of [0.33, 0.66]) {
+      const x = h.px + (t.px - h.px) * f, y = h.py + (t.py - h.py) * f;
+      line(ctx, x, y, x, y - H, shade('#4e3420', face), 0.8);
+    }
+    for (const hy of [4, H - 5]) line(ctx, h.px, h.py - hy, t.px, t.py - hy, shade('#3a3a3a', face), 1.4);
+  }
+  ctx.restore();
 }
 
 function artOf(b: BuildingView, faction?: FactionId, color?: string) {
@@ -448,6 +504,9 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
   const look = lookOf(faction);
   if (look.arch !== 'hip' && drawCulture(ctx, b, s, color, look)) return;
   switch (b.type) {
+    case 'wonder':
+      wonder(ctx, b, s, color);
+      break;
     case 'town_center': {
       const k = corners(b, s, 0.25);
       const H = 30;
@@ -766,6 +825,39 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       flag(ctx, c.px, c.py, color, 26);
       break;
     }
+    case 'monastery': {
+      // Monasterio: iglesia de piedra con tejado rojo, huerto de hierbas y campanario con cruz.
+      fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, 'rgba(110,140,70,0.4)');
+      const k = corners({ tx: b.tx + 0.15, ty: b.ty + 0.15 }, s - 0.9, 0.1);
+      const H = 22;
+      poly(ctx, [k.T.px, k.T.py + 4, k.R.px + 8, k.R.py + 4, k.B.px, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
+      box(ctx, k, H, '#d9d0bd', '#b8ae98');
+      // Ventanas en arco y puerta
+      for (const f of [0.25, 0.5, 0.75]) {
+        const a = along(k.B, k.R, f);
+        poly(ctx, [a.px - 2, a.py - 8, a.px + 2, a.py - 8, a.px + 2, a.py - 15, a.px, a.py - 17, a.px - 2, a.py - 15], '#4a3a2a');
+      }
+      const d0 = along(k.L, k.B, 0.42), d1 = along(k.L, k.B, 0.58);
+      poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 13, (d0.px + d1.px) / 2, (d0.py + d1.py) / 2 - 17, d0.px, d0.py - 13], '#5a3d26');
+      band(ctx, k, H * 0.82, color);
+      hipRoof(ctx, k, H, 20, '#a8452f');
+      // Campanario en la esquina de adelante
+      const bt = corners({ tx: b.tx + s - 1.05, ty: b.ty + s - 1.05 }, 0.9, 0.05);
+      // Más alto que la iglesia y con tejado de pizarra, para que se distinga delante del tejado rojo.
+      box(ctx, bt, 60, '#e2d9c6', '#c0b6a0');
+      const w = along(bt.L, bt.B, 0.5), e = along(bt.B, bt.R, 0.5);
+      for (const p of [w, e]) poly(ctx, [p.px - 2, p.py - 48, p.px + 2, p.py - 48, p.px + 2, p.py - 55, p.px, p.py - 57, p.px - 2, p.py - 55], '#3a2c20');
+      const top = hipRoof(ctx, bt, 60, 18, '#5d6670');
+      line(ctx, top.px, top.py, top.px, top.py - 9, '#d9b45a', 1.6);
+      line(ctx, top.px - 3, top.py - 6, top.px + 3, top.py - 6, '#d9b45a', 1.6);
+      // Huerto de hierbas medicinales
+      for (const [dx, dy] of [[0.5, s - 0.4], [1.0, s - 0.35], [s - 0.4, 0.5]] as const) {
+        const p = worldToPx(b.tx + dx, b.ty + dy);
+        ellipse(ctx, p.px, p.py - 2, 4, 2.5, '#5f8f3e');
+        ellipse(ctx, p.px + 1, p.py - 3, 1.2, 1.2, '#c9a0dc');
+      }
+      break;
+    }
     // ---- Edificios únicos de cada pueblo ----
     case 'castrum': {
       // Fuerte romano: muro bajo de piedra, torres en las esquinas y el cuartel general al centro.
@@ -840,6 +932,51 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       longHall(ctx, b, s, color, { wall: '#e2dccb', wallDark: '#c2bba8', roof: color, rise: 22, columns: true });
       break;
   }
+}
+
+/** Maravilla: templo escalonado de piedra clara con columnas, banda del jugador y remate dorado. */
+function wonder(ctx: CanvasRenderingContext2D, b: { tx: number; ty: number }, s: number, color: string): void {
+  const up = (k: ReturnType<typeof corners>, h: number) => {
+    const m = (p: P) => ({ px: p.px, py: p.py - h });
+    return { T: m(k.T), R: m(k.R), B: m(k.B), L: m(k.L), C: m(k.C) };
+  };
+  const base = corners(b, s, 0.1);
+  poly(ctx, [base.T.px, base.T.py + 6, base.R.px + 12, base.R.py + 6, base.B.px, base.B.py + 9, base.L.px - 6, base.L.py + 6], 'rgba(0,0,0,0.28)');
+  // Tres gradas que se angostan hacia arriba.
+  const tiers = [
+    { inset: 0.1, h: 26, wall: '#cfc4a8', dark: '#a39878' },
+    { inset: 0.7, h: 22, wall: '#dbd1b8', dark: '#b0a589' },
+    { inset: 1.25, h: 20, wall: '#e6ddc8', dark: '#bdb298' },
+  ];
+  let y = 0;
+  for (const t of tiers) {
+    const k = up(corners(b, s, t.inset), y);
+    box(ctx, k, t.h, t.wall, t.dark);
+    // Cornisa oscura al pie de cada grada (para que se lean los escalones).
+    line(ctx, k.L.px, k.L.py - 2, k.B.px, k.B.py - 2, shade(t.dark, 0.8), 2);
+    line(ctx, k.B.px, k.B.py - 2, k.R.px, k.R.py - 2, shade(t.dark, 0.7), 2);
+    const top = up(k, t.h);
+    poly(ctx, [top.T.px, top.T.py, top.R.px, top.R.py, top.B.px, top.B.py, top.L.px, top.L.py], shade(t.wall, 1.06));
+    y += t.h;
+  }
+  // Templo de columnas en la cima.
+  const cella = up(corners(b, s, 1.6), y);
+  const H = 44;
+  // Muro del templo (sombra) y columnas claras delante.
+  box(ctx, cella, H, '#8e846c', '#756c57');
+  for (const [p, q] of [[cella.L, cella.B], [cella.B, cella.R]] as const)
+    for (let i = 0; i <= 5; i++) {
+      const c = along(p, q, i / 5);
+      ctx.fillStyle = '#6f6754';
+      ctx.fillRect(c.px - 1, c.py - H, 5.5, H);
+      ctx.fillStyle = '#f6f1e4';
+      ctx.fillRect(c.px - 2.5, c.py - H, 4.5, H);
+    }
+  band(ctx, cella, H, color);
+  const apex = hipRoof(ctx, cella, H, 30, '#d4ad3c');
+  // Remate dorado y bandera.
+  ellipse(ctx, apex.px, apex.py - 5, 6, 6, '#f7dc7a');
+  flag(ctx, apex.px, apex.py - 8, color, 26);
 }
 
 /** Banda del color del jugador alrededor de un edificio (para saber de quién es). */
@@ -1138,6 +1275,9 @@ export const UNIT_LOOK: Record<UnitType, { half: number; top: number; ring: numb
   javelin_rider: { half: 13, top: 34, ring: 13 },
   gothic_warband: { half: 9, top: 28, ring: 10 },
   ulfhednar: { half: 10, top: 30, ring: 10 },
+  monk: { half: 9, top: 30, ring: 10 },
+  mangonel: { half: 15, top: 30, ring: 15 },
+  counterweight_trebuchet: { half: 20, top: 52, ring: 20 },
   ram: { half: 17, top: 28, ring: 16 },
   siege_tower: { half: 18, top: 64, ring: 18 },
   general: { half: 13, top: 34, ring: 13 },
@@ -1370,7 +1510,12 @@ function drawUnitBody(ctx: CanvasRenderingContext2D, u: UnitView, x: number, y: 
       return;
     }
     case 'trebuchet':
+    case 'counterweight_trebuchet':
       return drawTrebuchet(ctx, x, y, color, t, attacking);
+    case 'mangonel':
+      return drawMangonel(ctx, x, y, color, t, attacking);
+    case 'monk':
+      return drawMonk(ctx, x, y, color, t, walking);
     case 'ram': {
       // Ariete: cobertizo de madera con techo a dos aguas sobre ruedas y un tronco con punta de hierro.
       ellipse(ctx, x, y, 17, 6, 'rgba(0,0,0,0.3)');
@@ -1440,6 +1585,55 @@ function drawTrebuchet(ctx: CanvasRenderingContext2D, x: number, y: number, colo
   // Estandarte del jugador
   line(ctx, x + 14, y - 4, x + 14, y - 22, '#3a3a3a', 1.5);
   poly(ctx, [x + 14, y - 22, x + 24, y - 19, x + 14, y - 16], color);
+}
+
+/** Mangonel: armazón bajo sobre ruedas, brazo con cuchara que golpea un travesaño al disparar. */
+function drawMangonel(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, t: number, attacking: boolean): void {
+  ellipse(ctx, x, y, 15, 5, 'rgba(0,0,0,0.3)');
+  line(ctx, x - 13, y - 5, x + 12, y - 5, '#6b4a2b', 3);
+  for (const dx of [-10, 9]) ellipse(ctx, x + dx, y - 3, 3, 3, '#3b2818');
+  // Travesaño (el tope del brazo) y madeja de cuerdas torcidas.
+  line(ctx, x - 2, y - 5, x - 2, y - 20, '#7d5431', 2.5);
+  line(ctx, x + 4, y - 5, x + 4, y - 20, '#7d5431', 2.5);
+  line(ctx, x - 4, y - 20, x + 6, y - 20, '#5a3d26', 2.5);
+  ellipse(ctx, x - 7, y - 7, 3, 2.5, '#a08a5c');
+  // Brazo: echado hacia atrás cargado; al disparar salta contra el travesaño.
+  const cycle = attacking ? (t % 4.5) / 4.5 : 0;
+  // Ángulos de pantalla: descansa hacia atrás (izquierda, un poco arriba) y dispara hasta quedar casi vertical.
+  const rest = Math.PI + 0.25, fire = Math.PI * 1.5 + 0.3;
+  const k = attacking ? (cycle < 0.1 ? cycle / 0.1 : cycle < 0.5 ? 1 : 1 - (cycle - 0.5) / 0.5) : 0;
+  const a = rest + (fire - rest) * k;
+  const len = 19;
+  const ex = x - 7 + Math.cos(a) * len, ey = y - 7 + Math.sin(a) * len;
+  line(ctx, x - 7, y - 7, ex, ey, '#8b6a3e', 2.5);
+  ellipse(ctx, ex, ey, 3.2, 2.2, '#5a3d26');
+  if (k < 0.2) ellipse(ctx, ex, ey - 1.5, 2, 2, '#8a8a8a'); // piedra cargada
+  // Estandarte del jugador
+  line(ctx, x + 12, y - 5, x + 12, y - 20, '#3a3a3a', 1.3);
+  poly(ctx, [x + 12, y - 20, x + 20, y - 17.5, x + 12, y - 15], color);
+}
+
+/**
+ * Monje: hábito largo de lana, capucha, cuerda a la cintura y un báculo. Una aureola tenue
+ * del color del jugador recuerda que cura a los suyos alrededor.
+ */
+function drawMonk(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, t: number, walking: boolean): void {
+  const bob = walking ? Math.abs(Math.sin(t * 9)) * 1.2 : 0;
+  ctx.save();
+  ctx.globalAlpha = 0.18 + 0.08 * Math.sin(t * 2);
+  ellipse(ctx, x, y, 16, 7, color);
+  ctx.restore();
+  ellipse(ctx, x, y, 6, 3, 'rgba(0,0,0,0.3)');
+  // Hábito (se ensancha hacia abajo) y capucha.
+  poly(ctx, [x - 6, y, x - 4, y - 16 - bob, x + 4, y - 16 - bob, x + 6, y], '#6e5a44');
+  poly(ctx, [x - 1, y, x - 1, y - 15 - bob, x + 4, y - 16 - bob, x + 6, y], '#5c4a37');
+  line(ctx, x - 4.5, y - 9 - bob, x + 4.5, y - 9 - bob, '#d8c9a0', 1.2);
+  line(ctx, x + 1, y - 9 - bob, x + 2, y - 3 - bob, color, 1.5); // cíngulo con el color del jugador
+  ellipse(ctx, x, y - 19 - bob, 4.2, 4.2, '#5c4a37');
+  ellipse(ctx, x + 0.6, y - 18.5 - bob, 2.6, 2.8, '#e2b68c');
+  // Báculo con una cruz
+  line(ctx, x + 7, y + 1, x + 7, y - 27 - bob, '#7a5532', 1.6);
+  line(ctx, x + 4.5, y - 24 - bob, x + 9.5, y - 24 - bob, '#7a5532', 1.4);
 }
 
 /** Carro de guerra galo: caballo, carro con ruedas de cuchillas, auriga y guerrero. */

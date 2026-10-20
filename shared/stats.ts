@@ -35,8 +35,7 @@ import {
   type StatMods,
   type TechId,
   type Weapon,
-  type UnitType,
-} from './data.ts';
+  type UnitType, REGIMENT_COST, REGIMENT_TIME_PER_EXTRA, regimentSize } from './data.ts';
 
 export const TECH_IDS = Object.keys(TECH_DEFS) as TechId[];
 const TECH_INDEX = new Map(TECH_IDS.map((t, i) => [t, BigInt(i)]));
@@ -152,6 +151,22 @@ export function unitLabel(type: UnitType, mask: TechMask = NO_TECHS): string {
   return label;
 }
 
+/** Etapa de la Edad Media alcanzada (1 = Alta, 2 = Plena, 3 = Baja), según sus avances investigados. */
+export function stageOf(mask: TechMask = NO_TECHS): number {
+  let stage = 1;
+  for (const t of techsOf(mask)) stage = Math.max(stage, TECH_DEFS[t].advancesStage ?? 1);
+  return stage;
+}
+
+/** Vida por segundo que cura un sanador (monje) a cada unidad cercana; 0 si no cura. */
+export function healOf(type: UnitType, mask: TechMask = NO_TECHS): number {
+  const h = UNIT_DEFS[type].heals;
+  if (!h) return 0;
+  let hps = h.hps;
+  for (const t of techsOf(mask)) hps += TECH_DEFS[t].heal ?? 0;
+  return hps;
+}
+
 /** ¿Ya evolucionó esta unidad (alguna mejora propia investigada)? */
 export function isUpgraded(type: UnitType, mask: TechMask = NO_TECHS): boolean {
   return techsOf(mask).some((t) => TECH_DEFS[t].unitMods?.[type] !== undefined);
@@ -242,6 +257,26 @@ export function canHitAir(attack: AttackDef): boolean {
 }
 
 /** Costo real de una unidad con las tecnologías de eficiencia (Armas estandarizadas…). */
+/** Soldados que salen de un encargo (un regimiento entero, o 1). */
+export function trainCount(type: UnitType): number {
+  return Math.max(1, regimentSize(type));
+}
+
+/** Costo de un encargo: el regimiento entero (con descuento) o la unidad sola. */
+export function trainCost(type: UnitType, mask: TechMask = NO_TECHS): Cost {
+  const one = unitCost(type, mask), n = trainCount(type);
+  if (n === 1) return one;
+  const out: Cost = {};
+  for (const r of RESOURCE_TYPES) if (one[r]) out[r] = Math.round(one[r]! * n * REGIMENT_COST);
+  return out;
+}
+
+/** Segundos de entrenamiento de un encargo (sin la velocidad del pueblo). */
+export function trainTime(type: UnitType): number {
+  const n = trainCount(type);
+  return UNIT_DEFS[type].trainTime * (1 + REGIMENT_TIME_PER_EXTRA * (n - 1));
+}
+
 export function unitCost(type: UnitType, mask: TechMask = NO_TECHS): Cost {
   const d = UNIT_DEFS[type];
   const out: Cost = { ...d.cost };

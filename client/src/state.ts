@@ -23,15 +23,19 @@ import {
   type ServerMessage,
   type UnitView,
 } from '../../shared/protocol.ts';
-import { NO_TECHS, buildingMaxHp, unitLabel, unitStats, type TechMask, type UnitStats } from '../../shared/stats.ts';
+import { TickClock, posAt, type TickPos } from './motion.ts';
+import { NO_TECHS, buildingMaxHp, stageOf, unitLabel, unitStats, type TechMask, type UnitStats } from '../../shared/stats.ts';
 
 /** Cuánto manda el giro de una orden recién dada antes de que el servidor confirme (ms). */
 export const AIM_MS = 600;
 
 export interface ClientUnit {
   v: UnitView;
+  /** Posición en el estado anterior del servidor (para la velocidad y hacia dónde camina). */
   prevX: number;
   prevY: number;
+  /** Últimas posiciones por paso del servidor (para dibujarla con avance parejo). */
+  hist: TickPos[];
   /** Hacia dónde mira (ángulo en pantalla, y hacia abajo; π/2 = hacia la cámara). */
   face: number;
   /** Velocidad real suavizada (casillas/s) y si de verdad está caminando (para animar). */
@@ -45,6 +49,10 @@ export interface ClientUnit {
   dustAt?: number;
   /** Hasta cuándo manda la orden recién dada (el giro previsto) sobre lo que diga el servidor. */
   aimUntil?: number;
+  /** Cuándo recibió el último golpe (ms): destello breve al dibujarla. */
+  hurtAt?: number;
+  /** Cuándo lo derribó una carga (para animar la caída y el levantarse). */
+  downAt?: number;
 }
 
 /** Unidad recién caída (para animar su muerte unos segundos). */
@@ -52,6 +60,11 @@ export interface Corpse {
   v: UnitView;
   face: number;
   t0: number;
+  /** Hacia dónde iba el golpe mortal (radianes en el plano del mapa) y si fue brutal (sale despedido). */
+  blow?: number;
+  heavy?: boolean;
+  /** Ya levantó el polvo al caer. */
+  dusted?: boolean;
 }
 
 /** Propuesta diplomática pendiente. */
@@ -112,6 +125,8 @@ export class ClientState {
   lastStateAt = 0;
   /** Tiempo promedio entre estados del servidor (ms). */
   stateGap = TICK_MS;
+  /** Qué paso del servidor dibujar en cada momento (absorbe el jitter del wifi). */
+  drawClock = new TickClock(TICK_MS);
   /** Sube cada vez que cambian los nodos o edificios (para redibujar el minimapa). */
   nodesVersion = 0;
   effects: Effect[] = [];
@@ -136,6 +151,8 @@ export class ClientState {
   /** Guerra: ejércitos en marcha, batallas en curso y resultados por mostrar. */
   marches: MarchView[] = [];
   battles: BattleView[] = [];
+  /** Eventos del último estado recibido (para el sonido). */
+  lastEvents: GameEvent[] = [];
   battleResults: BattleResultView[] = [];
   /** Colina Sagrada e imperios caídos. */
   victory: VictoryView = { defeated: [] };
@@ -258,19 +275,19 @@ export class ClientState {
   }
 
   private applyDelta(d: DeltaMessage, now: number): void {
-    // Punto de partida de la interpolación: donde se dibuja cada unidad ahora.
+    // Posición anterior de cada unidad según el servidor (para su velocidad y su rumbo).
     for (const cu of this.units.values()) {
-      const p = this.unitPos(cu, now);
-      cu.prevX = p.x;
-      cu.prevY = p.y;
+      cu.prevX = cu.v.x;
+      cu.prevY = cu.v.y;
     }
     for (const t of d.u ?? []) {
       const v = decodeUnit(t);
       const old = this.units.get(v.id);
-      const cu = old ?? { v, prevX: v.x, prevY: v.y, face: Math.PI / 2 };
+      const cu = old ?? { v, prevX: v.x, prevY: v.y, hist: [], face: Math.PI / 2 };
       // Golpe nuevo confirmado por el servidor: el instante en que llegó (el paso `sk` fue
       // hace (k − sk) pasos). La animación pone el impacto ahí, a la vez que la vida que baja.
       if (v.sk !== undefined && v.sk !== old?.v.sk) cu.hitAt = now - Math.max(0, d.k - v.sk) * TICK_MS;
+      if (old && v.hp < old.v.hp) cu.hurtAt = now;
       if (old) old.v = v;
       else this.units.set(v.id, cu);
     }
@@ -279,15 +296,25 @@ export class ClientState {
       const cu = this.units.get(p[i]);
       if (cu) cu.v = { ...cu.v, x: p[i + 1] / 100, y: p[i + 2] / 100 };
     }
+    // Historial por paso (todas, también las quietas: así se sabe que seguían ahí).
+    for (const cu of this.units.values()) {
+      const h = cu.hist, last = h[h.length - 1];
+      if (last && last.k >= d.k) h.length = 0; // reconexión o paso repetido: se empieza de nuevo
+      h.push({ k: d.k, x: cu.v.x, y: cu.v.y });
+      if (h.length > 4) h.shift();
+    }
+    this.drawClock.observe(d.k, now);
     for (const cu of this.units.values()) this.updateFace(cu, now);
     const events = (d.e ?? []).map(decodeEvent);
+    this.lastEvents = events;
     const deaths = events.filter((e) => e.k === 'death');
     for (const id of d.ur ?? []) {
       const cu = this.units.get(id);
       // Si cayó en combate (hay un evento de muerte donde estaba), queda en el suelo un momento.
-      if (cu && deaths.some((e) => Math.abs(e.x - cu.v.x) < 0.8 && Math.abs(e.y - cu.v.y) < 0.8)) {
-        this.corpses.push({ v: cu.v, face: cu.face, t0: now });
-        if (this.corpses.length > 150) this.corpses.shift();
+      const e = cu ? deaths.find((e) => Math.abs(e.x - cu.v.x) < 0.8 && Math.abs(e.y - cu.v.y) < 0.8) : undefined;
+      if (cu && e && e.k === 'death') {
+        this.corpses.push({ v: cu.v, face: cu.face, t0: now, ...(e.d !== undefined ? { blow: (e.d / 16) * Math.PI * 2 } : {}), ...(e.h ? { heavy: true } : {}) });
+        if (this.corpses.length > 220) this.corpses.shift();
       }
       this.units.delete(id);
     }
@@ -385,7 +412,7 @@ export class ClientState {
     let dx = v.x - cu.prevX, dy = v.y - cu.prevY;
     // Velocidad real (casillas por segundo, suavizada): los empujoncitos al separarse no cuentan
     // como caminar, y el paso se anima a la velocidad con que de verdad avanza.
-    const step = Math.hypot(dx, dy) / (TICK_MS / 1000);
+    const step = Math.hypot(dx, dy) / (this.drawClock.tickMs / 1000);
     cu.speed = (cu.speed ?? 0) * 0.5 + step * 0.5;
     const moving = (v.walk === 1 && cu.speed > 0.35) || cu.speed > 1.2;
     cu.moving = moving;
@@ -429,15 +456,13 @@ export class ClientState {
   }
 
   /**
-   * Posición dibujada: interpola entre el estado anterior y el último. El tramo dura lo que
-   * suelen tardar en llegar los estados (un poco más), así un paquete atrasado no deja a las
-   * tropas quietas y luego a los saltos: siguen deslizándose.
+   * Posición dibujada: la del paso que marca el reloj de dibujo (un paso detrás del último, más
+   * un margen según el jitter), interpolada entre las posiciones de su historial. Así el avance es
+   * parejo aunque los estados lleguen desparejos, y si uno se atrasa la tropa sigue deslizándose.
    */
   unitPos(u: ClientUnit, now: number): { x: number; y: number } {
-    // Con la red estable, el tramo es un paso exacto; solo se estira si los estados se atrasan de verdad.
-    const span = this.stateGap > TICK_MS * 1.1 ? Math.min(250, this.stateGap * 1.1) : TICK_MS;
-    const t = Math.min(1, Math.max(0, (now - this.lastStateAt) / span));
-    return { x: u.prevX + (u.v.x - u.prevX) * t, y: u.prevY + (u.v.y - u.prevY) * t };
+    if (!u.hist.length) return { x: u.v.x, y: u.v.y };
+    return posAt(u.hist, this.drawClock.renderTick(now));
   }
 
   color(playerId: number): string {
@@ -454,6 +479,11 @@ export class ClientState {
 
   techsOf(playerId: number): TechMask {
     return this.techs.get(playerId) ?? NO_TECHS;
+  }
+
+  /** Etapa de la Edad Media (1 = Alta, 2 = Plena, 3 = Baja). */
+  stageOf(playerId: number): number {
+    return stageOf(this.techsOf(playerId));
   }
 
   /** Estadísticas reales de una unidad (facción y tecnologías de su dueño). */

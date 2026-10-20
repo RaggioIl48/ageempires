@@ -679,6 +679,387 @@ Total War: Napoleon:
   fails to load. The Mongol horse-archer test image was imported this way (local test only: unknown licence,
   only 3 real views, one drawing per action, no player colour).
 
+## 8-direction animated soldiers from 0 A.D. (2026-10-14)
+
+- **Romans and Gauls on foot now come from 0 A.D.'s animated 3D soldiers** instead of 4-direction LPC pixel art:
+  warrior, spearman, swordsman, archer for both, plus the legionary and triarius (Romans) and the chosen
+  swordsman (Gauls). 11 sheets, each with **8 real directions** and 0 A.D.'s own motion-captured-style
+  animations: idle (6 frames), walk (10), attack (8, impact frame taken from 0 A.D.'s `event` attribute, so
+  `attackSync.ts` lines it up with the server hit) and death (8). The tunic/shield areas that 0 A.D. paints in
+  the player colour become the team mask, so every soldier shows its owner's colour.
+- **How** (`tools/art/soldiers.mjs`, `tools/art/skin.mjs`, `tools/art/quantize.mjs`): resolves the 0 A.D. actor
+  (body, head, helmet, weapon, shield, cape, chosen variants), downloads the pinned files, **skins the mesh to
+  the skeleton in Node** (linear blend skinning from the COLLADA skin + per-bone animation matrices, root kept
+  in place), attaches props to their bones, and draws each pose with `raster.mjs` (same isometric view and light
+  as the 0 A.D. buildings). Sheets are reduced to 256 colours (≈600 KB instead of 2.5 MB, visually identical).
+  `npm run art` builds them after the LPC sheets; `node tools/art/soldiers.mjs [id]` rebuilds only soldiers;
+  `--probe <actor>` lists an actor's animations, props and player-colour coverage. Full guide:
+  [SOLDADOS_3D.md](SOLDADOS_3D.md).
+- **Animation viewer** (`client/preview.html`, dev only: `npm run dev:client` → `/preview.html`): any unit in its
+  8 directions × idle/walk/attack/death, drawn with the game's own code, with simulated hits, zoom, and a sheet
+  selector to compare old and new art.
+- Why not Blender: Blender 5.x removed the COLLADA importer that 0 A.D.'s files need, and doing the skinning in
+  Node keeps the art reproducible with no external program.
+- Tests: `skin.test.ts` (skinning, interpolation, root kept in place, every recipe has an 8-direction sheet,
+  impact inside the swing, death does not loop); the existing art test caught a slinger variant without player
+  colour (switched to one that has it).
+- Not yet: the other five peoples, workers, cavalry (0 A.D. horse + rider skeletons) and the Gaul naked fanatic
+  (no 0 A.D. model) still use LPC. Adds ≈6.5 MB of art, loaded only when that unit appears.
+
+## All infantry in 8 directions, smoother marching, battle diagnosis (2026-10-15)
+
+- **The other five peoples' infantry is now 3D too** (29 more sheets, 40 in total): Germans, Visigoths,
+  Ostrogoths, Vikings and Mongols, including their foot unique units. 0 A.D. has none of these peoples, so
+  each borrows the closest gear from another civilisation (table in [SOLDADOS_3D.md](SOLDADOS_3D.md)).
+- **Half-resolution copies of the big sheets** when drawn at half size or less (`art.ts`): 600 soldiers went
+  from 38 to 54 fps in the stress test, measured with REA in Chrome.
+- **Tick clock for drawing positions** (`motion.ts` `TickClock`/`posAt`, used by `state.ts`): units are drawn
+  from a short per-tick position history on a smoothed clock, so network jitter no longer makes troops stop
+  and jump (6.8 % → 0 % jerky frames at 60 ms of jitter; same one-tick delay as before on a stable network).
+- **Stress test in the animation viewer**: `/preview.html?stress=600&art=3d|lpc&lod=0|1`.
+- Docs: [DIAGNOSTICO_BATALLAS.md](DIAGNOSTICO_BATALLAS.md) (what is missing to feel like Total War: Attila,
+  prioritised), [FLUIDEZ_Y_RENDIMIENTO.md](FLUIDEZ_Y_RENDIMIENTO.md) (measurements and next steps).
+
+## Regiments, flying arrows, charge impact, attack-move, battle sound, 3D cavalry (2026-10-15)
+
+- **Regiments**: soldiers of one type from one building fill a regiment (8 infantry / 6 ranged / 4 cavalry);
+  one click selects it, Shift-click on a train button orders a whole one; standard over each regiment with
+  men left, health and morale; regiment cards in the selection bar; shared panic when 30 %+ of it routs.
+  Economy and population unchanged (the computer rival needs no changes).
+- **Projectiles** fly with their real travel time and hurt where they land (dodging, friendly fire at half
+  damage); shields facing the shooter stop 55 %; 24 shots per archer/skirmisher, refilled near own
+  military buildings.
+- **Charge impact**: knockdown (1.6 s), push back, trample up to 2 more.
+- **Attack-move** (Ctrl + right click or the ⚔ button) and **queued orders** (Shift + right click).
+- **Battle sound** synthesised with Web Audio (no files), positioned by the camera; M mutes.
+- **Smoother drawing**: 120 ms blend between animations, hit flash, faction sheets preloaded.
+- **3D cavalry**: horse and rider skeletons posed with their own synchronised animations (26 sheets).
+- Tests: `totalwar.test.ts` (12). Server step with 800 fighting soldiers: 6.45 ms, unchanged.
+
+## 3D workers, lasting battlefields (2026-10-15)
+
+- **Workers in 3D** for all seven peoples (0 A.D. female citizens, 8 directions): each task uses its own
+  0 A.D. variant and tool (axe to chop, hoe to farm, pick to mine, mallet to build). The resolver now picks
+  variants by the name declared in their file, and later variant groups replace props at the same attach
+  point (an empty one removes it), as in 0 A.D.
+- **Fallen soldiers stay 25 s** (fading in the last 3 s, up to 220), and **missed arrows stay stuck** in the
+  ground for 9 s: battlefields look like battlefields.
+- Still 4-direction LPC: the Gaul naked fanatic and the Industrial/Modern units.
+
+## Train whole regiments, shield wall, forest cover, shattered troops, clearer units, better horses (2026-10-15)
+
+- **One order = one regiment**: 6 infantry or ranged soldiers, or 4 riders, come out together and in formation
+  (`trainCount`, `trainCost` = 60 % of the single-soldier price × size, `trainTime` = one soldier + 25 % per extra
+  man). Workers, the General and machines still come one by one. The computer rival uses the same prices.
+- **Shield wall** (F or the 🛡 button, shield-bearing infantry only): arrows do 35 %, +2 melee armour, a frontal
+  charge does not knock them down, half speed. Shown with a shield on the regiment standard.
+- **Forests**: next to trees, arrows do 60 % and cavalry cannot charge.
+- **Shattered**: a regiment that routs a second time only rallies back at its own city (torn standard).
+- **Surrounded** soldiers (enemies on 3+ sides) lose morale fast.
+- **Clearer units**: warriors carry an axe or mace, no shield or helmet (vs. spear-and-shield spearmen); knights and
+  heavy riders ride armoured horses (iron), Generals a white horse with bronze armour; scouts stay light.
+  New 3D **Gaul naked fanatic** (bare-chested Celt with long sword and a player-colour cape).
+- **Horses**: trot when marching, gallop when running or charging (chosen by real speed), a steady horse while
+  the rider strikes (no rearing on every blow), 12-frame gallop.
+- Tests: `totalwar.test.ts` (19).
+
+## Smooth big battles, online play without Render (2026-10-15)
+
+- **Cause of the slowdown with ~70 units** (measured with REA at 200 % screen scale): the 3D cavalry
+  sheets were up to ~9000 px tall, over the GPU texture limit, so the browser drew them in software
+  (1 FPS, 414 ms per frame). Fixes: `tools/art/repack.mjs` packs every sheet in near-square shelves
+  (all ≤ 5120 × 6792); `tools/art/lo.mjs` makes half-resolution `.lo.png` copies used at normal zoom
+  (decoded memory 3.7 GB → 0.9 GB), with the full sheet only on close zoom and freed after 15 s unused;
+  the canvas pixel density is capped at 1.5. Result: **60 FPS, 6.3 ms per frame** in the same battle.
+- The F3 meter shows the renderer time per phase (terrain, ground, fog, units, bars, effects).
+- `DEMO_ARMY=n` (server env var, measurement only) gives every player n regiments that clash at the center.
+- **`npm run online`**: Cloudflare quick tunnel + server with the public link (see README).
+
+## No more freezes, faster server, balance pass, Wonder victory (2026-10-16)
+
+**The freezes ("everything stops for a few seconds")** — measured with REA and in the app's browser:
+- Cause: sprite sheets drawn from `<img>` elements. Chrome keeps decoded images only up to a memory
+  budget (~400–500 MB here); past it, it decodes and uploads them to the GPU again **every frame**.
+  Test: 300 draws from 50 sheets = 11 ms; from 75 sheets = **3.7 s per frame**. A battle with 8
+  peoples on screen crossed that line.
+- Fix 1: sheets are kept as **ImageBitmap** (decoded off the game thread, outside that budget):
+  100 sheets = 22 ms. Fix 2: **trimmed atlases** (`tools/art/trim.mjs`): each frame is cut to its
+  outline and packed; per-frame rectangles in the manifest (`r`). Drawn texture memory: 1052 MB →
+  412 MB (a 3D sheet: ~20 MB → 4 MB). Fix 3: team-colour masks are prepared at most 4 ms per frame.
+- Result (stress test, 300 soldiers, all 74 3D types, 8 colours, zoom in/out every 3 s): **0 fps
+  with 3–4 s freezes → 60 fps, 6–7 ms per frame**, no stutters after loading.
+- F3 meter now shows the worst frame and stutter count, and the server's worst recent step; the
+  server logs any step over 150 ms.
+
+**Server**: A* rewritten with flat arrays and a reusable typed heap (**5× faster**, same paths) and a
+per-step search budget for combat chases. Worst step in an 8-player battle: 89 ms → 13 ms.
+
+**Online play**: static files are now cached (built code forever, art for a day, 304 re-checks), so
+each student downloads the art once. Alternatives (fixed link with Tailscale Funnel or a named
+Cloudflare tunnel, a VPS, Render) in [JUGAR_ONLINE.md](JUGAR_ONLINE.md).
+
+**Balance (Phase 6.4)** — equal-cost matchup matrix (`.bench`-style harness) and bot tournaments:
+- The counter triangle holds (spear > cavalry > swords/archers, swords > spears).
+- **Archers lost to everything**: skirmish made them back away endlessly without shooting (40 s walking,
+  zero arrows). Now they shoot when loaded and step back while reloading. Archer arrows 5 → 7 and
+  frontal shield block 55 % → 40 %: placed archers now beat spearmen and still lose to cavalry and
+  shielded swordsmen.
+- Unique units: Horse Archer 6 → 7, Armored Archer 6 → 9 (cost 90 → 80), Javelin Rider 8 → 9,
+  Axe Thrower range 3 → 4, Gothic Knight cost 180 → 155, War Chariot cost 180 → 160;
+  Berserker cost 100 → 120, Huscarl 130 → 145, Gothic Lancer 150 → 165.
+- Peoples: Mongols lose the +10 % cavalry attack, cavalry trains 15 % faster (was 25 %) and their
+  terror is +10 % (was +20 %); Visigoths gather metal 15 % faster.
+- **Bots' economy**: they always ran out of food while thousands of metal and stone piled up. Now
+  they build up to two farms at a time and, in the Medieval Age, a market where they sell surplus
+  stone/wood and buy food.
+- Bot tournament (all peoples, 24 full games each): first run 17–83 %; final run Romans 42 %,
+  Mongols 54 %, Gauls 25 %, Germans 42 %, Visigoths 46 %, Ostrogoths 67 %, Vikings 75 %.
+  **Next:** Vikings and Ostrogoths a bit strong, Gauls weak. Tools: `tools/bench/matchups.ts` (matrix, `HOLD=1`, `TWEAK=…`) and `tools/bench/tourney.ts`.
+
+**Wonder victory (Phase 6.2)**: Medieval building (600 of each resource, 15 min with one worker). A
+finished Wonder that stands 5 minutes wins; everyone is warned and the war panel shows the countdown;
+destroying it stops the clock; one per empire. Bots send their whole army against an enemy Wonder.
+New `preview.html?buildings=1&faction=…` shows every building of a people.
+
+## Loading screen and classroom setup (2026-10-16)
+
+- **Loading screen** when the game starts: every browser prepares only what this game uses, i.e. the
+  light sheets of the peoples playing, the buildings, and each people's team mask in the colours of
+  its players, before showing the map. "Play now" appears at 6 s, and at 30 s it enters anyway.
+  Measured with REA (4 bots, 120 units, teacher watching, cold cache): **50 → 60 fps, worst frame
+  167 → 20 ms, 5 → 1 stutters in 40 s**, loading 1.8 s. The old preload fetched the *full-resolution*
+  sheets of your own people (4× the data, then thrown away after 15 s); now it uses the light copies.
+- **Lobby prefetch**: in the waiting room the browser downloads (without decoding) the art of the
+  chosen people and the buildings, one file at a time so it does not crowd the school Wi-Fi.
+- **Classroom launcher**: `Jugar en el aula.bat` / `npm run aula` installs on first use, rebuilds the
+  client only when something changed, starts the server and opens the teacher panel.
+  `Jugar online.bat` does the same with the Cloudflare tunnel.
+- **Network audit**: `tools/bench/traffic.ts` measures ~67 kbit/s per student (peaks 250), so 30
+  students need ≈ 2 Mbit/s. The server answers on the LAN address in 4 ms. Recommendation and
+  troubleshooting are in [JUGAR_ONLINE.md](JUGAR_ONLINE.md).
+
+## Illustrated loading screen, online button, cleaner screen (2026-10-16)
+
+- **Loading screen**: a painted scene (dusk sky, mountains, a castle flying your colour) with a row of
+  soldiers of your people; history facts of the peoples in the game rotate every 7 s; a side panel
+  with every unit of your people up to the Medieval Age (what it does, what it beats, what it
+  fears, a line of history). When everything is ready: "Enter the battlefield" (it enters by itself
+  after 25 s; reconnecting players and the teacher enter as soon as it is loaded). The same
+  information stays in 📖 Army.
+- **Stutters when an army comes out of the fog**: the loading screen now also sends every sheet and
+  colour mask to the GPU once (a 1 px draw), and when you zoom in, sheets switch to full resolution
+  one every 0.4 s (they used to switch all at once) and stay for 60 s (was 15 s).
+  Test `preview.html?stress=300&types=all&colors=8&appear=1`: preload, then a new type appears
+  every 300 ms. Result: 60 fps, 1 stutter in 26 s.
+- **Online button in the teacher panel**: "🌐 Turn on online play" opens the Cloudflare tunnel from
+  the server and shows the link with a copy button; "Turn off" closes it. Only on the server
+  computer. If cloudflared is missing, the panel shows how to install it. Tested end to end with
+  REA (button → link → 200).
+- **Unit panel**: compact (name, health, what it is doing, morale, one line of stats and urgent
+  states). Description, counters and details are in the ⓘ tooltip.
+- **Notices**: the war panel moved from the top centre (560 px, one block per battle) to a narrow
+  column on the right; other players' battles take one line, and anything beyond 5 rows is summed
+  up. Results of battles you were not in are a small notice instead of a window in the middle;
+  your own results are a card on the right that closes by itself after 15 s. Notices are on the
+  left at mid height.
+- `DEMO_CODE=ABCD` (server env var, tests only): the first room gets that code, so REA can join as a
+  student.
+
+## Both ways to join at once, riders that do not skate (2026-10-16)
+
+- **How students join** (top of the teacher panel, always): 🏫 classroom link (local network) with
+  a copy button, and 🌐 from home (internet) with "Turn on online play" / "Turn off". One server does
+  both at the same time. `Jugar online.bat` is now the classroom server with online play already on,
+  so the link shows up in the panel and in the window. The old `npm run online` started the server
+  in a mode that hid the button. Checked with REA: both links answer.
+- **Unit panel**: the one-line stats were drawn one value per line (they inherited a grid layout);
+  the panel is now 200 px wide with smaller text.
+- **Riders (Total War reference)**: measured with the pixels of the planted hooves. The trot played
+  2.4× too slowly for the speed the horse moved (it skated); the gallop was already right.
+  `tools/art/stride.mjs` measures each walk/run animation's stride (tiles per cycle) on its side and
+  diagonal views and stores it as `st`: horses trot 0.53–0.69 tiles per cycle and gallop 1.4–2.1;
+  infantry 0.45–1.0. The game plays each animation so the feet stay planted (clamped to 0.5–3× the
+  authored speed). Trot↔gallop now switches at 2.0 / 1.65 tiles/s (it used to flicker around 1.9).
+  Riders have a long shadow along the horse's facing instead of the round shadow of a soldier on
+  foot.
+
+## Riders with weight: gallop attack, arcs and charges that go through (2026-10-16)
+
+Priority 1 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
+
+- **Attack at a gallop**: new `charge` animation on every rider sheet: the rider strikes (or shoots)
+  on the *galloping* horse, one stride per blow (`tools/art/soldiers.mjs`, horse body `run` + rider
+  `attack_melee`/`attack_ranged`). A rider that attacks while moving uses it; the standing attack
+  is only for static melee. Its pace uses the gallop stride, so the hooves stay planted.
+- **Starting and turning** (server, `movement.ts`): cavalry starts at 35 % speed and reaches full
+  speed in 1.2 s; it turns at most 220°/s and loses momentum in sharp turns (a half turn at a
+  gallop slows it down). The path stays the same; the pace and the facing change, so flanks and
+  rears also turn gradually.
+- **Charges that go through** (`combat.ts`): after the charge impact against infantry (not braced
+  spears in front), the rider keeps riding ~2 tiles through the line, then turns in an arc and comes
+  back. The next charge is ready after 4 s, like Total War's cycle charge.
+- Viewer: `preview.html` shows gallop and charge rows.
+- Tests: `server/test/cavalry.test.ts`. Matchups unchanged in direction: knight vs spearmen −0.85,
+  vs swordsmen +0.73, vs archers +0.80; scouts do a bit better against swordsmen (−0.60 → −0.24).
+
+## Real bows and running infantry (2026-10-16)
+
+Priority 2 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
+
+- **Archers with bows**: 0 A.D. has no Roman, Gaul, Briton or Iberian archers, so the archers of
+  Romans, Gauls, Germans and Visigoths were built on a javelin thrower or a slinger and shot with
+  that gesture. Now they keep the clothes and head of their people and carry a short bow, an arrow
+  and a quiver, with the stance and the shot of a 0 A.D. archer (`archer()` recipe in
+  `tools/art/soldiers.mjs`).
+- **Running on foot**: every infantry sheet has a `run` animation. Troops at full speed run, and in
+  walk mode (R) they walk (thresholds 1.0 / 0.9 tiles/s; riders keep 2.0 / 1.65).
+- Viewer: the "gallop" row shows the run for soldiers on foot.
+- **Team-colour masks at half resolution**: with the bigger sheets, the stress test (74 types × 8
+  colours) slipped to 53–56 fps with a stutter every ~8 s. Each mask was a full-width canvas (~3 MB,
+  ~1.8 GB in that test). Now they are a quarter of that (flat cloth colour, it does not show), and
+  the test is back to a steady 60 fps with no stutters after loading. Drawn sheets total 497 MB.
+
+## Walls that block, online that recovers, riders that brake (2026-10-16)
+
+- **Walls block everyone**: reproduced with a simulation: own infantry used its walls as a corridor
+  (walls were walkable for their owner and allies) and crossed to the other side. Now a wall is a
+  wall for everybody (own, allied and enemy troops, cavalry). Only soldiers ordered to man the wall
+  climb it, and attackers still use ladders and siege towers in a siege. Tests:
+  `server/test/walls-block.test.ts`.
+- **Faster walls**: 2 s per section with one worker (was 6), gates 5 s (was 10).
+- **Flat walls**: a column only at ends, corners and junctions; straight sections are a continuous
+  wall. The viewer (`preview.html?buildings=1`) shows a sample wall.
+- **Online from home**: the quick tunnel had died silently (cloudflared kept running but the link
+  no longer existed), and the panel kept showing it as on. Now the server checks its own public link
+  every 30 s and opens a new one after 3 failures (the new link appears in the panel). It also shows
+  a new link only once it answers: a fresh link takes 10–20 s to exist, and a student who opened it
+  too early got "not found" cached by their browser for minutes. Checked with REA: a student joining
+  through the internet link played at 60 fps, 125 ms ping. The F3 meter now warns from 180 ms (was
+  120) because 100–150 ms from home plays fine.
+- **Riders**: they brake over the last 1.2 tiles when marching (they used to stop dead). A soldier
+  knocked down by a charge now falls (~0.4 s), stays down and gets up (~0.4 s) instead of freezing
+  in one frame.
+
+## Archer range, fire on the move, close combat on the march, test key, death variants (2026-10-19)
+
+- **Archer range on screen**: selected ranged units (archers, slingers, horse archers, siege) show
+  their range as a shaded zone with a dashed outline. A whole regiment draws one zone (the union of
+  all circles), not 30 overlapping rings (`drawRanges` in `client/src/render.ts`). The extra range
+  from a hill is not drawn yet.
+- **Fire on the move**: with a plain move order, ranged soldiers shoot the nearest enemy in range
+  without stopping. On foot they reload 35 % slower (`MOVING_FIRE_SLOW`); horse archers keep their
+  normal rate. Before, a plain move ignored enemies completely.
+- **Close combat on the march**: melee troops with a plain move order engage an enemy soldier that
+  comes within 30 % of their sight (at least 2 tiles, `ENGAGE_NEAR`), and then carry on to where
+  they were going (`Unit.resume`). They ignore workers and routing enemies, and do not chase far
+  from their path. Guard mode and holding a formation keep their own rules; a new order cancels it.
+- **Test key**: typing `imperio10mil` in the chat sets every resource to 10,000. It works when one
+  student plays alone (against the computer) or when the teacher turns on the new "Test mode" option
+  when creating the game. Nobody else sees the message.
+- **Priority 3 (knockdown, dust, deaths)**: the death event now carries the direction of the
+  killing blow and whether it was brutal (charge, rider, siege). The fallen soldier slides that way
+  (about half a tile when ridden down) and falls at one of three speeds, so a line no longer dies in
+  step. Dust when a body hits the ground and when a charge knocks someone down, and a 0.18 s camera
+  shake when a charge lands on screen.
+- Tests: `server/test/marching.test.ts` (9). Checked in the game with REA (headless Chrome): the
+  key, the range zone and the march with no page errors (`docs/img/alcance_y_clave.png`).
+
+## Middle Ages in three stages, monk and monastery, mangonel and trebuchet (2026-10-19)
+
+Priority 5 of `docs/DIAGNOSTICO_PROYECTO.md` (§9): the Medieval Age, where most of the game is
+played, was a single step.
+
+- **Three stages**: Early (AD 500–1000), High (1000–1300) and Late Middle Ages (1300–1500)
+  (`MEDIEVAL_STAGES` in `shared/data.ts`). You advance with a Town Center technology (`stage2`,
+  `stage3`) and, if the room has questions, a history question of that period
+  (`STAGE_QUIZ_BANK` in `shared/lessons.ts`, 8 per stage). Everyone is told when someone enters a
+  stage, with its years. The top bar shows "Medieval · High". The stage is not a new field: it comes
+  from the researched technologies (`stageOf` in `shared/stats.ts`), so the protocol did not change.
+  The Industrial Age now needs the Late Middle Ages.
+- **What each stage opens** (`stage` on units, buildings and techs; `stageReached` decides):
+  High → Mangonel (all peoples) and stone Fortresses; Late → Counterweight Trebuchet (all peoples),
+  Crossbowman, Pikeman and Cavalier (plate armor). The build menu says what the next stage brings
+  ("In the High Middle Ages: Fortress."), and the server refuses anything early with the reason.
+- **Monk and Monastery** (from the Early Middle Ages, every people): the monk does not fight; he
+  heals his own soldiers within 4 tiles (+3 health/s; several monks do not stack). Reuses
+  `server/src/sim/healing.ts`. An attack order sends monks behind the soldiers, close to the target.
+  The Monastery researches Herbal Medicine (+2 healing).
+- **Mangonel**: throws stones that also hit enemies packed next to the target (60 % of the damage
+  within 1.3 tiles, `splash`). Good against blocks of infantry and archers. **Counterweight
+  Trebuchet**: the longest medieval range (12), made for walls and fortresses. Both trained at the
+  Barracks, like the ram.
+- **Computer rival**: goes to the High Middle Ages once it has an archery range and to the Late once
+  it has a monastery; builds a monastery, keeps 1 monk per 8 soldiers (up to 4) and, on Normal, 2–4
+  stone throwers (half trebuchets in the Late Middle Ages). It now counts the population already
+  waiting in its queues: it used to queue regiments that never fit and blocked the barracks. In a
+  test game it reaches the High Middle Ages at minute 8 and the Late at minute 10.
+- **Art**: the mangonel is the Roman onager of 0 A.D. (from the art cache, `any-mangonel`); the
+  counterweight trebuchet reuses the trebuchet sheet; the monk and the monastery are drawn in
+  `client/src/sprites.ts` (hooded habit, staff, a faint aura of the player color; church with a red
+  roof, bell tower with a slate roof and an herb garden), because the 0 A.D. healers are not in the
+  cache.
+- Tests: `server/test/medieval.test.ts` (13). The full progression test now goes through the three
+  stages. Checked in the game (local server, `imperio10mil`): stage buttons, both questions, the
+  menu hint, the monastery, monks and the mangonel on the map.
+
+## Walled cities are left through the gate, the gate opens, a regiment is 1 population, desktop icon (2026-10-19)
+
+- **Investigated with REA** (headless Chrome over a test scene, `DEMO_WALLS=1`: a walled Town
+  Center with one gate and two regiments that go out and back in four times; see
+  `server/src/sim/demo.ts`). Found and fixed:
+  - **Soldiers manning a wall came down on the outside**: ordered out of the city, the 6 men on the
+    wall walked along it and stepped down outside without using the gate. Now the stairs of your own
+    (or an ally's) wall are on the inside: you go up and down only on the side of your nearest Town
+    Center (`World.wallStepOk`, used by the path search, straight lines and every short step and
+    push). Enemies climbing with ladders in a siege are not affected. A crowd of 40 pushing to get
+    out never leaked (that part already worked); now both cases have tests
+    (`server/test/walls-block.test.ts`).
+  - **Units walked over the roof of the gate**: the client lifted anyone on a gate tile to the height
+    of the wall (gates were in the same lookup as walls). Now they go through at ground level, under
+    the arch.
+  - **The gate never looked open**: the 0 A.D. gate already has painted doors. Now two wooden leaves
+    swing open on their hinges (0.7 s, a small bounce at the end) when a unit of the owner or an ally
+    comes within 2.6 tiles, the passage behind shows dark, and they close by themselves when nobody
+    is near (`gateDoors` in `client/src/sprites.ts`, `updateGates` in `client/src/render.ts`).
+  - The demo ring had holes where trees stood (nodes were deleted without freeing the tile).
+- **Population**: a whole regiment now takes **1 place** (like a worker; siege engines keep their
+  own). Houses raise the limit up to `POP_CAP_MAX` = 60; at the maximum, training is refused with
+  "Maximum population reached". To keep the server fast there is also a **unit limit per game**:
+  `UNIT_BUDGET` = 2,400 units shared among the players (150 each with 16 players, 300 with 8, up to
+  400). The top bar shows "34/60" and below it "120/150 units".
+  Measured (16 players, large map, big battle, fog on): 1,100 units = 17 ms per step, 9 KB/s per
+  student; 2,100 = 25 ms, 17 KB/s; 3,100 = 29 ms, 23 KB/s (of 100 ms). Without fog the data per
+  student is 9× more (207 KB/s with 3,100 units): fine on the school Wi-Fi, too much from home.
+- **Regiments kept after a march**: a march on another city rebuilt the soldiers without their
+  regiment number (they came back as loose men). With 1 place per regiment that mattered; now they
+  keep it.
+- **Computer rival**: counts population per regiment and the unit limit; it stops building houses
+  at the maximum; separate quotas for mangonels and trebuchets.
+- **Desktop icon**: "Jugar en el aula.bat" and "Jugar online.bat" were broken since they were
+  created (`node scripts${script}` instead of the script). Fixed. New `Crear icono en el
+  escritorio.bat`: double click once and the desktop gets "Classroom Empires (aula)" and
+  "Classroom Empires (online)" with the game icon (`tools/icon/`, made from the Town Center art by
+  `node tools/icon/make-icon.mjs`). Double click on the icon = server + teacher panel.
+- Tests: 442 pass (new `server/test/population.test.ts`, 4; 2 more in `walls-block.test.ts`).
+
+## Portable server package for another computer (2026-10-19)
+
+- `npm run portable` (`scripts/portable.mjs`) builds `dist-portable/ClassroomEmpires/` and
+  `ClassroomEmpires-portable.zip` (197 MB zipped, 294 MB unzipped): nothing to install on the other
+  computer. Inside: `app/node.exe` (this computer's Node.js), `app/server.mjs` (the whole server
+  bundled into one file with esbuild, ws included, 424 KB), `app/web` (the built game, without the
+  experimental art of unconfirmed license), `app/cloudflared.exe` (if installed here, for online
+  play), the icon, licenses, `LEEME.txt` and the three launchers (`Jugar en el aula.bat`,
+  `Jugar online.bat`, `Crear icono en el escritorio.bat`).
+- The server takes `STATIC_DIR` (where the built game is) and `CLOUDFLARED` (path to the tunnel
+  program) from the environment; `app/start.mjs` sets both, checks whether the server is already
+  open and opens the teacher panel.
+- Checked: unzipped in another folder and started with **no Node.js in the PATH** (only Windows):
+  the page and the art load, and a game (a student and a Normal computer rival) runs at 10 updates
+  per second.
+- Most of the size is the unit art (149 MB; the same the normal game uses), node.exe (89 MB) and
+  cloudflared (53 MB).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

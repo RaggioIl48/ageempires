@@ -3,9 +3,11 @@
 // "token" secreto: si se le cae la conexión, vuelve a su mismo puesto.
 
 import { randomBytes } from 'node:crypto';
-import { FACTION_ORDER, PLAYER_COLORS, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
-import { QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
+import { spawnDemoArmies, spawnDemoWalls } from '../sim/demo.ts';
+import { FACTION_ORDER, PLAYER_COLORS, RESOURCE_TYPES, MEDIEVAL_ERA, TECH_DEFS, TICK_RATE, isAdvanceTech, type FactionId } from '../../../shared/data.ts';
+import { QUIZ_BANK, STAGE_QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
 import type {
+
   BotLevel,
   ChronicleEntry,
   HistorySample,
@@ -27,6 +29,9 @@ import { Game } from '../sim/game.ts';
 import { decideByGlory } from '../sim/victory.ts';
 import type { Conn } from './conn.ts';
 
+/** Un paso que tarda más que esto se anota en la consola del servidor (para encontrar tirones). */
+const SLOW_STEP_MS = 150;
+
 export interface Member {
   /** En la sala: número de llegada. Al iniciar la partida pasa a ser el id de jugador. */
   id: number;
@@ -46,6 +51,14 @@ export interface Member {
 
 /** Segundos mínimos entre dos mensajes de chat de un mismo estudiante. */
 const CHAT_COOLDOWN_MS = 1500;
+
+/**
+ * Clave de pruebas: escrita en el chat, deja todos los recursos en TEST_KEY_AMOUNT (para probar
+ * unidades y edificios sin juntar recursos). Solo funciona si el profesor activó el modo pruebas
+ * o si en la partida hay un único estudiante (contra la computadora); nadie más ve el mensaje.
+ */
+export const TEST_KEY = 'imperio10mil';
+export const TEST_KEY_AMOUNT = 10_000;
 
 /** Segundos de espera después de contestar mal la pregunta de la era. */
 export const QUIZ_RETRY_SEC = 20;
@@ -79,6 +92,10 @@ export class Room {
   private nextQuizId = 1;
   /** Cuánto tarda cada paso (simulación + envío), promedio suave en ms. */
   stepMs = 0;
+  /** Paso más lento de los últimos ~10 s (ms): un tirón del servidor se ve aunque el promedio sea bajo. */
+  stepMax = 0;
+  private stepMaxCur = 0;
+  private stepMaxAt = 0;
   /** Profesores mirando la partida. */
   readonly watchers = new Set<Conn>();
   private syncs = new Map<Conn, ClientSync>();
@@ -219,7 +236,8 @@ export class Room {
     // En pausa (táctica) se pueden dar órdenes: se aplican todas juntas al reanudar.
     if (this.paused && this.game.queued() >= MAX_PAUSED_ORDERS) return;
     // Avanzar de era: antes hay que contestar una pregunta (si la sala las tiene).
-    if (cmd.kind === 'research' && TECH_DEFS[cmd.tech].advancesTo && this.quizMode() !== 'off') return this.askQuiz(member, cmd);
+    // Lo mismo para las etapas de la Edad Media (Plena y Baja), con preguntas de esa época.
+    if (cmd.kind === 'research' && isAdvanceTech(cmd.tech) && this.quizMode() !== 'off') return this.askQuiz(member, cmd);
     this.game.enqueue(member.id, cmd);
   }
 
@@ -228,14 +246,17 @@ export class Room {
     return mode === 'custom' && !this.settings.questions?.length ? 'history' : mode;
   }
 
-  /** Manda una pregunta (una que todavía no vio, si hay) para la era que quiere alcanzar. */
+  /** Manda una pregunta (una que todavía no vio, si hay) para la era o etapa que quiere alcanzar. */
   private askQuiz(member: Member, cmd: Extract<Command, { kind: 'research' }>): void {
     const conn = member.conn;
     if (!conn) return;
     const wait = Math.ceil(((this.quizWait.get(member.id) ?? 0) - Date.now()) / 1000);
     if (wait > 0) return conn.send({ t: 'error', message: `Think about it for a moment: you can try again in ${wait} s.` });
-    const era = TECH_DEFS[cmd.tech].advancesTo!;
-    const bank = this.quizMode() === 'custom' ? this.settings.questions! : (QUIZ_BANK[era] ?? QUIZ_BANK[2]);
+    const def = TECH_DEFS[cmd.tech];
+    const stage = def.advancesStage;
+    const era = def.advancesTo ?? MEDIEVAL_ERA;
+    const history = stage ? STAGE_QUIZ_BANK[stage] : QUIZ_BANK[era];
+    const bank = this.quizMode() === 'custom' ? this.settings.questions! : (history ?? QUIZ_BANK[2]);
     const seen = this.quizSeen.get(member.id) ?? new Set<string>();
     this.quizSeen.set(member.id, seen);
     let pool = bank.filter((q) => !seen.has(q.q));
@@ -249,7 +270,7 @@ export class Room {
     const order = question.a.map((_, i) => i).sort(() => Math.random() - 0.5);
     const pending: PendingQuiz = { id: this.nextQuizId++, correct: order.indexOf(0), question, options: order.map((i) => question.a[i]), cmd };
     this.quizzes.set(member.id, pending);
-    conn.send({ t: 'quiz', id: pending.id, era, q: question.q, options: pending.options });
+    conn.send({ t: 'quiz', id: pending.id, era, ...(stage ? { stage } : {}), q: question.q, options: pending.options });
   }
 
   /** Respuesta a la pregunta: si acierta, empieza el avance; si no, espera un poco y aprende la respuesta. */
@@ -293,6 +314,7 @@ export class Room {
   chat(conn: Conn, text: string, to: 'all' | 'allies'): string | null {
     const member = this.memberOf(conn);
     if (!member || member.kicked) return null;
+    if (text.trim().toLowerCase() === TEST_KEY) return this.testKey(member);
     if (!this.settings.chat) return 'The teacher turned off chat in this game.';
     const now = Date.now();
     if (now - member.lastChat < CHAT_COOLDOWN_MS) return 'Wait a moment before sending another message.';
@@ -303,6 +325,17 @@ export class Room {
     const msg: ServerMessage = { t: 'chat', from: member.id, name: member.name, color: member.color, text, to };
     for (const m of this.members) if (m.conn && !m.kicked && (to === 'all' || friend(m))) m.conn.send(msg);
     for (const w of this.watchers) w.send(msg);
+    return null;
+  }
+
+  /** La clave de pruebas: todos los recursos del jugador en TEST_KEY_AMOUNT. */
+  private testKey(member: Member): string | null {
+    const p = this.game?.world.players.get(member.id);
+    if (!p || this.phase !== 'playing') return 'The test key only works during a game.';
+    const humans = this.members.filter((m) => !m.bot && !m.kicked).length;
+    if (!this.settings.testMode && humans > 1) return 'The test key is off: the teacher can turn on test mode when creating the game.';
+    for (const r of RESOURCE_TYPES) p.resources[r] = TEST_KEY_AMOUNT;
+    this.game!.world.notify(member.id, `Test key: ${TEST_KEY_AMOUNT.toLocaleString('en')} of every resource.`);
     return null;
   }
 
@@ -337,6 +370,9 @@ export class Room {
     });
     // Los del mismo equipo empiezan aliados; el resto, en guerra.
     initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
+    // Solo para medir la fluidez (DEMO_ARMY=n): ejércitos listos al empezar.
+    spawnDemoArmies(this.game.world, Number(process.env.DEMO_ARMY) || 0);
+    if (process.env.DEMO_WALLS) spawnDemoWalls(this.game.world);
     if (this.settings.fog !== false) this.game.enableFog();
     this.ais = players.filter((m) => m.bot).map((m) => new AiPlayer(m.id, m.bot!));
     for (const m of players) {
@@ -428,6 +464,14 @@ export class Room {
     }
     const ms = performance.now() - t0;
     this.stepMs = this.stepMs ? this.stepMs * 0.9 + ms * 0.1 : ms;
+    this.stepMaxCur = Math.max(this.stepMaxCur, ms);
+    this.stepMax = Math.max(this.stepMax, ms);
+    if (game.world.tick - this.stepMaxAt >= 50) {
+      this.stepMax = this.stepMaxCur;
+      this.stepMaxCur = 0;
+      this.stepMaxAt = game.world.tick;
+    }
+    if (ms > SLOW_STEP_MS) console.warn(`Slow simulation step: ${ms.toFixed(0)} ms (tick ${game.world.tick}, ${game.world.units.size} units)`);
     const outcome = game.world.outcome;
     if (outcome) this.end(outcome.reason, outcome.winners);
     else if (limit > 0 && game.world.tick >= limit * TICK_RATE) {

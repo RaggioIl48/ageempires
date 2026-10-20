@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animation viewer</title>
+    <style>
+      body { margin: 0; background: #5b6b3a; color: #f3ead2; font: 14px system-ui, sans-serif; }
+      header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 10px 16px; background: #2b2418; }
+      header label { display: flex; gap: 6px; align-items: center; }
+      select, input { font: inherit; }
+      canvas { display: block; }
+      .note { opacity: 0.75; }
+    </style>
+  </head>
+  <body>
+    <!-- Solo para desarrollo (npm run dev:client → /preview.html): no es parte del juego. -->
+    <header>
+      <b>Animation viewer</b>
+      <label>Unit <select id="unit"></select></label>
+      <label>Sheet <select id="sheet"></select></label>
+      <label>Zoom <input id="zoom" type="range" min="1" max="4" step="0.5" value="2" /></label>
+      <label>Attack every <input id="cool" type="number" min="300" max="4000" step="100" value="1500" /> ms</label>
+      <span class="note">Rows: idle · walk · gallop (on foot: run) · charge (attack at a gallop) · attack · death. Columns: S, SE, E, NE, N, NW, W, SW.</span>
+    </header>
+    <canvas id="c"></canvas>
+    <script type="module" src="./src/preview.ts"></script>
+  </body>
+</html>

@@ -32,7 +32,7 @@
    "url": "https://opengameart.org"
   },
   "0ad": {
-   "title": "0 A.D. (fortresses, towers, walls, ram, war chariot and trebuchet)",
+   "title": "0 A.D. (soldiers, fortresses, towers, walls, ram, war chariot and trebuchet)",
    "url": "https://github.com/0ad/0ad",
    "version": "61a3b9507d974084e6badb88a0826bd89a6d5b8b"
   }
@@ -54,6 +54,23 @@
     "https://github.com/0ad/0ad/blob/61a3b9507d974084e6badb88a0826bd89a6d5b8b/binaries/data/mods/public/art/LICENSE.txt"
    ],
    "notes": "3D models rendered to isometric pictures (one view) with tools/art/raster.mjs."
+  },
+  "0ad:units": {
+   "pack": "0ad",
+   "title": "0 A.D. soldiers (models, textures and animations)",
+   "authors": [
+    "Wildfire Games",
+    "0 A.D. artists and contributors"
+   ],
+   "licenses": [
+    "CC-BY-SA 3.0"
+   ],
+   "urls": [
+    "https://play0ad.com",
+    "https://www.wildfiregames.com",
+    "https://github.com/0ad/0ad/blob/61a3b9507d974084e6badb88a0826bd89a6d5b8b/binaries/data/mods/public/art/LICENSE.txt"
+   ],
+   "notes": "Skeletal 3D models posed with their own 0 A.D. animations and drawn as 8-direction pictures with tools/art/soldiers.mjs."
   },
   "lpc:arms/armour/plate/male": {
    "pack": "lpc",

@@ -1,5 +1,7 @@
 // Upgrades (AoE-style unit lines and elites), people's abilities (Total War style)
 // and the mid-game economy (storehouse technologies and the Market).
+import { trainCost } from '../../shared/stats.ts';
+import { REGIMENT_COST, REGIMENT_SIZE } from '../../shared/data.ts';
 import { describe, expect, it } from 'vitest';
 import {
   BUILDING_DEFS,
@@ -48,6 +50,9 @@ describe('technology masks', () => {
 describe('unit upgrades (AoE style)', () => {
   it('Pikeman: spearmen get stronger and change their name, including the ones already on the map', () => {
     const { g, w } = game();
+    // El Piquero es de la Baja Edad Media.
+    completeTech(w, 1, 'stage2');
+    completeTech(w, 1, 'stage3');
     const barracks = w.addBuilding('barracks', 1, 12, 12)!;
     const spear = w.addUnit('spearman', 1, 16.5, 16.5);
     spear.hp -= 10;
@@ -91,20 +96,22 @@ describe('unit upgrades (AoE style)', () => {
 
 describe("peoples' abilities (Total War style)", () => {
   it('cavalry charge: the first hit after a while hits harder; Ostrogoths hit hardest', () => {
-    const hitOf = (faction: FactionId) => {
+    // Mismo golpe desde la misma posición: con la carga lista y sin ella (golpeó hace poco). Después de
+    // cargar, el jinete atraviesa la línea y vuelve por otro lado, así que el segundo golpe real no
+    // sirve para comparar (cambia el flanco).
+    const strikeOf = (faction: FactionId, charged: boolean) => {
       const g = flatGame([faction, 'romans']);
       const w = g.world;
       const k = w.addUnit('knight', 1, 20.5, 20.5);
+      if (!charged) k.lastStrike = 0;
       const target = w.addUnit('warrior', 2, 21.3, 20.5);
       target.cooldown = 999; // it does not fight back
       const hp0 = target.hp;
       g.enqueue(1, { kind: 'attack', unitIds: [k.id], targetId: target.id });
       runUntil(g, () => target.hp < hp0, 10);
-      const first = hp0 - target.hp;
-      const hp1 = target.hp;
-      runUntil(g, () => target.hp < hp1, 10);
-      return { first, second: hp1 - target.hp };
+      return hp0 - target.hp;
     };
+    const hitOf = (faction: FactionId) => ({ first: strikeOf(faction, true), second: strikeOf(faction, false) });
     const germans = hitOf('germans');
     expect(germans.first).toBeGreaterThan(germans.second);
     expect(germans.first / germans.second).toBeCloseTo(CHARGE_BONUS, 0);
@@ -239,7 +246,9 @@ describe('cost technologies (units and buildings get cheaper)', () => {
     const metal = p.resources.metal;
     g.enqueue(1, { kind: 'train', buildingId: stable.id, unit: 'knight' });
     g.step();
-    expect(p.resources.metal).toBe(metal - Math.round(UNIT_DEFS.knight.cost.metal! * 0.8));
+    // Un encargo es un regimiento entero: el precio rebajado de cada jinete, con el descuento del regimiento.
+    expect(p.resources.metal).toBe(metal - trainCost('knight', p.techs).metal!);
+    expect(trainCost('knight', p.techs).metal).toBe(Math.round(Math.round(UNIT_DEFS.knight.cost.metal! * 0.8) * REGIMENT_SIZE.cavalry! * REGIMENT_COST));
     g.enqueue(1, { kind: 'cancelTrain', buildingId: stable.id, index: 0 });
     g.step();
     expect(p.resources.metal).toBe(metal);

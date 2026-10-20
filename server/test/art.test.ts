@@ -14,7 +14,7 @@ const units = JSON.parse(fs.readFileSync(path.join(ART, 'units.json'), 'utf8'));
 const credits = JSON.parse(fs.readFileSync(path.join(ART, 'credits.json'), 'utf8'));
 
 /** Unidades que todavía se dibujan con formas (no hay arte abierto adecuado). */
-const PROCEDURAL: UnitType[] = [];
+const PROCEDURAL: UnitType[] = ['monk']; // 0 A.D. tiene sanadores, pero no están en el caché del arte
 
 describe('arte de unidades', () => {
   it('cada crédito tiene título, autores, licencias abiertas y enlace', () => {
@@ -40,8 +40,66 @@ describe('arte de unidades', () => {
   });
 
   it('no hay imágenes sin manifiesto (todo lo publicado tiene créditos)', () => {
-    const listed = new Set(Object.values<{ file: string }>(units.sheets).map((s) => s.file));
+    // La hoja y su copia liviana (media resolución, tools/art/lo.mjs).
+    const listed = new Set(Object.values<{ file: string; lo?: string }>(units.sheets).flatMap((s) => (s.lo ? [s.file, s.lo] : [s.file])));
     for (const f of fs.readdirSync(path.join(ART, 'units'))) expect(listed, f).toContain(`units/${f}`);
+  });
+
+  it('ninguna hoja pasa del límite de textura de la GPU, y las grandes tienen copia liviana del mismo tamaño / 2', () => {
+    const size = (file: string) => {
+      const b = fs.readFileSync(path.join(ART, file));
+      return [b.readUInt32BE(16), b.readUInt32BE(20)];
+    };
+    for (const [id, s] of Object.entries<{ file: string; lo?: string }>(units.sheets)) {
+      const [w, h] = size(s.file);
+      expect(Math.max(w, h), id).toBeLessThanOrEqual(8192);
+      if (w * h > 2_000_000) expect(s.lo, id).toBeDefined();
+      if (s.lo) {
+        const [lw, lh] = size(s.lo);
+        expect(lw, id).toBe(Math.floor(w / 2));
+        expect(lh, id).toBe(Math.floor(h / 2));
+      }
+    }
+  });
+
+  it('atlas recortado: cada cuadro cae dentro de la imagen y de su celda, en posiciones pares (copia liviana exacta)', () => {
+    type Anim = { w: number; h: number; n: number; d: number; r?: number[] };
+    let trimmed = 0;
+    for (const [id, s] of Object.entries<{ file: string; maskY: number; anims: Record<string, Anim> }>(units.sheets)) {
+      const b = fs.readFileSync(path.join(ART, s.file));
+      const w = b.readUInt32BE(16);
+      for (const [name, a] of Object.entries(s.anims)) {
+        if (!a.r) continue;
+        trimmed++;
+        expect(a.r.length, `${id} ${name}`).toBe(a.n * a.d * 6);
+        for (let k = 0; k < a.r.length; k += 6) {
+          const [x, y, fw, fh, dx, dy] = a.r.slice(k, k + 6);
+          if (!fw) continue;
+          expect(x + fw <= w && y + fh <= s.maskY, `${id} ${name} #${k / 6} inside the atlas`).toBe(true);
+          expect(dx + fw <= a.w && dy + fh <= a.h, `${id} ${name} #${k / 6} inside its cell`).toBe(true);
+          expect(x % 2 === 0 && y % 2 === 0, `${id} ${name} #${k / 6} even position`).toBe(true);
+        }
+      }
+    }
+    expect(trimmed).toBeGreaterThan(100);
+  });
+
+  it('zancadas medidas (tools/art/stride.mjs): creíbles, y los jinetes la tienen al trote y al galope', () => {
+    let riders = 0;
+    for (const [id, s] of Object.entries<{ anims: Record<string, { st?: number }> }>(units.sheets)) {
+      const w = s.anims.walk?.st, r = s.anims.run?.st;
+      const isRider = !!s.anims.charge;
+      if (w !== undefined) expect(w >= 0.4 && w <= 1.05, `${id} walk ${w}`).toBe(true);
+      if (r !== undefined) expect(isRider ? r >= 1.1 && r <= 2.5 : r >= 0.6 && r <= 1.8, `${id} run ${r}`).toBe(true);
+      if (isRider && id.endsWith('-3d')) {
+        riders++;
+        expect(w, `${id} trot stride`).toBeDefined();
+        expect(r, `${id} gallop stride`).toBeDefined();
+        // Un ciclo de galope cubre bastante más suelo que uno de trote.
+        expect(r! / w!, id).toBeGreaterThan(1.5);
+      }
+    }
+    expect(riders).toBeGreaterThan(20);
   });
 
   it('cada pueblo tiene sprites para sus unidades de las eras Tribal y Media', () => {

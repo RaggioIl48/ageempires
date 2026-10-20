@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Los .bat de Windows necesitan fin de línea CRLF (con LF, cmd.exe puede leerlos mal).
+*.bat text eol=crlf

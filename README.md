@@ -15,10 +15,33 @@ projects (LPC and OpenGameArt), with credits inside the game (*Art credits*).
 ## Requirements
 
 - [Node.js](https://nodejs.org) 20 or newer (only on the teacher's computer).
+- Or nothing at all, with the **portable package**: `npm run portable` makes
+  `dist-portable/ClassroomEmpires-portable.zip` (≈200 MB) with its own `node.exe`, the server in one
+  file, the built game and cloudflared. Unzip it on any Windows 10/11 computer, double click
+  `Crear icono en el escritorio.bat` once, then the desktop icon starts the server (see `LEEME.txt`
+  inside). Rebuild it after changing the game.
+
+## Playing online (students at home)
+
+No GitHub or Render needed: the game runs on the teacher's computer and a free Cloudflare
+"quick tunnel" gives it a public `https://` address.
+
+```bash
+winget install --id Cloudflare.cloudflared   # first time only
+npm run online
+```
+
+The console shows the link for the students (`https://something.trycloudflare.com`) and the teacher
+panel (`…/teacher`, which asks for the teacher PIN from outside; `http://localhost:8080/teacher` on this
+computer needs none). Keep that window open while playing. The link **changes every time** you run
+`npm run online`, so send it to the class each session. It is much faster than the free Render plan
+(the simulation uses the teacher's CPU instead of ~0.1 CPU).
+
+Other ways to play online (a fixed link with Tailscale Funnel or a named Cloudflare tunnel, a cloud server that does not need your computer, Render) are compared in [docs/JUGAR_ONLINE.md](docs/JUGAR_ONLINE.md).
 
 ## Playing in class (LAN mode)
 
-**1. The teacher starts the server** (in a terminal, in the project folder):
+**1. The teacher starts the server**: double click **`Jugar en el aula.bat`** (Windows; it builds the game if needed, starts the server and opens the teacher panel), or in a terminal in the project folder:
 
 ```bash
 npm install        # first time only

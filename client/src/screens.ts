@@ -2,10 +2,10 @@
 // (facción y color) y panel del profesor.
 
 import { BUILDING_DEFS, FACTIONS, FACTION_ORDER, PLAYER_COLORS, UNIT_DEFS, uniquesOf, type FactionId } from '../../shared/data.ts';
-import { artVersion, unitPortrait } from './art.ts';
+import { artVersion, prefetchFaction, unitPortrait } from './art.ts';
 import { flagSvg } from './flags.ts';
 import { PEOPLE_HISTORY, parseQuizText } from '../../shared/lessons.ts';
-import { CODE_LENGTH, type BotLevel, type ClientMessage, type QuizMode, type RoomSettings, type RoomSummary, type RoomView } from '../../shared/protocol.ts';
+import { CODE_LENGTH, type BotLevel, type ClientMessage, type QuizMode, type RoomSettings, type RoomSummary, type RoomView, type TunnelView } from '../../shared/protocol.ts';
 
 export function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -31,6 +31,7 @@ export function settingsText(s: RoomSettings): string {
     s.diplomacy === 'locked' ? 'fixed teams' : 'free diplomacy',
     s.chat ? 'chat on' : 'no chat',
     s.fog === false ? 'no fog of war' : 'fog of war',
+    ...(s.testMode ? ['test mode (resource key on)'] : []),
     s.battlePause ? `${s.battlePause} s tactical pause per battle` : 'no battle pause',
     s.quiz === 'off' ? 'no questions' : s.quiz === 'custom' && s.questions?.length ? `${s.questions.length} teacher questions to advance` : 'history questions to advance',
   ].join(' · ');
@@ -208,6 +209,7 @@ export class LobbyScreen {
     el('lobby-status').textContent =
       room.phase === 'lobby' ? `Waiting for the teacher to start the game… (${settingsText(room.settings)})` : 'The game is starting…';
     const mine = room.members.find((m) => m.id === this.me);
+    if (mine && room.phase === 'lobby') prefetchFaction(mine.faction);
     el('lobby-members').innerHTML = room.members
       .map(
         (m) => `<div class="member ${m.connected ? '' : 'off'}"><i style="background:${m.color}"></i>
@@ -256,6 +258,7 @@ export class TeacherScreen {
           diplomacy: el<HTMLSelectElement>('in-diplo').value as RoomSettings['diplomacy'],
           chat: el<HTMLSelectElement>('in-chat').value === '1',
           fog: el<HTMLSelectElement>('in-fog').value === '1',
+          ...(el<HTMLSelectElement>('in-test').value === '1' ? { testMode: true } : {}),
           battlePause: Number(el<HTMLSelectElement>('in-bpause').value),
           quiz: el<HTMLSelectElement>('in-quiz').value as QuizMode,
           ...(el<HTMLSelectElement>('in-quiz').value === 'custom' ? { questions: parseQuizText(el<HTMLTextAreaElement>('in-questions').value) } : {}),
@@ -282,6 +285,13 @@ export class TeacherScreen {
         /* sin almacenamiento */
       }
       this.send({ t: 'teacher', pin });
+    });
+    el('online-box').addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      const toggle = t.closest<HTMLElement>('[data-tunnel]');
+      if (toggle) this.send({ t: 'tunnel', on: toggle.dataset.tunnel === '1' });
+      const copy = t.closest<HTMLElement>('[data-copy]');
+      if (copy) void navigator.clipboard?.writeText(copy.dataset.copy ?? '').then(() => (copy.textContent = '✔ Copied'));
     });
     el('teacher-rooms').addEventListener('change', (e) => {
       const sel = e.target as HTMLSelectElement;
@@ -347,6 +357,29 @@ export class TeacherScreen {
     el('form-pin').classList.remove('hidden');
     el('teacher-main').classList.add('hidden');
     el('teacher-error').textContent = message;
+  }
+
+  /** Modo online: estado del túnel, su enlace y el botón para abrirlo o cerrarlo. */
+  setTunnel(v: TunnelView & { urls: string[]; canToggle: boolean }): void {
+    this.urls = v.urls;
+    const box = el('online-box');
+    box.classList.remove('hidden');
+    const btn = (on: boolean, label: string, cls = '') => (v.canToggle ? `<button data-tunnel="${on ? 1 : 0}" class="${cls}">${label}</button>` : '');
+    const copy = (u: string) => `<code class="big-link">${esc(u)}</code> <button data-copy="${esc(u)}">📋 Copy</button>`;
+    const lan = v.urls.filter((u) => u !== v.url && !u.includes('trycloudflare.com'));
+    const classroom = `<div class="join-row">🏫 <b>In the classroom</b> (same Wi-Fi, fastest): ${lan.length ? lan.map(copy).join(' ') : '<span class="muted">no local network found</span>'}</div>`;
+    const online: Record<TunnelView['state'], string> = {
+      off: `🌐 <b>From home</b> (internet): off. ${btn(true, '🌐 Turn on online play', 'primary')}`,
+      starting: '🌐 <b>From home</b>: opening the online link… (a few seconds)',
+      on: `🌐 <b>From home</b> (internet): ${copy(v.url ?? '')} ${btn(false, 'Turn off')}
+        <div class="muted">The internet link changes every time you turn it on. Keep this computer on while you play.</div>`,
+      missing: `🌐 <b>From home</b> needs a free program (cloudflared). Install it once: open a terminal and run
+        <code>winget install --id Cloudflare.cloudflared</code>, then ${btn(true, 'Try again')}`,
+      error: `🌐 <b>From home</b>: could not start (${esc(v.message ?? '')}). ${btn(true, 'Try again')}`,
+    };
+    box.innerHTML = `<h3>How students join</h3>${classroom}<div class="join-row">${online[v.state]}</div>`;
+    box.dataset.state = v.state;
+    this.render();
   }
 
   loggedIn(urls: string[], rooms: RoomSummary[]): void {

@@ -1,6 +1,7 @@
 // Punto de entrada: arranca el servidor y muestra cómo entrar para la clase.
 //   PORT         puerto (8080 por defecto)
 //   TEACHER_PIN  clave del profesor para entrar desde otro computador
+//   STATIC_DIR   carpeta del juego compilado (el paquete portátil la fija; por defecto client/dist)
 //                (por defecto se inventa una de 4 cifras al arrancar)
 
 import { randomInt } from 'node:crypto';
@@ -22,7 +23,8 @@ function intEnv(name: string, fallback: number, min: number, max: number): numbe
 
 const port = intEnv('PORT', 8080, 1, 65535);
 const pin = (process.env.TEACHER_PIN ?? '').trim() || String(randomInt(1000, 10000));
-const staticDir = fileURLToPath(new URL('../../client/dist', import.meta.url));
+// El paquete portátil (scripts/portable.mjs) dice dónde quedó el juego compilado.
+const staticDir = process.env.STATIC_DIR || fileURLToPath(new URL('../../client/dist', import.meta.url));
 
 /** Adaptadores que no son la red real de la escuela (virtuales, VPN): sus direcciones no les sirven a los estudiantes. */
 const VIRTUAL_ADAPTER = /vethernet|virtual|vmware|vbox|wsl|hyper-v|docker|tailscale|zerotier|hamachi|bluetooth/i;
@@ -48,6 +50,14 @@ try {
     port,
     pin,
     staticDir,
+    // Modo online (túnel) desde el panel del profesor: siempre, salvo publicado en Render.
+    tunnel: !process.env.RENDER_EXTERNAL_URL,
+    autoTunnel: process.env.AUTO_TUNNEL === '1',
+    onTunnel: (v) => {
+      if (v.state === 'on') console.log(`\n  ONLINE (from home):  ${v.url}   (also in the teacher panel)\n`);
+      else if (v.state === 'missing') console.log('\n  Online play needs cloudflared:  winget install --id Cloudflare.cloudflared\n');
+      else if (v.state === 'error') console.log(`\n  Online play could not start: ${v.message}\n`);
+    },
     // Publicado en internet: solo ese enlace (las direcciones internas del servidor no le sirven a nadie).
     urls: (p) => (publicUrl ? [publicUrl] : lanAddresses().map((ip) => `http://${ip}:${p}`)),
   });
