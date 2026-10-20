@@ -1,13 +1,19 @@
 // Rival de la computadora: juega con las mismas órdenes que un estudiante (sin trampas de
-// recursos). Junta recursos, construye, sube a la Edad Media, entrena tropas que contrarrestan
-// lo que ve del enemigo (lanzas si ve caballería, espadas si ve lanzas…) y ataca en oleadas
-// marchando sobre la ciudad enemiga. Sirve para practicar solo y para probar el juego.
+// recursos). Junta recursos, construye, sube a la Edad Media y recorre sus etapas, entrena tropas
+// que contrarrestan lo que ve del enemigo (lanzas si ve caballería, espadas si ve lanzas…), más
+// monjes y máquinas que lanzan piedras, y ataca en oleadas marchando sobre la ciudad enemiga. Sirve para practicar solo y para probar el juego.
 
 import {
   BUILDING_DEFS,
   MARKET_LOT,
+  MAX_STAGE,
+  MEDIEVAL_ERA,
+  POP_CAP_MAX,
   TECH_DEFS,
   UNIT_DEFS,
+  isAdvanceTech,
+  stageReached,
+  unitAvailable,
   type BuildingType,
   type Cost,
   type ResourceType,
@@ -90,6 +96,7 @@ export class AiPlayer {
     const army = units.filter((u) => u.type !== 'worker' && !UNIT_DEFS[u.type].buildingsOnly && !UNIT_DEFS[u.type].docks);
     const have = (t: BuildingType, done = false) => buildings.some((b) => b.type === t && (!done || b.progress >= 1));
     const era = w.eraOf(this.playerId);
+    const stage = w.stageOf(this.playerId);
     // Lo que tenga que pagar de aquí en adelante se descuenta a mano (las órdenes se aplican en el próximo paso).
     const purse = { ...me.resources };
     const afford = (c: Cost) => Object.entries(c).every(([r, v]) => purse[r as ResourceType] >= (v ?? 0));
@@ -98,7 +105,7 @@ export class AiPlayer {
     };
 
     // ---------- Economía ----------
-    const { pop, popCap } = w.popOf(this.playerId);
+    const { pop, popCap, units: unitsNow, unitCap } = w.popOf(this.playerId);
     if (workers.length < this.def.workers && tc.queue.length === 0 && pop < popCap && afford(unitCost('worker', me.techs))) {
       pay(unitCost('worker', me.techs));
       cmd({ kind: 'train', buildingId: tc.id, unit: 'worker' });
@@ -123,15 +130,17 @@ export class AiPlayer {
     const building = (t: BuildingType) => buildings.some((b) => b.type === t && b.progress < 1);
 
     // Casas antes de quedarse sin lugar.
-    if (popCap - pop <= 3 && popCap < 200 && !building('house')) build('house', home);
+    if (popCap - pop <= 3 && popCap < POP_CAP_MAX && !building('house')) build('house', home);
     // Cuarteles, y en la Edad Media establo, arquería y el edificio único de su pueblo.
     if (workers.length >= 8 && !have('barracks')) build('barracks', home);
     if (era >= 2) {
       if (!have('stable')) build('stable', home);
       else if (!have('archery_range')) build('archery_range', home);
-      else if (this.def.uniques) {
-        const unique = (Object.keys(BUILDING_DEFS) as BuildingType[]).find((t) => BUILDING_DEFS[t].faction === me.faction);
+      else {
+        const unique = this.def.uniques ? (Object.keys(BUILDING_DEFS) as BuildingType[]).find((t) => BUILDING_DEFS[t].faction === me.faction) : undefined;
         if (unique && !have(unique)) build(unique, home);
+        // Monasterio: sus monjes acompañan a las oleadas curando.
+        else if (!have('monastery') && army.length >= 6) build('monastery', home);
       }
     }
     // Con recursos de sobra: más cuarteles, establos y arquerías (más tropas a la vez) y mejoras.
@@ -143,7 +152,11 @@ export class AiPlayer {
       if (n(fewest) < 3 && !prod.some((t) => building(t))) build(fewest, home);
       for (const b of buildings) {
         if (b.progress < 1 || b.queue.length > 0) continue;
-        const tech = BUILDING_DEFS[b.type].researches.find((t) => TECH_DEFS[t].era <= era && !TECH_DEFS[t].advancesTo && !hasTech(me.techs, t));
+        // Solo lo que se puede investigar ya (sin avances de era o etapa: esos van aparte, en el Centro Urbano).
+        const tech = BUILDING_DEFS[b.type].researches.find((t) => {
+          const d = TECH_DEFS[t];
+          return d.era <= era && !isAdvanceTech(t) && !hasTech(me.techs, t) && stageReached(d.stage, era, stage) && (!d.requires || have(d.requires, true));
+        });
         if (tech && afford(TECH_DEFS[tech].cost)) {
           pay(TECH_DEFS[tech].cost);
           cmd({ kind: 'research', buildingId: b.id, tech });
@@ -178,6 +191,17 @@ export class AiPlayer {
       if (afford(cost)) {
         pay(cost);
         cmd({ kind: 'research', buildingId: tc.id, tech: 'era2' });
+      }
+    }
+    // Y recorrerla: Plena Edad Media (mangoneles) cuando ya tiene arquería, y Baja (trabuquetes,
+    // ballesteros, piqueros) cuando ya tiene monasterio. Antes que las tropas: si no, nunca junta.
+    if (era === MEDIEVAL_ERA && stage < MAX_STAGE && tc.queue.length === 0) {
+      const tech = stage === 1 ? 'stage2' : 'stage3';
+      const ready = stage === 1 ? have('archery_range', true) : have('monastery', true);
+      const cost = TECH_DEFS[tech].cost;
+      if (ready && afford(cost)) {
+        pay(cost);
+        cmd({ kind: 'research', buildingId: tc.id, tech });
       }
     }
 
@@ -215,14 +239,44 @@ export class AiPlayer {
     // ---------- Ejército ----------
     this.look(w, home);
     const military = workers.length >= this.def.workers * 0.6 || w.tick > this.def.firstWave * 10 * 0.6;
+    // Monjes (uno cada 8 soldados, hasta 4) y máquinas que lanzan piedras (2, y una más por oleada,
+    // hasta 4) van primero: ocupan 1 de población, y si esperan a los regimientos nunca hay lugar.
+    // Población ya comprometida: la que hay más la que espera en las colas (si no, encola regimientos
+    // que nunca caben y traban el cuartel).
+    let used = pop, men = unitsNow;
+    for (const b of buildings) for (const q of b.queue) if (q.unit) (used += UNIT_DEFS[q.unit].pop, men += trainCountOf(q.unit));
+    let reserve = 0;
+    const train = (b: Building, unit: UnitType): boolean => {
+      const cost = trainCost(unit, me.techs);
+      if (used + UNIT_DEFS[unit].pop > popCap - reserve || men + trainCountOf(unit) > unitCap || !afford(cost)) return false;
+      pay(cost);
+      used += UNIT_DEFS[unit].pop;
+      men += trainCountOf(unit);
+      cmd({ kind: 'train', buildingId: b.id, unit });
+      return true;
+    };
+    const queued = (t: UnitType) => buildings.reduce((n, b) => n + b.queue.filter((q) => q.unit === t).length, 0);
+    const owned = (t: UnitType) => units.filter((u) => u.type === t).length + queued(t);
+    const free = (t: BuildingType) => buildings.find((b) => b.type === t && b.progress >= 1 && b.queue.length < 2);
+    if (military && era === MEDIEVAL_ERA) {
+      const monastery = buildings.find((b) => b.type === 'monastery' && b.progress >= 1);
+      const missingMonks = monastery ? Math.max(0, Math.min(4, 1 + Math.floor(army.length / 8)) - owned('monk')) : 0;
+      if (missingMonks && monastery!.queue.length < 2) train(monastery!, 'monk');
+      const mangonels = owned('mangonel'), trebs = owned('counterweight_trebuchet');
+      // Cupos separados: mangoneles (contra tropas) y, en la Baja Edad Media, trabuquetes (contra murallas).
+      const normal = this.level === 'normal';
+      const missingMangonels = normal && unitAvailable('mangonel', era, me.faction, stage) ? Math.max(0, Math.min(3, 2 + this.waves) - mangonels) : 0;
+      const missingTrebs = normal && unitAvailable('counterweight_trebuchet', era, me.faction, stage) ? Math.max(0, Math.min(2, 1 + Math.floor(this.waves / 2)) - trebs) : 0;
+      const missingEngines = missingMangonels + missingTrebs;
+      const barracks = free('barracks');
+      if (barracks && missingEngines) train(barracks, missingTrebs && trebs <= mangonels / 2 ? 'counterweight_trebuchet' : missingMangonels ? 'mangonel' : 'counterweight_trebuchet');
+      // Lo que falta se reserva: los regimientos no ocupan ese lugar.
+      reserve = Math.max(0, missingMonks + missingEngines - 1);
+    }
     for (const b of buildings) {
       if (b.progress < 1 || b.queue.length >= 2 || !military) continue;
-      const choice = this.pickUnit(BUILDING_DEFS[b.type].trains, era);
-      if (!choice) continue;
-      const cost = trainCost(choice, me.techs);
-      if (pop + trainCountOf(choice) > popCap || !afford(cost)) continue;
-      pay(cost);
-      cmd({ kind: 'train', buildingId: b.id, unit: choice });
+      const choice = this.pickUnit(BUILDING_DEFS[b.type].trains, era, stage);
+      if (choice) train(b, choice);
     }
 
     // Defensa: enemigos cerca de la ciudad → todo el ejército libre a pelear.
@@ -284,10 +338,11 @@ export class AiPlayer {
    * Qué entrenar en este edificio. Con contraataques: lanzas contra caballería, espadas contra
    * lanzas, caballería contra espadas y arqueros. Si no ve nada, va rotando.
    */
-  private pickUnit(trains: readonly UnitType[], era: number): UnitType | null {
+  private pickUnit(trains: readonly UnitType[], era: number, stage: number): UnitType | null {
     const ok = trains.filter((t) => {
       const d = UNIT_DEFS[t];
-      if (d.era > era || d.untilEra < era || d.hero || d.buildingsOnly || d.docks || t === 'worker' || t === 'scout') return false;
+      if (d.era > era || d.untilEra < era || !stageReached(d.stage, era, stage)) return false;
+      if (d.hero || d.buildingsOnly || d.docks || d.heals || t === 'worker' || t === 'scout') return false;
       if (d.faction && !this.def.uniques) return false;
       return d.category !== 'siege'; // las máquinas de asedio, a mano (el rival no las usa)
     });

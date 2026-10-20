@@ -26,6 +26,7 @@ import {
   RESOURCE_COLORS,
   setEraLookup,
   setWallLookup,
+  setGateLookup,
   unitTop,
   line,
   poly,
@@ -104,6 +105,9 @@ const fogScale = (n: number) => Math.min(0.25, 1600 / (n * 64));
 const MAX_RANGE_RINGS = 80;
 /** Sacudida en el choque de una carga: duración y amplitud (px de pantalla). */
 const SHAKE_MS = 180;
+/** Puertas: a qué distancia (casillas) de una tropa que puede pasar se abren, y cuánto tardan. */
+const GATE_OPEN_DIST = 2.6;
+const GATE_SWING_MS = 700;
 const SHAKE_PX = 2.5;
 const RANGE_SEGMENTS = 56;
 const BAKE_TOP =MAX_LEVEL * ELEV_PX + 8;
@@ -279,6 +283,40 @@ export class Renderer {
   private fogIndexFor: ClientState | null = null;
   private fogImage: ImageData | null = null;
   private lastDraw = 0;
+  /** Puertas de muralla: cuánto está abierta cada una (0 cerrada … 1 abierta) y cuándo se calculó. */
+  private gateOpen = new Map<number, number>();
+  private gatesAt = 0;
+
+  /**
+   * Las puertas se abren cuando se acerca alguien que puede pasar (el dueño o un aliado) y se
+   * cierran solas cuando ya no hay nadie cerca. Tardan GATE_SWING_MS en abrirse del todo.
+   */
+  private updateGates(state: ClientState, now: number): void {
+    const dt = Math.min(0.2, Math.max(0, (now - this.gatesAt) / 1000));
+    this.gatesAt = now;
+    const want = new Map<number, boolean>();
+    const gates: BuildingView[] = [];
+    for (const b of state.buildings.values()) if (b.type === 'gate' && b.progress >= 1) (gates.push(b), want.set(b.id, false));
+    if (gates.length) {
+      for (const cu of state.units.values()) {
+        const v = cu.v;
+        if (v.hp <= 0) continue;
+        for (const g of gates) {
+          if (want.get(g.id)) continue;
+          const dx = v.x - (g.tx + 0.5), dy = v.y - (g.ty + 0.5);
+          if (dx * dx + dy * dy > GATE_OPEN_DIST * GATE_OPEN_DIST) continue;
+          if (v.owner === g.owner || state.relation(v.owner, g.owner) === 'ally') want.set(g.id, true);
+        }
+      }
+    }
+    const step = dt / (GATE_SWING_MS / 1000);
+    for (const [id, open] of want) {
+      const cur = this.gateOpen.get(id) ?? 0;
+      this.gateOpen.set(id, open ? Math.min(1, cur + step) : Math.max(0, cur - step * 0.6));
+    }
+    for (const id of this.gateOpen.keys()) if (!want.has(id)) this.gateOpen.delete(id);
+    setGateLookup((id) => this.gateOpen.get(id) ?? 0);
+  }
   /** Polvo y humo (con tope fijo). */
   readonly particles = new Particles();
   private puffImg: Partial<Record<PuffKind, HTMLCanvasElement>> = {};
@@ -367,8 +405,14 @@ export class Renderer {
     setEraLookup((id) => state.eraOf(id));
     // Murallas y puertas por casilla (para unir cada tramo con sus vecinos).
     const walls = new Map<number, number>();
-    for (const b of state.buildings.values()) if (b.type === 'wall' || b.type === 'gate') walls.set(b.ty * 100_000 + b.tx, b.owner);
+    const wallsOnly = new Map<number, number>();
+    for (const b of state.buildings.values())
+      if (b.type === 'wall' || b.type === 'gate') {
+        walls.set(b.ty * 100_000 + b.tx, b.owner);
+        if (b.type === 'wall') wallsOnly.set(b.ty * 100_000 + b.tx, b.owner);
+      }
     setWallLookup((tx, ty, owner) => walls.get(ty * 100_000 + tx) === owner);
+    this.updateGates(state, now);
 
     // Transformación de cámara: a partir de aquí se dibuja en px del mundo.
     const z = cam.zoom * dpr;
@@ -415,7 +459,9 @@ export class Renderer {
       // Los aviones se dibujan encima de todo.
       const flying = state.statsOf(cu.v.owner, cu.v.type).flies;
       // Sobre una muralla: el defensor arriba del todo; el que trepa, a media altura de la escala.
-      const wallOwner = walls.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
+      // Solo las murallas: por una puerta se pasa a ras del suelo, bajo el arco (antes se levantaba
+      // a la altura de la muralla y parecía caminar por el techo de la puerta).
+      const wallOwner = wallsOnly.get(Math.floor(p.y) * 100_000 + Math.floor(p.x));
       const lift = wallOwner === undefined ? 0 : cu.v.cl ? WALL_LIFT / 2 : WALL_LIFT;
       if (inView(p.x, p.y)) this.dustFrom(cu, state, p.x, p.y, now);
       // Derribado: desde cuándo (cae, queda en el suelo y se levanta).

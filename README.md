@@ -15,6 +15,11 @@ projects (LPC and OpenGameArt), with credits inside the game (*Art credits*).
 ## Requirements
 
 - [Node.js](https://nodejs.org) 20 or newer (only on the teacher's computer).
+- Or nothing at all, with the **portable package**: `npm run portable` makes
+  `dist-portable/ClassroomEmpires-portable.zip` (≈200 MB) with its own `node.exe`, the server in one
+  file, the built game and cloudflared. Unzip it on any Windows 10/11 computer, double click
+  `Crear icono en el escritorio.bat` once, then the desktop icon starts the server (see `LEEME.txt`
+  inside). Rebuild it after changing the game.
 
 ## Playing online (students at home)
 

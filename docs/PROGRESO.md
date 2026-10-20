@@ -964,6 +964,102 @@ Priority 2 of [DIAGNOSTICO_PROYECTO.md](DIAGNOSTICO_PROYECTO.md).
 - Tests: `server/test/marching.test.ts` (9). Checked in the game with REA (headless Chrome): the
   key, the range zone and the march with no page errors (`docs/img/alcance_y_clave.png`).
 
+## Middle Ages in three stages, monk and monastery, mangonel and trebuchet (2026-10-19)
+
+Priority 5 of `docs/DIAGNOSTICO_PROYECTO.md` (§9): the Medieval Age, where most of the game is
+played, was a single step.
+
+- **Three stages**: Early (AD 500–1000), High (1000–1300) and Late Middle Ages (1300–1500)
+  (`MEDIEVAL_STAGES` in `shared/data.ts`). You advance with a Town Center technology (`stage2`,
+  `stage3`) and, if the room has questions, a history question of that period
+  (`STAGE_QUIZ_BANK` in `shared/lessons.ts`, 8 per stage). Everyone is told when someone enters a
+  stage, with its years. The top bar shows "Medieval · High". The stage is not a new field: it comes
+  from the researched technologies (`stageOf` in `shared/stats.ts`), so the protocol did not change.
+  The Industrial Age now needs the Late Middle Ages.
+- **What each stage opens** (`stage` on units, buildings and techs; `stageReached` decides):
+  High → Mangonel (all peoples) and stone Fortresses; Late → Counterweight Trebuchet (all peoples),
+  Crossbowman, Pikeman and Cavalier (plate armor). The build menu says what the next stage brings
+  ("In the High Middle Ages: Fortress."), and the server refuses anything early with the reason.
+- **Monk and Monastery** (from the Early Middle Ages, every people): the monk does not fight; he
+  heals his own soldiers within 4 tiles (+3 health/s; several monks do not stack). Reuses
+  `server/src/sim/healing.ts`. An attack order sends monks behind the soldiers, close to the target.
+  The Monastery researches Herbal Medicine (+2 healing).
+- **Mangonel**: throws stones that also hit enemies packed next to the target (60 % of the damage
+  within 1.3 tiles, `splash`). Good against blocks of infantry and archers. **Counterweight
+  Trebuchet**: the longest medieval range (12), made for walls and fortresses. Both trained at the
+  Barracks, like the ram.
+- **Computer rival**: goes to the High Middle Ages once it has an archery range and to the Late once
+  it has a monastery; builds a monastery, keeps 1 monk per 8 soldiers (up to 4) and, on Normal, 2–4
+  stone throwers (half trebuchets in the Late Middle Ages). It now counts the population already
+  waiting in its queues: it used to queue regiments that never fit and blocked the barracks. In a
+  test game it reaches the High Middle Ages at minute 8 and the Late at minute 10.
+- **Art**: the mangonel is the Roman onager of 0 A.D. (from the art cache, `any-mangonel`); the
+  counterweight trebuchet reuses the trebuchet sheet; the monk and the monastery are drawn in
+  `client/src/sprites.ts` (hooded habit, staff, a faint aura of the player color; church with a red
+  roof, bell tower with a slate roof and an herb garden), because the 0 A.D. healers are not in the
+  cache.
+- Tests: `server/test/medieval.test.ts` (13). The full progression test now goes through the three
+  stages. Checked in the game (local server, `imperio10mil`): stage buttons, both questions, the
+  menu hint, the monastery, monks and the mangonel on the map.
+
+## Walled cities are left through the gate, the gate opens, a regiment is 1 population, desktop icon (2026-10-19)
+
+- **Investigated with REA** (headless Chrome over a test scene, `DEMO_WALLS=1`: a walled Town
+  Center with one gate and two regiments that go out and back in four times; see
+  `server/src/sim/demo.ts`). Found and fixed:
+  - **Soldiers manning a wall came down on the outside**: ordered out of the city, the 6 men on the
+    wall walked along it and stepped down outside without using the gate. Now the stairs of your own
+    (or an ally's) wall are on the inside: you go up and down only on the side of your nearest Town
+    Center (`World.wallStepOk`, used by the path search, straight lines and every short step and
+    push). Enemies climbing with ladders in a siege are not affected. A crowd of 40 pushing to get
+    out never leaked (that part already worked); now both cases have tests
+    (`server/test/walls-block.test.ts`).
+  - **Units walked over the roof of the gate**: the client lifted anyone on a gate tile to the height
+    of the wall (gates were in the same lookup as walls). Now they go through at ground level, under
+    the arch.
+  - **The gate never looked open**: the 0 A.D. gate already has painted doors. Now two wooden leaves
+    swing open on their hinges (0.7 s, a small bounce at the end) when a unit of the owner or an ally
+    comes within 2.6 tiles, the passage behind shows dark, and they close by themselves when nobody
+    is near (`gateDoors` in `client/src/sprites.ts`, `updateGates` in `client/src/render.ts`).
+  - The demo ring had holes where trees stood (nodes were deleted without freeing the tile).
+- **Population**: a whole regiment now takes **1 place** (like a worker; siege engines keep their
+  own). Houses raise the limit up to `POP_CAP_MAX` = 60; at the maximum, training is refused with
+  "Maximum population reached". To keep the server fast there is also a **unit limit per game**:
+  `UNIT_BUDGET` = 2,400 units shared among the players (150 each with 16 players, 300 with 8, up to
+  400). The top bar shows "34/60" and below it "120/150 units".
+  Measured (16 players, large map, big battle, fog on): 1,100 units = 17 ms per step, 9 KB/s per
+  student; 2,100 = 25 ms, 17 KB/s; 3,100 = 29 ms, 23 KB/s (of 100 ms). Without fog the data per
+  student is 9× more (207 KB/s with 3,100 units): fine on the school Wi-Fi, too much from home.
+- **Regiments kept after a march**: a march on another city rebuilt the soldiers without their
+  regiment number (they came back as loose men). With 1 place per regiment that mattered; now they
+  keep it.
+- **Computer rival**: counts population per regiment and the unit limit; it stops building houses
+  at the maximum; separate quotas for mangonels and trebuchets.
+- **Desktop icon**: "Jugar en el aula.bat" and "Jugar online.bat" were broken since they were
+  created (`node scripts${script}` instead of the script). Fixed. New `Crear icono en el
+  escritorio.bat`: double click once and the desktop gets "Classroom Empires (aula)" and
+  "Classroom Empires (online)" with the game icon (`tools/icon/`, made from the Town Center art by
+  `node tools/icon/make-icon.mjs`). Double click on the icon = server + teacher panel.
+- Tests: 442 pass (new `server/test/population.test.ts`, 4; 2 more in `walls-block.test.ts`).
+
+## Portable server package for another computer (2026-10-19)
+
+- `npm run portable` (`scripts/portable.mjs`) builds `dist-portable/ClassroomEmpires/` and
+  `ClassroomEmpires-portable.zip` (197 MB zipped, 294 MB unzipped): nothing to install on the other
+  computer. Inside: `app/node.exe` (this computer's Node.js), `app/server.mjs` (the whole server
+  bundled into one file with esbuild, ws included, 424 KB), `app/web` (the built game, without the
+  experimental art of unconfirmed license), `app/cloudflared.exe` (if installed here, for online
+  play), the icon, licenses, `LEEME.txt` and the three launchers (`Jugar en el aula.bat`,
+  `Jugar online.bat`, `Crear icono en el escritorio.bat`).
+- The server takes `STATIC_DIR` (where the built game is) and `CLOUDFLARED` (path to the tunnel
+  program) from the environment; `app/start.mjs` sets both, checks whether the server is already
+  open and opens the teacher panel.
+- Checked: unzipped in another folder and started with **no Node.js in the PATH** (only Windows):
+  the page and the art load, and a game (a student and a Normal computer rival) runs at 10 updates
+  per second.
+- Most of the size is the unit art (149 MB; the same the normal game uses), node.exe (89 MB) and
+  cloudflared (53 MB).
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

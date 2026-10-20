@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "art": "node tools/art/build.mjs",
     "online": "node scripts/online.mjs",
-    "aula": "node scripts/classroom.mjs"
+    "aula": "node scripts/classroom.mjs",
+    "portable": "node scripts/portable.mjs"
   },
   "engines": {
     "node": ">=20"

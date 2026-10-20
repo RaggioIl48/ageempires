@@ -7,6 +7,7 @@ import {
   FACTION_ORDER,
   NODE_DEFS,
   POP_CAP_MAX,
+  unitLimit,
   RESOURCE_TYPES,
   STARTING_RESOURCES,
   TILE_GRASS,
@@ -30,7 +31,7 @@ import type { BattleResultView, ChronicleEntry, ChronicleKind, GameEvent, Histor
 import type { PendingWar, Proposal } from './diplomacy.ts';
 import { HeightField } from '../../../shared/terrain.ts';
 import { createRng } from '../../../shared/rng.ts';
-import { NO_TECHS, buildingMaxHp, canAfford, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
+import { NO_TECHS, buildingMaxHp, canAfford, stageOf, unitStats, type TechMask, type UnitStats } from '../../../shared/stats.ts';
 
 /** Ejército en marcha forzada: sus soldados salen del mapa y aparecen al llegar. */
 export interface March {
@@ -38,7 +39,7 @@ export interface March {
   owner: number;
   /** Jugador a cuya ciudad va (en la vuelta, el propio dueño). */
   target: number;
-  units: { type: UnitType; hp: number; kills?: number; guard?: boolean }[];
+  units: { type: UnitType; hp: number; kills?: number; guard?: boolean; reg?: number }[];
   /** De dónde salió (para desplegarse del lado de donde viene). */
   from: Point;
   arriveTick: number;
@@ -526,6 +527,7 @@ export class World {
       repairOwed: { food: 0, wood: 0, stone: 0, metal: 0 },
     };
     this.buildings.set(b.id, b);
+    this.buildingVersion++;
     if (def.field) this.created[def.field.resource] += b.stock;
     for (let y = ty; y < ty + def.size; y++)
       for (let x = tx; x < tx + def.size; x++) {
@@ -540,6 +542,7 @@ export class World {
     const b = this.buildings.get(id);
     if (!b) return;
     this.buildings.delete(id);
+    this.buildingVersion++;
     for (let y = b.ty; y < b.ty + b.size; y++)
       for (let x = b.tx; x < b.tx + b.size; x++) {
         this.occupant[y * this.size + x] = 0;
@@ -644,6 +647,51 @@ export class World {
     return (u.climb ?? 0) > 0 ? 2 : 3;
   }
 
+  /**
+   * Las escaleras de una muralla propia o aliada están del lado de adentro de la ciudad: quien la
+   * guarnece sube y baja solo por ese lado. Sin esto, los que estaban arriba bajaban por afuera y la
+   * ciudad amurallada se vaciaba sin pasar por la puerta. "Adentro" = el lado del Centro Urbano más
+   * cercano del dueño de esa muralla. `from` y `to` son índices de casillas vecinas.
+   * El enemigo que trepa con escalas (en una batalla) no tiene esta regla.
+   */
+  wallStepOk(from: number, to: number): boolean {
+    const a = this.solid[from] === WALL, b = this.solid[to] === WALL;
+    if (a === b) return true;
+    const wi = a ? from : to, gi = a ? to : from;
+    const wall = this.buildings.get(this.occupant[wi]);
+    if (!wall || this.walker === 0 || this.relation(this.walker, wall.owner) !== 'ally') return true;
+    const home = this.homeOfWall(wall);
+    if (!home) return true;
+    const s = this.size;
+    const d2 = (i: number) => ((i % s) + 0.5 - home.x) ** 2 + (Math.floor(i / s) + 0.5 - home.y) ** 2;
+    return d2(gi) <= d2(wi) + 0.25;
+  }
+
+  /** Centro Urbano (terminado) del dueño más cercano a una muralla, recordado hasta que cambien los edificios. */
+  private homeOfWall(wall: Building): Point | null {
+    if (this.homeCacheVersion !== this.buildingVersion) {
+      this.homeCache.clear();
+      this.homeCacheVersion = this.buildingVersion;
+    }
+    let h = this.homeCache.get(wall.id);
+    if (h === undefined) {
+      h = null;
+      let bd = Infinity;
+      for (const b of this.buildings.values()) {
+        if (b.type !== 'town_center' || b.owner !== wall.owner || b.progress < 1) continue;
+        const c = { x: b.tx + b.size / 2, y: b.ty + b.size / 2 };
+        const d = (c.x - wall.tx) ** 2 + (c.y - wall.ty) ** 2;
+        if (d < bd) [bd, h] = [d, c];
+      }
+      this.homeCache.set(wall.id, h);
+    }
+    return h;
+  }
+  private homeCache = new Map<number, Point | null>();
+  private homeCacheVersion = -1;
+  /** Sube al poner o sacar un edificio (para recordar cosas que dependen de dónde están). */
+  buildingVersion = 0;
+
   /** ¿Hay una torre de asedio propia o aliada acoplada a este tramo? */
   rampFor(owner: number, i: number): boolean {
     const o = this.ramps.get(i);
@@ -687,15 +735,34 @@ export class World {
     return this.players.get(playerId)?.era ?? 1;
   }
 
+  /** Etapa de la Edad Media (1 = Alta, 2 = Plena, 3 = Baja). */
+  stageOf(playerId: number): number {
+    return stageOf(this.techsOf(playerId));
+  }
+
   // ---------- Economía ----------
 
-  popOf(playerId: number): { pop: number; popCap: number } {
-    let pop = 0;
-    for (const u of this.units.values()) if (u.owner === playerId) pop += UNIT_DEFS[u.type].pop;
+  /**
+   * Población: cada regimiento ocupa un lugar (aunque tenga 6 soldados) hasta que cae el último;
+   * trabajadores, máquinas, monjes y el General, lo suyo. `units` cuenta unidades de verdad, para el
+   * tope de seguridad de la partida (`unitCap`, ver unitLimit).
+   */
+  popOf(playerId: number): { pop: number; popCap: number; units: number; unitCap: number } {
+    let pop = 0, units = 0;
+    const regs = new Set<number>();
+    for (const u of this.units.values()) {
+      if (u.owner !== playerId) continue;
+      units++;
+      if (u.reg) {
+        if (regs.has(u.reg)) continue;
+        regs.add(u.reg);
+      }
+      pop += UNIT_DEFS[u.type].pop;
+    }
     let popCap = 0;
     for (const b of this.buildings.values())
       if (b.owner === playerId && b.progress >= 1) popCap += BUILDING_DEFS[b.type].popProvided;
-    return { pop, popCap: Math.min(popCap, POP_CAP_MAX) };
+    return { pop, popCap: Math.min(popCap, POP_CAP_MAX), units, unitCap: unitLimit(this.players.size) };
   }
 
   /** Registra una entrega de recursos y la suma al jugador. */

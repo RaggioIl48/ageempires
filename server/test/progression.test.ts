@@ -2,7 +2,7 @@
 // build every building, advance through the four ages, research every technology
 // and train every unit.
 import { describe, expect, it } from 'vitest';
-import { BUILDING_DEFS, BUILD_MENU, FACTION_ORDER, TECH_DEFS, UNIT_DEFS, unitAvailable, type BuildingType, type TechId, type UnitType } from '../../shared/data.ts';
+import { BUILDING_DEFS, BUILD_MENU, FACTION_ORDER, MAX_STAGE, MEDIEVAL_ERA, TECH_DEFS, UNIT_DEFS, isAdvanceTech, unitAvailable, type BuildingType, type TechId, type UnitType } from '../../shared/data.ts';
 import { hasTech, maskOf, trainTime } from '../../shared/stats.ts';
 import type { Building } from '../src/sim/world.ts';
 import { newGame, runUntil, workersOf } from './helpers.ts';
@@ -65,7 +65,7 @@ describe('full progression on a generated map', () => {
     const trainAll = () => {
       for (const [type, b] of built) {
         for (const unit of BUILDING_DEFS[type].trains) {
-          if (!unitAvailable(unit, me.era, me.faction) || trained.has(unit)) continue;
+          if (!unitAvailable(unit, me.era, me.faction, w.stageOf(1)) || trained.has(unit)) continue;
           // El General es único: para probar que se entrena, el de inicio "cae" antes.
           if (UNIT_DEFS[unit].hero) for (const u of w.units.values()) if (u.owner === 1 && u.type === unit) w.units.delete(u.id);
           const before = [...w.units.values()].filter((u) => u.owner === 1 && u.type === unit).length;
@@ -80,19 +80,28 @@ describe('full progression on a generated map', () => {
     };
 
     for (let era = 1; era <= 4; era++) {
-      for (const type of BUILD_MENU) {
-        const d = BUILDING_DEFS[type];
-        if (d.era !== era || built.has(type) || type === 'house' || (d.faction && d.faction !== me.faction)) continue;
-        built.set(type, build(type));
-      }
-      built.set('town_center', tc);
-      trainAll();
-      // Every technology of this age.
-      for (const tech of Object.keys(TECH_DEFS) as TechId[]) {
-        const t = TECH_DEFS[tech];
-        if (t.advancesTo !== undefined || t.era !== era || (t.faction && t.faction !== faction)) continue;
-        const where = [...built.values()].find((b) => BUILDING_DEFS[b.type].researches.includes(tech))!;
-        research(where, tech);
+      // The Medieval Age goes through its three stages (Early, High, Late).
+      const stages = era === MEDIEVAL_ERA ? MAX_STAGE : 1;
+      for (let stage = 1; stage <= stages; stage++) {
+        const here = (s: number | undefined) => era !== MEDIEVAL_ERA || (s ?? 1) === stage;
+        for (const type of BUILD_MENU) {
+          const d = BUILDING_DEFS[type];
+          if (d.era !== era || !here(d.stage) || built.has(type) || type === 'house' || (d.faction && d.faction !== me.faction)) continue;
+          built.set(type, build(type));
+        }
+        built.set('town_center', tc);
+        trainAll();
+        // Every technology of this age (and stage).
+        for (const tech of Object.keys(TECH_DEFS) as TechId[]) {
+          const t = TECH_DEFS[tech];
+          if (isAdvanceTech(tech) || t.era !== era || !here(t.stage) || (t.faction && t.faction !== faction)) continue;
+          const where = [...built.values()].find((b) => BUILDING_DEFS[b.type].researches.includes(tech))!;
+          research(where, tech);
+        }
+        if (stage < stages) {
+          research(tc, `stage${stage + 1}` as TechId);
+          expect(w.stageOf(1)).toBe(stage + 1);
+        }
       }
       if (era < 4) {
         research(tc, `era${era + 1}` as TechId);

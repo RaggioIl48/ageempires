@@ -5,8 +5,8 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import type { TunnelView } from '../../../shared/protocol.ts';
 
-/** Dónde puede estar cloudflared (en el PATH o donde lo deja el instalador de Windows). */
-const CANDIDATES = ['cloudflared', 'C:/Program Files (x86)/cloudflared/cloudflared.exe', 'C:/Program Files/cloudflared/cloudflared.exe'];
+/** Dónde puede estar cloudflared: el que trae el paquete portátil (CLOUDFLARED), el PATH o donde lo deja el instalador de Windows. */
+const CANDIDATES = [...(process.env.CLOUDFLARED ? [process.env.CLOUDFLARED] : []), 'cloudflared', 'C:/Program Files (x86)/cloudflared/cloudflared.exe', 'C:/Program Files/cloudflared/cloudflared.exe'];
 /** Si en este tiempo no dio un enlace, algo anda mal (sin internet, bloqueado por la red). */
 const START_TIMEOUT_MS = 45_000;
 /**

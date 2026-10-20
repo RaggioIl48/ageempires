@@ -24,7 +24,7 @@ import {
   type UnitView,
 } from '../../shared/protocol.ts';
 import { TickClock, posAt, type TickPos } from './motion.ts';
-import { NO_TECHS, buildingMaxHp, unitLabel, unitStats, type TechMask, type UnitStats } from '../../shared/stats.ts';
+import { NO_TECHS, buildingMaxHp, stageOf, unitLabel, unitStats, type TechMask, type UnitStats } from '../../shared/stats.ts';
 
 /** Cuánto manda el giro de una orden recién dada antes de que el servidor confirme (ms). */
 export const AIM_MS = 600;
@@ -479,6 +479,11 @@ export class ClientState {
 
   techsOf(playerId: number): TechMask {
     return this.techs.get(playerId) ?? NO_TECHS;
+  }
+
+  /** Etapa de la Edad Media (1 = Alta, 2 = Plena, 3 = Baja). */
+  stageOf(playerId: number): number {
+    return stageOf(this.techsOf(playerId));
   }
 
   /** Estadísticas reales de una unidad (facción y tecnologías de su dueño). */

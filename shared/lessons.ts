@@ -104,6 +104,9 @@ export const UNIT_HISTORY: Partial<Record<UnitType, string>> = {
   berserker: 'Berserkers were Norse warriors said to fight in a wild fury. The name may mean "bear shirt".',
   huscarl: 'Huscarls were the household guards of Norse and English lords; they fought at Hastings in 1066.',
   ulfhednar: 'The ulfhednar ("wolf coats") were warriors linked to Odin who wore wolf skins.',
+  monk: 'Monasteries were also hospitals: monks grew medicinal herbs and cared for the sick and wounded.',
+  mangonel: 'Medieval armies used stone-throwing engines to batter castle walls and the soldiers behind them.',
+  counterweight_trebuchet: 'The counterweight trebuchet was the most powerful siege engine before cannons: it could throw stones of 100 kg.',
 };
 
 /** Pregunta de opción múltiple: la primera respuesta es la correcta (se mezclan al mostrarla). */
@@ -146,6 +149,33 @@ export const QUIZ_BANK: Record<number, QuizQuestion[]> = {
     { q: 'Tanks were first used in which war?', a: ['World War I', 'The Viking raids', 'The Punic Wars'], fact: 'British tanks first went into battle in 1916.' },
     { q: 'In which year did World War II end?', a: ['1945', '1815', '1492'], fact: 'After the war, countries created the United Nations to keep the peace.' },
     { q: 'What does radar help to do?', a: ['Detect airplanes far away', 'Cook food', 'Build roads'], fact: 'Radar uses radio waves that bounce back from objects.' },
+  ],
+};
+
+/**
+ * Preguntas para avanzar de etapa dentro de la Edad Media (2 = Plena, años 1000–1300; 3 = Baja,
+ * años 1300–1500). La Alta Edad Media (500–1000) es la de QUIZ_BANK[2].
+ */
+export const STAGE_QUIZ_BANK: Record<number, QuizQuestion[]> = {
+  2: [
+    { q: 'In which year did the Normans win the Battle of Hastings and conquer England?', a: ['1066', '1492', '476'], fact: 'The Bayeux Tapestry, a cloth about 70 m long, tells the story of the battle.' },
+    { q: 'What was the Magna Carta, signed in England in 1215?', a: ['A charter that limited the power of the king', 'A map of the world', 'A famous warship'], fact: 'King John had to accept that even the king must obey the law.' },
+    { q: 'Why did lords start building castles of stone instead of wood?', a: ['Stone does not burn and is much harder to break', 'Stone is lighter than wood', 'Wood was forbidden by law'], fact: 'Wooden castles on earth mounds were slowly replaced by stone keeps and walls.' },
+    { q: 'What did medieval monks copy by hand in their monasteries?', a: ['Books', 'Coins', 'Swords'], fact: 'Before printing, monks copied books letter by letter. Many old texts survive only thanks to them.' },
+    { q: 'What was a mangonel?', a: ['A war machine that hurled stones', 'A kind of boat', 'A castle tower'], fact: 'Siege engines threw stones at walls, gates and soldiers from far away.' },
+    { q: 'The Crusades were wars fought mainly over which region?', a: ['The Holy Land, around Jerusalem', 'Scandinavia', 'Mongolia'], fact: 'The First Crusade began in 1096.' },
+    { q: 'Which merchant from Venice wrote about his travels to the court of Kublai Khan?', a: ['Marco Polo', 'Julius Caesar', 'Leif Erikson'], fact: 'Marco Polo reached China in the 1270s and stayed there for about 17 years.' },
+    { q: 'The first European universities, like Bologna and Oxford, were places for…', a: ['teaching and studying', 'training horses', 'storing grain'], fact: 'The University of Bologna, in Italy, is often called the oldest: it dates from 1088.' },
+  ],
+  3: [
+    { q: 'What was the Black Death that struck Europe from 1347 to 1351?', a: ['A plague that killed millions of people', 'A dark castle', 'A famous knight'], fact: 'It killed about a third of the people of Europe.' },
+    { q: "The Hundred Years' War was fought between which two kingdoms?", a: ['England and France', 'Rome and Mongolia', 'Spain and China'], fact: 'It lasted from 1337 to 1453: more than 100 years, with long pauses.' },
+    { q: "Which young French heroine led an army in 1429, during the Hundred Years' War?", a: ['Joan of Arc', 'Cleopatra', 'Queen Victoria'], fact: 'She helped free the city of Orléans when she was about 17 years old.' },
+    { q: 'Why did crossbows spread in the Late Middle Ages?', a: ['They were easy to learn and could pierce armor', 'They were made of gold', 'They shot fire'], fact: 'A good longbowman trained for years; a crossbowman could learn in a few weeks.' },
+    { q: 'What happened to Constantinople in 1453?', a: ['The Ottoman Turks conquered it', 'It was founded', 'It sank into the sea'], fact: 'The Eastern Roman (Byzantine) Empire ended. Many count this as the end of the Middle Ages.' },
+    { q: 'Why did knights of the 1400s wear full plate armor?', a: ['To stop stronger weapons like crossbows', 'To swim better', 'It was cheaper than cloth'], fact: 'A full suit of plate weighed about 15 to 25 kg, spread over the whole body.' },
+    { q: 'What made a counterweight trebuchet throw its stones?', a: ['A heavy falling weight', 'Gunpowder', 'A steam engine'], fact: 'The falling weight swung a long arm that flung stones over castle walls.' },
+    { q: 'In which year did Columbus reach the Americas?', a: ['1492', '1066', '1945'], fact: 'Many historians count 1492 as the end of the Middle Ages.' },
   ],
 };
 

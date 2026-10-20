@@ -111,7 +111,7 @@ Ordenado por cuánto se nota en pantalla.
 | — | ✅ Alcance visible, disparo en marcha y combate cercano en marcha (2026-10-19) | Pedido directo: control de arqueros | Bajo–medio |
 | — | ✅ Clave de pruebas `imperio10mil` (2026-10-19) | Probar unidades sin juntar recursos | Bajo |
 | 4 | Guardar partidas (no perderlas al reiniciar) | Una clase no se pierde por un corte | Medio |
-| 5 | Edad Media en tres etapas, con catapulta y monje (§9) | La edad que más se juega es hoy la más plana | Medio–alto |
+| 5 | ✅ Edad Media en tres etapas, con mangonel, trabuquete, monje y monasterio (§9, 2026-10-19) | La edad que más se juega era la más plana | Medio–alto |
 | 6 | Posturas de combate (agresiva / defensiva / mantener) y guarnición | El jugador decide si sus tropas traban combate solas | Medio |
 | 7 | Animación de disparo en marcha (jinete arquero al galope) | Hoy disparan con el cuadro de caminar | Medio |
 | 8 | 16 direcciones para jinetes | Giros suaves en los cuerpos largos | Medio (más memoria) |
@@ -147,6 +147,10 @@ asedio, General), 3 únicas por pueblo, 40 tecnologías y 24 edificios. Pero 21 
 tecnologías son solo "élite" de las unidades únicas: la edad tiene mucho volumen y poco recorrido.
 
 Lo que más falta, por cuánto cambia la partida:
+
+> ✅ 2026-10-19: hechos los puntos 1 a 3 (sin reliquias). Tres etapas con su pregunta de historia;
+> la Plena abre el mangonel y las fortalezas, la Baja el trabuquete de contrapeso, ballesteros,
+> piqueros y caballeros con placas; monje y monasterio para todos. Detalle en `docs/PROGRESO.md`.
 
 1. **No hay progreso dentro de la edad.** Del año 500 al 1500 todo pasa en un solo escalón.
    → Tres etapas (Alta, Plena y Baja Edad Media) con una pregunta de historia cada una. Cada etapa

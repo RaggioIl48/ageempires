@@ -22,6 +22,8 @@ import {
   type TechId,
   type TradeResource,
   type UnitType,
+  MEDIEVAL_ERA,
+  stageReached,
   TRADE_RESOURCES, shieldBearer } from '../../shared/data.ts';
 import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
@@ -237,15 +239,15 @@ export class Input {
   /** Edificios que se pueden construir en la era actual (incluye el edificio único del propio pueblo). */
   buildMenu(): BuildingType[] {
     const s = this.state;
-    return BUILD_MENU.filter((t) => buildingAvailable(t, s.eraOf(s.you), s.faction(s.you)));
+    return BUILD_MENU.filter((t) => buildingAvailable(t, s.eraOf(s.you), s.faction(s.you), s.stageOf(s.you)));
   }
 
   /** Unidades y tecnologías disponibles ahora en un edificio propio. */
   buildingActions(b: BuildingView): BuildingAction[] {
     const s = this.state;
-    const era = s.eraOf(s.you), mask = s.techsOf(s.you);
+    const era = s.eraOf(s.you), mask = s.techsOf(s.you), stage = s.stageOf(s.you);
     const def = BUILDING_DEFS[b.type];
-    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era, s.faction(s.you))).map((unit) => ({ kind: 'train', unit }));
+    const out: BuildingAction[] = def.trains.filter((u) => unitAvailable(u, era, s.faction(s.you), stage)).map((unit) => ({ kind: 'train', unit }));
     const queued = new Set<TechId>();
     for (const o of s.buildings.values()) if (o.owner === s.you) for (const q of o.queue ?? []) if (q.tech) queued.add(q.tech);
     for (const tech of def.researches) {
@@ -253,6 +255,9 @@ export class Input {
       if (hasTech(mask, tech) || queued.has(tech)) continue;
       if (t.faction && t.faction !== s.faction(s.you)) continue;
       if (t.advancesTo !== undefined ? t.advancesTo !== era + 1 : era < t.era) continue;
+      // Etapas de la Edad Media: solo la siguiente, y lo de una etapa posterior queda oculto hasta llegar.
+      if (t.advancesStage !== undefined && (era !== MEDIEVAL_ERA || t.advancesStage !== stage + 1)) continue;
+      if (!stageReached(t.stage, era, stage)) continue;
       out.push({ kind: 'research', tech });
     }
     if (def.market) for (const resource of TRADE_RESOURCES) for (const buy of [true, false]) out.push({ kind: 'trade', resource, buy });

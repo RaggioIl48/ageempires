@@ -140,6 +140,9 @@ export interface EconomyView {
   resources: Resources;
   pop: number;
   popCap: number;
+  /** Unidades de verdad (un regimiento cuenta todos sus soldados) y el tope de la partida por jugador. */
+  units?: number;
+  unitCap?: number;
   /** Trabajadores por tarea. 'idle' = sin nada que hacer. */
   workers: Record<ResourceType | 'idle' | 'other', number>;
   /** Recurso entregado en el último minuto. */
@@ -524,7 +527,7 @@ export type ServerMessage =
   /** Respuesta a un ping: `ms` = cuánto tarda el servidor en cada paso de esta partida (promedio). */
   | { t: 'pong'; n: number; ms: number; mx?: number }
   /** Pregunta para avanzar de era (las opciones ya vienen mezcladas). */
-  | { t: 'quiz'; id: number; era: number; q: string; options: string[] }
+  | { t: 'quiz'; id: number; era: number; stage?: number; q: string; options: string[] }
   /** Resultado: si acertó, el avance empieza; si no, puede volver a intentar en `wait` segundos. */
   | { t: 'quizResult'; ok: boolean; answer: string; fact?: string; wait?: number }
   | { t: 'ended'; reason: string; summary: PlayerSummary[]; winners: number[]; history?: HistorySample[]; chronicle?: ChronicleEntry[] }

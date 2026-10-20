@@ -2,7 +2,7 @@
 // dice el servidor. Recuerda la partida del estudiante (código + token) para
 // volver a entrar solo si se corta la conexión o se recarga la página.
 
-import { ERAS, FACTIONS } from '../../shared/data.ts';
+import { ERAS, FACTIONS, MEDIEVAL_STAGES } from '../../shared/data.ts';
 import type { ChronicleEntry, HistorySample, PlayerSummary, ServerMessage } from '../../shared/protocol.ts';
 import { reportHtml } from './report.ts';
 import { loadArt } from './art.ts';
@@ -246,7 +246,7 @@ function onMessage(msg: ServerMessage): void {
       game.perf.pong(msg.n, msg.ms, performance.now(), msg.mx ?? 0);
       return;
     case 'quiz':
-      showQuiz(msg.id, msg.era, msg.q, msg.options);
+      showQuiz(msg.id, msg.era, msg.q, msg.options, msg.stage);
       return;
     case 'quizResult':
       showQuizResult(msg.ok, msg.answer, msg.fact, msg.wait);
@@ -258,10 +258,13 @@ function onMessage(msg: ServerMessage): void {
 }
 
 /** Pregunta para avanzar de era: hay que contestarla bien para que empiece el avance. */
-function showQuiz(id: number, era: number, q: string, options: string[]): void {
+function showQuiz(id: number, era: number, q: string, options: string[], stage?: number): void {
   const box = el('quiz');
   const inner = box.querySelector<HTMLElement>('.quiz-box')!;
-  inner.innerHTML = `<h3>🏛 To advance to the ${esc(ERAS[era - 1]?.label ?? 'next age')}, answer this question</h3>
+  // Etapas de la Edad Media: "High Middle Ages (AD 1000–1300)".
+  const s = stage ? MEDIEVAL_STAGES[stage - 1] : undefined;
+  const goal = s ? `${s.label} (${s.years})` : (ERAS[era - 1]?.label ?? 'next age');
+  inner.innerHTML = `<h3>🏛 To advance to the ${esc(goal)}, answer this question</h3>
     <p class="quiz-q">${esc(q)}</p>
     <div class="quiz-options">${options.map((o, i) => `<button data-choice="${i}">${'ABCD'[i]}. ${esc(o)}</button>`).join('')}</div>
     <button class="tiny" data-quiz-close>Not now</button>`;
@@ -286,7 +289,7 @@ function showQuizResult(ok: boolean, answer: string, fact?: string, wait?: numbe
   });
   inner.insertAdjacentHTML(
     'beforeend',
-    `<div class="quiz-result ${ok ? 'ok' : 'no'}">${ok ? '✅ Correct! Your people starts advancing to the next age.' : `❌ Not quite. The answer is: <b>${esc(answer)}</b>. You can try again in ${wait ?? 20} s.`}
+    `<div class="quiz-result ${ok ? 'ok' : 'no'}">${ok ? '✅ Correct! Your people starts the advance.' : `❌ Not quite. The answer is: <b>${esc(answer)}</b>. You can try again in ${wait ?? 20} s.`}
       ${fact ? `<p>💡 ${esc(fact)}</p>` : ''}<button data-quiz-close>OK</button></div>`,
   );
   inner.querySelector<HTMLElement>('[data-quiz-close]')?.remove();

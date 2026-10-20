@@ -1,7 +1,7 @@
 // Fachada de la simulación: recibe órdenes, avanza el tiempo y construye lo
 // que cada jugador puede ver. No sabe nada de sockets.
 
-import { AMMO, SHATTER_AFTER, shieldBearer, BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf } from '../../../shared/data.ts';
+import { AMMO, SHATTER_AFTER, shieldBearer, BUILDING_DEFS, FACTIONS, TICK_MS, TICK_RATE, UNIT_DEFS, eraLabel, rankOf, stageLabel, stageReached } from '../../../shared/data.ts';
 import type {
   BuildingView,
   Command,
@@ -226,6 +226,7 @@ export class Game {
           }
         }
         if (w.eraOf(playerId) < def.era) return w.notify(playerId, `${def.label}: you need the ${eraLabel(def.era)}`);
+        if (!stageReached(def.stage, w.eraOf(playerId), w.stageOf(playerId))) return w.notify(playerId, `${def.label}: you need the ${stageLabel(def.stage!)}`);
         if (cmd.building === 'wonder' && [...w.buildings.values()].some((o) => o.owner === playerId && o.type === 'wonder'))
           return w.notify(playerId, 'You already have a Wonder: only one per empire');
         const error = w.placementError(cmd.building, cmd.tx, cmd.ty);
@@ -283,6 +284,15 @@ export class Game {
             }
           } else w.notify(playerId, 'Siege towers go to enemy walls: right click a wall section');
           units = units.filter((u) => !UNIT_DEFS[u.type].docks);
+          if (!units.length) return;
+        }
+        // Monjes: no pelean; acompañan al ataque y se quedan a un par de casillas, curando.
+        const healers = units.filter((u) => UNIT_DEFS[u.type].heals);
+        if (healers.length) {
+          const c = t.kind === 'unit' ? t.unit : { x: t.building.tx + t.building.size / 2, y: t.building.ty + t.building.size / 2 };
+          const near = healers[0], d = Math.hypot(c.x - near.x, c.y - near.y) || 1, back = Math.min(d, 3);
+          moveGroup(w, healers, c.x - ((c.x - near.x) / d) * back, c.y - ((c.y - near.y) / d) * back);
+          units = units.filter((u) => !UNIT_DEFS[u.type].heals);
           if (!units.length) return;
         }
         // A los aviones solo los alcanzan los ataques a distancia.

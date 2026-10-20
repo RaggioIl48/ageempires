@@ -151,6 +151,22 @@ export function unitLabel(type: UnitType, mask: TechMask = NO_TECHS): string {
   return label;
 }
 
+/** Etapa de la Edad Media alcanzada (1 = Alta, 2 = Plena, 3 = Baja), según sus avances investigados. */
+export function stageOf(mask: TechMask = NO_TECHS): number {
+  let stage = 1;
+  for (const t of techsOf(mask)) stage = Math.max(stage, TECH_DEFS[t].advancesStage ?? 1);
+  return stage;
+}
+
+/** Vida por segundo que cura un sanador (monje) a cada unidad cercana; 0 si no cura. */
+export function healOf(type: UnitType, mask: TechMask = NO_TECHS): number {
+  const h = UNIT_DEFS[type].heals;
+  if (!h) return 0;
+  let hps = h.hps;
+  for (const t of techsOf(mask)) hps += TECH_DEFS[t].heal ?? 0;
+  return hps;
+}
+
 /** ¿Ya evolucionó esta unidad (alguna mejora propia investigada)? */
 export function isUpgraded(type: UnitType, mask: TechMask = NO_TECHS): boolean {
   return techsOf(mask).some((t) => TECH_DEFS[t].unitMods?.[type] !== undefined);

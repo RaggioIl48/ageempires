@@ -117,6 +117,12 @@ describe('eras', () => {
     g.step();
     expect(tc.queue).toHaveLength(0);
     w.addBuilding('tech_center', 1, 16, 12);
+    // Además hay que llegar a la Baja Edad Media.
+    research(g, tc.id, 'era3');
+    g.step();
+    expect(tc.queue).toHaveLength(0);
+    completeTech(w, 1, 'stage2');
+    completeTech(w, 1, 'stage3');
     research(g, tc.id, 'era3');
     run(g, TECH_DEFS.era3.time + 1);
     expect(w.players.get(1)!.era).toBe(3);

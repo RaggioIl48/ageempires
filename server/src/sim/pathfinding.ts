@@ -137,6 +137,8 @@ export function findPath(world: World, from: Point, goals: Set<number>, aim: Poi
       const nx = cx + dx, ny = cy + dy;
       const ni = ny * size + nx;
       if (closed[ni] === s) continue;
+      // A la muralla propia se sube y se baja solo por el lado de adentro de la ciudad.
+      if (world.solid[cur] !== world.solid[ni] && !world.wallStepOk(cur, ni)) continue;
       // Subir a una muralla cuesta (escaleras o escalas): se prefiere el suelo si hay otro camino.
       const ng = gCost[cur] + cost + (world.solid[ni] === WALL ? (world.ramps.has(ni) && world.rampFor(world.walker, ni) ? 0.5 : 4) : 0);
       if (seen[ni] !== s || ng < gCost[ni]) {
@@ -227,9 +229,14 @@ export function clearLine(world: World, a: Point, b: Point): boolean {
   const px = (-dy / len) * 0.3, py = (dx / len) * 0.3;
   const steps = Math.ceil(len / 0.25);
   const ax = Math.floor(a.x), ay = Math.floor(a.y);
+  let prev = ay * world.size + ax;
   for (let s = 0; s <= steps; s++) {
     const t = s / steps;
     const x = a.x + dx * t, y = a.y + dy * t;
+    // La línea del centro no puede bajar de la muralla propia por el lado de afuera.
+    const cur = Math.floor(y) * world.size + Math.floor(x);
+    if (cur !== prev && world.inBounds(Math.floor(x), Math.floor(y)) && !world.wallStepOk(prev, cur)) return false;
+    prev = cur;
     for (const k of [0, 1, -1]) {
       // La casilla de salida puede estar ocupada (p. ej. unidad pegada a un árbol).
       const cx = Math.floor(x + px * k), cy = Math.floor(y + py * k);

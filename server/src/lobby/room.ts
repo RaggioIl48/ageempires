@@ -3,9 +3,9 @@
 // "token" secreto: si se le cae la conexión, vuelve a su mismo puesto.
 
 import { randomBytes } from 'node:crypto';
-import { spawnDemoArmies } from '../sim/demo.ts';
-import { FACTION_ORDER, PLAYER_COLORS, RESOURCE_TYPES, TECH_DEFS, TICK_RATE, type FactionId } from '../../../shared/data.ts';
-import { QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
+import { spawnDemoArmies, spawnDemoWalls } from '../sim/demo.ts';
+import { FACTION_ORDER, PLAYER_COLORS, RESOURCE_TYPES, MEDIEVAL_ERA, TECH_DEFS, TICK_RATE, isAdvanceTech, type FactionId } from '../../../shared/data.ts';
+import { QUIZ_BANK, STAGE_QUIZ_BANK, type QuizQuestion } from '../../../shared/lessons.ts';
 import type {
 
   BotLevel,
@@ -236,7 +236,8 @@ export class Room {
     // En pausa (táctica) se pueden dar órdenes: se aplican todas juntas al reanudar.
     if (this.paused && this.game.queued() >= MAX_PAUSED_ORDERS) return;
     // Avanzar de era: antes hay que contestar una pregunta (si la sala las tiene).
-    if (cmd.kind === 'research' && TECH_DEFS[cmd.tech].advancesTo && this.quizMode() !== 'off') return this.askQuiz(member, cmd);
+    // Lo mismo para las etapas de la Edad Media (Plena y Baja), con preguntas de esa época.
+    if (cmd.kind === 'research' && isAdvanceTech(cmd.tech) && this.quizMode() !== 'off') return this.askQuiz(member, cmd);
     this.game.enqueue(member.id, cmd);
   }
 
@@ -245,14 +246,17 @@ export class Room {
     return mode === 'custom' && !this.settings.questions?.length ? 'history' : mode;
   }
 
-  /** Manda una pregunta (una que todavía no vio, si hay) para la era que quiere alcanzar. */
+  /** Manda una pregunta (una que todavía no vio, si hay) para la era o etapa que quiere alcanzar. */
   private askQuiz(member: Member, cmd: Extract<Command, { kind: 'research' }>): void {
     const conn = member.conn;
     if (!conn) return;
     const wait = Math.ceil(((this.quizWait.get(member.id) ?? 0) - Date.now()) / 1000);
     if (wait > 0) return conn.send({ t: 'error', message: `Think about it for a moment: you can try again in ${wait} s.` });
-    const era = TECH_DEFS[cmd.tech].advancesTo!;
-    const bank = this.quizMode() === 'custom' ? this.settings.questions! : (QUIZ_BANK[era] ?? QUIZ_BANK[2]);
+    const def = TECH_DEFS[cmd.tech];
+    const stage = def.advancesStage;
+    const era = def.advancesTo ?? MEDIEVAL_ERA;
+    const history = stage ? STAGE_QUIZ_BANK[stage] : QUIZ_BANK[era];
+    const bank = this.quizMode() === 'custom' ? this.settings.questions! : (history ?? QUIZ_BANK[2]);
     const seen = this.quizSeen.get(member.id) ?? new Set<string>();
     this.quizSeen.set(member.id, seen);
     let pool = bank.filter((q) => !seen.has(q.q));
@@ -266,7 +270,7 @@ export class Room {
     const order = question.a.map((_, i) => i).sort(() => Math.random() - 0.5);
     const pending: PendingQuiz = { id: this.nextQuizId++, correct: order.indexOf(0), question, options: order.map((i) => question.a[i]), cmd };
     this.quizzes.set(member.id, pending);
-    conn.send({ t: 'quiz', id: pending.id, era, q: question.q, options: pending.options });
+    conn.send({ t: 'quiz', id: pending.id, era, ...(stage ? { stage } : {}), q: question.q, options: pending.options });
   }
 
   /** Respuesta a la pregunta: si acierta, empieza el avance; si no, espera un poco y aprende la respuesta. */
@@ -368,6 +372,7 @@ export class Room {
     initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
     // Solo para medir la fluidez (DEMO_ARMY=n): ejércitos listos al empezar.
     spawnDemoArmies(this.game.world, Number(process.env.DEMO_ARMY) || 0);
+    if (process.env.DEMO_WALLS) spawnDemoWalls(this.game.world);
     if (this.settings.fog !== false) this.game.enableFog();
     this.ais = players.filter((m) => m.bot).map((m) => new AiPlayer(m.id, m.bot!));
     for (const m of players) {

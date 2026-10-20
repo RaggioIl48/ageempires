@@ -83,7 +83,7 @@ export function moveUnits(world: World, dt: number): void {
         }
       }
       // El camino pudo quedar viejo (p. ej. se construyó algo encima): no atravesar paredes.
-      if (!stats.flies && !world.isWalkable(Math.floor(nx), Math.floor(ny))) {
+      if (!stats.flies && !stepOk(world, u.x, u.y, nx, ny)) {
         rerouteBlocked(world, u);
         break;
       }
@@ -154,7 +154,7 @@ function sidestep(world: World, bodies: Map<number, Unit[]>, u: Unit, dx: number
   for (const a of [0.6, -0.6, 1.15, -1.15]) {
     const c = Math.cos(a), s = Math.sin(a);
     const x = u.x + (dx * c - dy * s) * step, y = u.y + (dx * s + dy * c) * step;
-    if (world.isWalkable(Math.floor(x), Math.floor(y)) && !blockerAt(world, bodies, u, x, y)) return [x, y];
+    if (stepOk(world, u.x, u.y, x, y) && !blockerAt(world, bodies, u, x, y)) return [x, y];
   }
   return null;
 }
@@ -466,7 +466,7 @@ export function separateUnits(world: World): void {
 function nudge(world: World, u: Unit, dx: number, dy: number): void {
   const nx = u.x + dx, ny = u.y + dy;
   world.setWalker(u);
-  if (world.isWalkable(Math.floor(nx), Math.floor(ny))) {
+  if (stepOk(world, u.x, u.y, nx, ny)) {
     u.x = nx;
     u.y = ny;
   }
@@ -474,4 +474,15 @@ function nudge(world: World, u: Unit, dx: number, dy: number): void {
 
 function dist2(a: Point, b: Point): number {
   return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+}
+
+/**
+ * ¿Puede dar este paso corto? La casilla de llegada tiene que ser transitable y, si sube o baja de
+ * una muralla propia, tiene que ser por el lado de adentro (ver World.wallStepOk).
+ */
+function stepOk(world: World, x0: number, y0: number, x1: number, y1: number): boolean {
+  const tx = Math.floor(x1), ty = Math.floor(y1);
+  if (!world.isWalkable(tx, ty)) return false;
+  const from = Math.floor(y0) * world.size + Math.floor(x0), to = ty * world.size + tx;
+  return from === to || !world.inBounds(Math.floor(x0), Math.floor(y0)) || world.wallStepOk(from, to);
 }

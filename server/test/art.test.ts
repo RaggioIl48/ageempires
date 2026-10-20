@@ -14,7 +14,7 @@ const units = JSON.parse(fs.readFileSync(path.join(ART, 'units.json'), 'utf8'));
 const credits = JSON.parse(fs.readFileSync(path.join(ART, 'credits.json'), 'utf8'));
 
 /** Unidades que todavía se dibujan con formas (no hay arte abierto adecuado). */
-const PROCEDURAL: UnitType[] = [];
+const PROCEDURAL: UnitType[] = ['monk']; // 0 A.D. tiene sanadores, pero no están en el caché del arte
 
 describe('arte de unidades', () => {
   it('cada crédito tiene título, autores, licencias abiertas y enlace', () => {

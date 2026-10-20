@@ -50,6 +50,9 @@ describe('technology masks', () => {
 describe('unit upgrades (AoE style)', () => {
   it('Pikeman: spearmen get stronger and change their name, including the ones already on the map', () => {
     const { g, w } = game();
+    // El Piquero es de la Baja Edad Media.
+    completeTech(w, 1, 'stage2');
+    completeTech(w, 1, 'stage3');
     const barracks = w.addBuilding('barracks', 1, 12, 12)!;
     const spear = w.addUnit('spearman', 1, 16.5, 16.5);
     spear.hp -= 10;

@@ -137,7 +137,10 @@ async function main() {
     // Torre de asedio helena (tablones y cueros), alta como una muralla.
     { id: 'any-siege_tower', unit: '*/siege_tower', actor: 'structures/hellenes/siege_tower.xml', tiles: 1.3, main: true, fs: 320, skip: /decals|particle|props\/units/ },
     // Trebuchet de tracción Han (lo usaron los mongoles de la dinastía Yuan), con sus tiradores.
-    { id: 'mongols-trebuchet', unit: 'mongols/trebuchet', actor: 'units/han/siege_mangonel.xml', tiles: 1.5, main: true, fs: 320, recoil: true, skip: /decals|particle|packed/ },
+    // El trabuquete de contrapeso común (Baja Edad Media) usa la misma hoja.
+    { id: 'mongols-trebuchet', unit: 'mongols/trebuchet', also: ['*/counterweight_trebuchet'], actor: 'units/han/siege_mangonel.xml', tiles: 1.5, main: true, fs: 320, recoil: true, skip: /decals|particle|packed/ },
+    // Mangonel común (Plena Edad Media): el onagro romano de 0 A.D., sin sus piedras sueltas.
+    { id: 'any-mangonel', unit: '*/mangonel', actor: 'units/romans/siege_onager.xml', tiles: 1.3, main: true, fs: 256, recoil: true, skip: /decals|particle|props/ },
     // Eras Industrial y Moderna: modelos CC0 de OpenGameArt; la pintura (camuflaje, caqui) lleva el color del jugador.
     { id: 'any-tank', unit: '*/tank', credit: 'model:t12', tiles: 2.4, turn: 180,
       load: async () => teamPaint(loadFbx(path.join(await ensureModel(CACHE, 't-12.zip', 't12'), 'T-12 soviet tank.fbx')), /camo/i) },
@@ -148,12 +151,16 @@ async function main() {
       } },
   ];
   for (const v of vehicles) {
-    if (only && only !== v.id && only !== 'vehicles') continue;
+    if (only && only !== v.id && only !== 'vehicles') {
+      // Sin rehacer la hoja: sus unidades (y las que la comparten) siguen apuntando a ella.
+      if (manifest.sheets[v.id]) for (const u of [v.unit, ...(v.also ?? [])]) manifest.units[u] = v.id;
+      continue;
+    }
     const anims = await zeroadVehicle(new ZeroAD(CACHE), v);
     const packed = packSheet(anims);
     const credit = v.credit ?? '0ad:structures';
     const license = sheetLicense([normalizeLicenses(credit === '0ad:structures' ? ZEROAD_CREDIT.licenses : MODEL_CREDITS[credit].licenses)]);
-    save(v.id, [v.unit], packed, { scale: 0.5, o: 'oga8', credits: [credit], license });
+    save(v.id, [v.unit, ...(v.also ?? [])], packed, { scale: 0.5, o: 'oga8', credits: [credit], license });
     console.log(`  ${v.id.padEnd(28)} ${packed.img.w}×${packed.img.h}  ${license}`);
   }
 

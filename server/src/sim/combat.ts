@@ -219,6 +219,7 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
   if (t.kind === 'unit') {
     t.unit.hp -= dmg;
     hitMorale(world, t.unit, dmg, side, owner, attack.type === 'melee');
+    if (attacker) splash(world, owner, attacker, t.unit, dmg);
   } else {
     t.building.hp -= dmg;
     // Quién golpeó la capital por última vez (si cae, la conquistó él).
@@ -250,8 +251,29 @@ export function strike(world: World, owner: number, attack: AttackDef, cat: Cate
 
   notifyVictim(world, t);
   // Una unidad militar quieta que recibe un golpe responde.
-  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly && !UNIT_DEFS[t.unit.type].docks)
+  if (attacker && t.kind === 'unit' && t.unit.hp > 0 && !t.unit.task && t.unit.state === 'idle' && t.unit.type !== 'worker' && !isRouting(t.unit) && !UNIT_DEFS[t.unit.type].buildingsOnly && !UNIT_DEFS[t.unit.type].docks && !UNIT_DEFS[t.unit.type].heals)
     assignAttack(t.unit, attacker.id, true);
+}
+
+/**
+ * Piedras del mangonel: además del blanco, golpean a los enemigos que están a su lado (una parte
+ * del daño). Por eso conviene contra bloques apretados de infantería y arqueros.
+ */
+function splash(world: World, owner: number, attacker: Unit, target: Unit, dmg: number): void {
+  const sp = UNIT_DEFS[attacker.type].splash;
+  if (!sp) return;
+  const hit = Math.max(1, Math.round(dmg * sp.share));
+  for (const o of world.units.values()) {
+    if (o === target || o.hp <= 0 || UNIT_DEFS[o.type].flies || !isEnemy(world, owner, o.owner)) continue;
+    if ((o.x - target.x) ** 2 + (o.y - target.y) ** 2 > sp.radius * sp.radius) continue;
+    const before = o.hp;
+    o.hp -= hit;
+    hitMorale(world, o, hit, 0, owner, false);
+    if (before > 0 && o.hp <= 0) {
+      const p = world.players.get(owner);
+      if (p) p.kills++;
+    }
+  }
 }
 
 /** Aviso para el atacado (como mucho uno cada 15 segundos). */
@@ -276,7 +298,7 @@ export function updateCombat(world: World, dt: number): void {
     if (u.cooldown > 0) u.cooldown = Math.max(0, u.cooldown - dt);
     if (isRouting(u)) continue; // huyendo no pelea
     if (u.down > 0) continue; // derribado por una carga: todavía en el suelo
-    if (UNIT_DEFS[u.type].docks) continue; // la torre de asedio no pelea
+    if (UNIT_DEFS[u.type].docks || UNIT_DEFS[u.type].heals) continue; // la torre de asedio y los monjes no pelean
     // Sin munición: el tirador deja de tirar (la recupera cerca de un edificio propio).
     if (u.ammo <= 0) {
       if (u.task?.kind === 'attack') stopWork(u);
