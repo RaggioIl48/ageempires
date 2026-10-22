@@ -136,6 +136,8 @@ export interface Unit {
   post: Point | null;
   /** Hostigamiento: paso hasta el que no vuelve a retroceder. */
   skirmishUntil: number;
+  /** Pasos en que este tirador se retiró por hostigamiento (para limitar la huida, ver SKIRMISH_MAX). */
+  retreats: number[];
   /** Aguante (0–100): baja al correr y pelear, sube descansando. Ver fatigue.ts. */
   stamina: number;
   /** Camina (más lento, casi no se cansa) en vez de correr. */
@@ -238,6 +240,9 @@ export interface Player {
   /** Avisos pendientes de enviar a este jugador. */
   notices: string[];
   lastAttackNotice: number; // tick del último "¡Te atacan!"
+  /** Desde qué paso hay obreros sin trabajo (-1 = ninguno) y cuándo se avisó por última vez. */
+  idleSince: number;
+  lastIdleNotice: number;
   /** Estadísticas para el resumen final. */
   gathered: number;
   kills: number;
@@ -381,6 +386,8 @@ export class World {
       deposits: [],
       notices: [],
       lastAttackNotice: -Infinity,
+      idleSince: -1,
+      lastIdleNotice: -Infinity,
       gathered: 0,
       kills: 0,
       defeated: false,
@@ -606,6 +613,7 @@ export class World {
       hold: false,
       post: null,
       skirmishUntil: 0,
+      retreats: [],
       stamina: 100,
       walking: false,
       climb: 0,

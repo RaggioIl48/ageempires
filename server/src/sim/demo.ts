@@ -1,24 +1,27 @@
 // Ejércitos de demostración (solo para medir la fluidez): con la variable de entorno DEMO_ARMY=n,
 // al empezar la partida cada jugador recibe n regimientos medievales entre su ciudad y el centro
 // del mapa, que avanzan hacia el centro y chocan: una batalla grande sin jugar media hora antes.
-// En una partida normal (sin la variable) no hace nada.
+// En una partida normal (sin la variable) no hace nada. DEMO_TYPES=horse_archer,spearman elige las
+// tropas (para revisar el arte de una unidad en marcha).
 
-import { regimentSize, type UnitType } from '../../../shared/data.ts';
+import { regimentSize, UNIT_DEFS, type UnitType } from '../../../shared/data.ts';
 import { completeTech } from './production.ts';
 import { moveGroup } from './movement.ts';
 import type { World } from './world.ts';
 
 const TYPES: UnitType[] = ['spearman', 'swordsman', 'archer', 'knight', 'warrior', 'scout'];
 
-export function spawnDemoArmies(world: World, regiments: number): void {
+export function spawnDemoArmies(world: World, regiments: number, only = process.env.DEMO_TYPES): void {
   if (regiments <= 0) return;
+  const chosen = (only ?? '').split(',').filter((t): t is UnitType => t in UNIT_DEFS);
+  const types = chosen.length ? chosen : TYPES;
   const c = world.size / 2;
   for (const p of world.players.values()) {
     completeTech(world, p.id, 'era2');
     // Del lado de su ciudad, a mitad de camino del centro.
     const sx = p.start.x + (c - p.start.x) * 0.45, sy = p.start.y + (c - p.start.y) * 0.45;
     for (let r = 0; r < regiments; r++) {
-      const type = TYPES[r % TYPES.length];
+      const type = types[r % types.length];
       const n = Math.max(1, regimentSize(type));
       const reg = world.newId();
       const ox = sx + ((r % 4) - 1.5) * 3, oy = sy + (Math.floor(r / 4) - 1) * 3;

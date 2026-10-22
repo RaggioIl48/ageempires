@@ -9,7 +9,8 @@
 // Cada pueblo tiene su estilo en cada era (como en Age of Empires, los edificios
 // cambian de aspecto al avanzar de era; y como los asentamientos de Total War, las
 // aldeas crecen hasta ciudades de piedra). Ej.: los romanos pasan del entramado a la
-// piedra en la Edad Media; los mongoles viven en tiendas hasta la Era Industrial.
+// piedra en la Edad Media; los mongoles viven en tiendas hasta la Era Industrial, y desde ahí
+// en una ciudad Yuan (edificios Han de 0 A.D., ver CITY en forts.mjs).
 // Lo que no tiene imagen adecuada (murallas, edificios únicos, el centro mongol en
 // tiendas) se sigue dibujando con formas.
 

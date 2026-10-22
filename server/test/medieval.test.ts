@@ -186,7 +186,8 @@ describe('stone throwers', () => {
     const m = w.addUnit('mangonel', 1, 8.5, 20.5);
     const target = w.addUnit('spearman', 2, 14.5, 20.5);
     const side = w.addUnit('spearman', 2, 14.5, 21.3);
-    const friend = w.addUnit('swordsman', 1, 15.3, 20.5);
+    // Dentro del radio de la piedra (1,3) pero fuera del cuerpo a cuerpo (0,9): así solo puede dañarlo la piedra.
+    const friend = w.addUnit('swordsman', 1, 15.6, 20.5);
     const far = w.addUnit('spearman', 2, 14.5, 24.5);
     for (const u of [target, side, far, friend]) u.guard = true;
     const full = (u: typeof target) => w.statsOf(u).hp;

@@ -261,7 +261,8 @@ export class AiPlayer {
     if (military && era === MEDIEVAL_ERA) {
       const monastery = buildings.find((b) => b.type === 'monastery' && b.progress >= 1);
       const missingMonks = monastery ? Math.max(0, Math.min(4, 1 + Math.floor(army.length / 8)) - owned('monk')) : 0;
-      if (missingMonks && monastery!.queue.length < 2) train(monastery!, 'monk');
+      let queuedNow = 0; // lo que se encargó en esta vuelta ya no hace falta reservarlo
+      if (missingMonks && monastery!.queue.length < 2 && train(monastery!, 'monk')) queuedNow++;
       const mangonels = owned('mangonel'), trebs = owned('counterweight_trebuchet');
       // Cupos separados: mangoneles (contra tropas) y, en la Baja Edad Media, trabuquetes (contra murallas).
       const normal = this.level === 'normal';
@@ -269,9 +270,12 @@ export class AiPlayer {
       const missingTrebs = normal && unitAvailable('counterweight_trebuchet', era, me.faction, stage) ? Math.max(0, Math.min(2, 1 + Math.floor(this.waves / 2)) - trebs) : 0;
       const missingEngines = missingMangonels + missingTrebs;
       const barracks = free('barracks');
-      if (barracks && missingEngines) train(barracks, missingTrebs && trebs <= mangonels / 2 ? 'counterweight_trebuchet' : missingMangonels ? 'mangonel' : 'counterweight_trebuchet');
+      if (barracks && missingEngines && train(barracks, missingTrebs && trebs <= mangonels / 2 ? 'counterweight_trebuchet' : missingMangonels ? 'mangonel' : 'counterweight_trebuchet')) queuedNow++;
+      // Desde la Plena Edad Media se guarda también el lugar del trabuquete que vendrá: si se espera a la
+      // Baja, los regimientos ya llenaron la población y no cabe (medido: población 58 de 60 al llegar).
+      const futureTrebs = normal && stage === 2 ? Math.max(0, Math.min(2, 1 + Math.floor(this.waves / 2)) - trebs) : 0;
       // Lo que falta se reserva: los regimientos no ocupan ese lugar.
-      reserve = Math.max(0, missingMonks + missingEngines - 1);
+      reserve = Math.max(0, missingMonks + missingEngines + futureTrebs - queuedNow);
     }
     for (const b of buildings) {
       if (b.progress < 1 || b.queue.length >= 2 || !military) continue;

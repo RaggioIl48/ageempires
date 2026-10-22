@@ -6,7 +6,7 @@ import { TICK_MS, UNIT_DEFS, type UnitType } from '../../shared/data.ts';
 import { decodeUnit, encodeUnit } from '../../shared/codec.ts';
 import type { DeltaMessage } from '../../shared/protocol.ts';
 import { strikeIntervalTicks } from '../../shared/stats.ts';
-import { attackFrame, defaultHit, swingDurations, type SwingTiming } from '../../client/src/attackSync.ts';
+import { attackFrame, chargeFrame, defaultHit, firingOnTheMove, swingDurations, type SwingTiming } from '../../client/src/attackSync.ts';
 import { ClientState } from '../../client/src/state.ts';
 import { flatGame } from './helpers.ts';
 
@@ -190,5 +190,42 @@ describe('end to end: server hits → network with latency → what the student 
     const slow = simulate('spearman', 300, 0);
     const gaps = (xs: number[]) => xs.slice(1).map((x, i) => x - xs[i]);
     for (const g of [...gaps(fast.impacts), ...gaps(slow.impacts)]) expect(Math.abs(g - fast.cooldownMs)).toBeLessThanOrEqual(16);
+  });
+});
+
+describe('riders: shooting and striking at a gallop', () => {
+  it('a mounted archer that shoots while moving is reported as moving, with the tick of its shot', () => {
+    const g = flatGame();
+    const w = g.world;
+    for (const b of [...w.buildings.values()]) w.removeBuilding(b.id);
+    w.setRelation(1, 2, 'war');
+    const rider = w.addUnit('horse_archer', 1, 10.5, 20.5);
+    w.addUnit('spearman', 2, 13.5, 23.5);
+    // Orden de mover simple, pasando junto al enemigo: dispara en marcha.
+    g.enqueue(1, { kind: 'move', unitIds: [rider.id], x: 18.5, y: 20.5 });
+    let seen: { state: string; sk?: number } | null = null;
+    for (let i = 0; i < 60 && !seen; i++) {
+      g.step();
+      const v = decodeUnit(encodeUnit(g.unitViews().find((x) => x.id === rider.id)!));
+      if (v.sk !== undefined && v.state === 'moving') seen = v;
+    }
+    expect(seen).not.toBeNull(); // el cliente sabe que disparó aunque no esté "atacando"
+  });
+
+  it('the gallop-and-shoot animation is kept for a moment after each shot, then the plain gallop', () => {
+    const cool = 1600; // jinete arquero: un disparo cada 1,6 s
+    expect(firingOnTheMove(undefined, cool, 1000)).toBe(false);
+    expect(firingOnTheMove(1000, cool, 1100)).toBe(true);
+    expect(firingOnTheMove(1000, cool, 1000 + cool)).toBe(true); // hasta el próximo disparo: ráfaga continua
+    expect(firingOnTheMove(1000, cool, 1000 + cool * 1.4)).toBe(false); // dejó de disparar: galope solo
+  });
+
+  it('the charge frame shows the impact exactly at the real hit, then follows the gallop', () => {
+    const n = 12, hit = 7, fps = 24;
+    expect(chargeFrame(5000, 5000, n, hit, fps, 0)).toBe(hit);
+    expect(chargeFrame(5000 + 1000 / fps, 5000, n, hit, fps, 0)).toBe(hit + 1);
+    expect(chargeFrame(5000 + (5 * 1000) / fps, 5000, n, hit, fps, 0)).toBe((hit + 5) % n); // da la vuelta
+    // Sin golpe conocido: ciclo libre.
+    expect(chargeFrame(5000, undefined, n, hit, fps, 0.5)).toBe(Math.floor(0.5 * fps) % n);
   });
 });

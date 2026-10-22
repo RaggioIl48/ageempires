@@ -1053,14 +1053,7 @@ function drawCulture(ctx: CanvasRenderingContext2D, b: BuildingView, s: number, 
   switch (b.type) {
     case 'town_center':
       if (look.arch === 'yurt') {
-        fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(150,130,90,0.35)');
-        for (const [dx, dy, r] of [[0.6, 0.6, 16], [2.4, 0.6, 16], [0.6, 2.4, 16]] as const) yurt(ctx, at(dx, dy).px, at(dx, dy).py, r, color);
-        const c = at(1.8, 1.8);
-        yurt(ctx, c.px, c.py, 30, color);
-        flag(ctx, c.px, c.py - 46, color, 22);
-        const pole = at(2.7, 2.7);
-        line(ctx, pole.px, pole.py, pole.px, pole.py - 34, '#5a3d26', 2);
-        for (let i = 0; i < 5; i++) line(ctx, pole.px, pole.py - 34 + i * 2, pole.px - 3 + i * 1.5, pole.py - 24 + i * 2, '#3a2a1a', 1); // estandarte de crines
+        ordu(ctx, b, s, color);
       } else if (look.arch === 'hut') {
         fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(120,100,60,0.35)');
         for (const [dx, dy, r] of [[0.6, 0.6, 14], [2.4, 0.6, 14], [0.6, 2.4, 14]] as const) hut(ctx, at(dx, dy).px, at(dx, dy).py, r, look, color);
@@ -1143,23 +1136,175 @@ function miniTower(ctx: CanvasRenderingContext2D, p: P, h: number, color: string
   poly(ctx, [p.px - 7, p.py - h, p.px + 7, p.py - h, p.px, p.py - h - 10], shade(color, 0.9));
 }
 
-/** Yurta: base cilíndrica blanca, techo en cúpula y una franja de color. */
-function yurt(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string): void {
-  ellipse(ctx, x + 2, y + 1, r + 2, r * 0.45, 'rgba(0,0,0,0.22)');
-  const h = r * 0.9;
-  ctx.fillStyle = '#e8e0cc';
-  ctx.fillRect(x - r, y - h, r * 2, h);
-  ellipse(ctx, x, y, r, r * 0.4, '#e8e0cc');
-  ctx.fillStyle = color;
-  ctx.fillRect(x - r, y - h * 0.55, r * 2, 2.5);
+/**
+ * Yurta (ger): pared de fieltro con el enrejado de madera que se transparenta, franja con el color
+ * del jugador, puerta pintada de naranja, techo de varas que suben a la corona (toono) y sogas.
+ * `grand` = la del kan: franja con adornos, remate dorado y humo del fogón.
+ */
+function yurt(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, grand = false): void {
+  const ry = r * 0.4, h = r * 0.62, rise = r * 0.55;
+  ellipse(ctx, x + r * 0.18, y + 2, r * 1.12, ry * 1.15, 'rgba(0,0,0,0.25)');
+  // Pared: de la orilla izquierda (iluminada) a la derecha (en sombra).
+  const wall = new Path2D();
+  wall.moveTo(x - r, y - h);
+  wall.lineTo(x - r, y);
+  wall.ellipse(x, y, r, ry, 0, Math.PI, 0, true);
+  wall.lineTo(x + r, y - h);
+  wall.closePath();
+  const wg = ctx.createLinearGradient(x - r, 0, x + r, 0);
+  wg.addColorStop(0, '#f6f0e2');
+  wg.addColorStop(0.45, '#e6dcc6');
+  wg.addColorStop(1, '#b3a687');
+  ctx.fillStyle = wg;
+  ctx.fill(wall);
+  ctx.save();
+  ctx.clip(wall);
+  ctx.strokeStyle = 'rgba(110,85,55,0.16)';
+  ctx.lineWidth = 0.8;
+  const step = Math.max(3, r * 0.16);
   ctx.beginPath();
-  ctx.ellipse(x, y - h, r, r * 0.75, 0, Math.PI, 0);
-  ctx.fillStyle = '#d8cfb8';
-  ctx.fill();
-  ellipse(ctx, x, y - h, r, r * 0.35, '#cfc5ab');
-  ellipse(ctx, x, y - h - r * 0.6, 2, 1.2, '#6b4a2b');
-  ctx.fillStyle = '#8a5a33';
-  ctx.fillRect(x - 2, y - h * 0.7, 4, h * 0.7);
+  for (let k = -r - h; k < r + h; k += step) {
+    ctx.moveTo(x + k, y + ry);
+    ctx.lineTo(x + k + h + ry, y - h);
+    ctx.moveTo(x + k + h + ry, y + ry);
+    ctx.lineTo(x + k, y - h);
+  }
+  ctx.stroke();
+  // Sogas de crin que ciñen la pared y franja de color.
+  const band = (dy: number, w: number, c: string) => {
+    ctx.beginPath();
+    ctx.ellipse(x, y - dy, r, ry, 0, Math.PI, 0, true);
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.stroke();
+  };
+  band(h * 0.22, Math.max(1, r * 0.04), '#6b4a2b');
+  band(h * 0.78, Math.max(2.5, r * 0.14), color);
+  if (grand) {
+    band(h * 0.78 + r * 0.075, 1, '#f2d16b');
+    band(h * 0.78 - r * 0.075, 1, '#f2d16b');
+    for (let i = 1; i < 12; i++) {
+      const a = Math.PI - (i * Math.PI) / 12;
+      ellipse(ctx, x + Math.cos(a) * r, y - h * 0.78 + Math.sin(a) * ry, 1.2, 1.2, '#f7efd8');
+    }
+  }
+  ctx.restore();
+  // Puerta (al frente): marco naranja y hoja roja con un rombo.
+  const dw = r * 0.3, dh = h * 0.86, dy0 = y + ry;
+  ctx.fillStyle = '#c8641e';
+  ctx.fillRect(x - dw / 2 - 1.5, dy0 - dh - 1.5, dw + 3, dh + 1.5);
+  ctx.fillStyle = '#8f2c16';
+  ctx.fillRect(x - dw / 2, dy0 - dh, dw, dh);
+  poly(ctx, [x, dy0 - dh * 0.8, x + dw * 0.28, dy0 - dh * 0.5, x, dy0 - dh * 0.2, x - dw * 0.28, dy0 - dh * 0.5], '#e39a3b');
+  // Techo: cúpula baja de varas (uni) con la orilla de fieltro.
+  const roof = new Path2D();
+  roof.moveTo(x - r * 1.05, y - h);
+  roof.quadraticCurveTo(x - r * 0.55, y - h - rise * 0.95, x, y - h - rise);
+  roof.quadraticCurveTo(x + r * 0.55, y - h - rise * 0.95, x + r * 1.05, y - h);
+  roof.ellipse(x, y - h, r * 1.05, ry * 1.05, 0, 0, Math.PI, false);
+  roof.closePath();
+  const rg = ctx.createLinearGradient(x - r, 0, x + r, 0);
+  rg.addColorStop(0, '#efe6d0');
+  rg.addColorStop(0.5, '#dccfb2');
+  rg.addColorStop(1, '#a3957a');
+  ctx.fillStyle = rg;
+  ctx.fill(roof);
+  ctx.save();
+  ctx.clip(roof);
+  ctx.strokeStyle = 'rgba(95,72,45,0.22)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  for (let i = 1; i < 10; i++) {
+    const a = Math.PI - (i * Math.PI) / 10;
+    ctx.moveTo(x, y - h - rise);
+    ctx.lineTo(x + Math.cos(a) * r * 1.05, y - h + Math.sin(a) * ry * 1.05);
+  }
+  ctx.stroke();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.ellipse(x, y - h, r * 1.05, ry * 1.05, 0, 0, Math.PI, false);
+  ctx.strokeStyle = '#9a8b6c';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Sogas cruzadas sobre el techo.
+  for (const s of [-1, 1]) line(ctx, x + s * r * 0.75, y - h + ry * 0.7, x - s * r * 0.15, y - h - rise * 0.85, 'rgba(90,62,38,0.55)', 1);
+  // Corona (toono).
+  ellipse(ctx, x, y - h - rise + 1, r * 0.17, r * 0.07, '#7a5432', '#5a3c22', 1);
+  if (grand) {
+    poly(ctx, [x - 2, y - h - rise, x, y - h - rise - 9, x + 2, y - h - rise], '#d9a521');
+    ellipse(ctx, x, y - h - rise - 9, 2.2, 2.2, '#f2c94c', '#9c7412', 0.8);
+    for (const [k, a] of [[0, 0.32], [1, 0.22], [2, 0.12]] as const) ellipse(ctx, x + 6 + k * 4, y - h - rise - 6 - k * 7, 3 + k * 1.5, 2.2 + k, `rgba(225,225,225,${a})`);
+  }
+}
+
+/** Campamento del kan (ordu): la gran yurta, yurtas de la guardia, estandartes, carro y cerco bajo. */
+function ordu(ctx: CanvasRenderingContext2D, b: BuildingView, s: number, color: string): void {
+  const at = (dx: number, dy: number) => worldToPx(b.tx + dx, b.ty + dy);
+  fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(150,128,88,0.4)');
+  // Alfombras de fieltro frente a la puerta.
+  const rug = (dx: number, dy: number, w: number, c: string) => {
+    const k = corners({ tx: b.tx + dx, ty: b.ty + dy }, w, 0);
+    poly(ctx, [k.T.px, k.T.py, k.R.px, k.R.py, k.B.px, k.B.py, k.L.px, k.L.py], c);
+  };
+  rug(1.85, 1.95, 0.75, '#8f2c16');
+  rug(1.95, 2.05, 0.55, shade(color, 0.85));
+  // De atrás hacia adelante.
+  const back: [number, number, number][] = [[0.55, 0.55, 14], [1.75, 0.45, 12], [0.45, 1.75, 12]];
+  for (const [dx, dy, r] of back) yurt(ctx, at(dx, dy).px, at(dx, dy).py, r, color);
+  tug(ctx, at(2.55, 0.5), 38, false);
+  tug(ctx, at(0.5, 2.55), 38, true);
+  const c = at(1.45, 1.45);
+  yurt(ctx, c.px, c.py, 34, color, true);
+  flag(ctx, c.px - 22, c.py - 30, color, 24);
+  cart(ctx, at(2.7, 1.2), color);
+  // Cerco bajo de varas, abierto frente a la puerta.
+  const k = corners(b, s, 0.06);
+  const fence = (p: P, q: P, from: number, to: number) => {
+    const n = Math.round((to - from) * 14);
+    for (let i = 0; i <= n; i++) {
+      const a = along(p, q, from + ((to - from) * i) / n);
+      line(ctx, a.px, a.py, a.px, a.py - 8, '#6b4a2b', 1.6);
+    }
+    for (const hgt of [3, 7]) {
+      const a = along(p, q, from), z = along(p, q, to);
+      line(ctx, a.px, a.py - hgt, z.px, z.py - hgt, '#8a6440', 1.2);
+    }
+  };
+  fence(k.L, k.B, 0, 0.68);
+  fence(k.B, k.R, 0.32, 1);
+  for (const p of [along(k.L, k.B, 0.68), along(k.B, k.R, 0.32)]) {
+    line(ctx, p.px, p.py, p.px, p.py - 15, '#5a3d26', 2.2); // postes de la entrada con banderines
+    poly(ctx, [p.px + 1, p.py - 15, p.px + 9, p.py - 13, p.px + 1, p.py - 10], color);
+  }
+}
+
+/** Estandarte de crines (tug): asta, remate dorado de tridente y mechones blancos (o negros). */
+function tug(ctx: CanvasRenderingContext2D, p: P, h: number, black: boolean): void {
+  ellipse(ctx, p.px + 3, p.py + 1, 4, 1.6, 'rgba(0,0,0,0.25)');
+  line(ctx, p.px, p.py, p.px, p.py - h, '#5a3d26', 2);
+  const top = p.py - h;
+  line(ctx, p.px - 4, top + 1, p.px + 4, top + 1, '#d9a521', 1.4);
+  for (const dx of [-4, 0, 4]) poly(ctx, [p.px + dx - 1.2, top + 1, p.px + dx, top - 6 - (dx ? 0 : 2), p.px + dx + 1.2, top + 1], '#e2b23a');
+  ellipse(ctx, p.px, top + 4, 5, 2, '#a87d1c');
+  const hair = black ? '#2a2420' : '#f1ece0';
+  for (let i = -4; i <= 4; i += 1.6) line(ctx, p.px + i, top + 4, p.px + i * 1.5 + 1.5, top + 13 + (i * i) / 4, hair, 1.1);
+}
+
+/** Carro de bueyes con baúles (los nómadas cargan el campamento). */
+function cart(ctx: CanvasRenderingContext2D, p: P, color: string): void {
+  ellipse(ctx, p.px + 2, p.py + 2, 16, 5, 'rgba(0,0,0,0.22)');
+  poly(ctx, [p.px - 15, p.py - 9, p.px + 9, p.py - 15, p.px + 15, p.py - 11, p.px - 9, p.py - 5], '#8a6440');
+  poly(ctx, [p.px - 15, p.py - 9, p.px - 9, p.py - 5, p.px - 9, p.py - 2, p.px - 15, p.py - 6], '#5f4127');
+  poly(ctx, [p.px - 9, p.py - 5, p.px + 15, p.py - 11, p.px + 15, p.py - 8, p.px - 9, p.py - 2], '#6f4d2f');
+  // Baúles: uno pintado de naranja y otro con el color del jugador.
+  poly(ctx, [p.px - 8, p.py - 11, p.px - 1, p.py - 13, p.px - 1, p.py - 20, p.px - 8, p.py - 18], '#c8641e');
+  poly(ctx, [p.px + 1, p.py - 13, p.px + 8, p.py - 15, p.px + 8, p.py - 21, p.px + 1, p.py - 19], shade(color, 0.9));
+  line(ctx, p.px - 15, p.py - 7, p.px - 26, p.py - 2, '#5a3d26', 1.6); // varas del tiro
+  for (const [wx, wy] of [[-6, -2], [10, -8]] as const) {
+    ellipse(ctx, p.px + wx, p.py + wy - 3, 5, 6.5, null, '#3f2b19', 1.8);
+    line(ctx, p.px + wx - 4, p.py + wy - 3, p.px + wx + 4, p.py + wy - 3, '#3f2b19', 1);
+    line(ctx, p.px + wx, p.py + wy - 9, p.px + wx, p.py + wy + 3, '#3f2b19', 1);
+  }
 }
 
 /** Salón alargado con techo a dos aguas (germanos, godos, vikingos). */

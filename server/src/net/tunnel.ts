@@ -3,6 +3,9 @@
 // cambia cada vez que se abre. Necesita cloudflared instalado (winget install --id Cloudflare.cloudflared).
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import dns from 'node:dns/promises';
+import https from 'node:https';
+import net from 'node:net';
 import type { TunnelView } from '../../../shared/protocol.ts';
 
 /** Dónde puede estar cloudflared: el que trae el paquete portátil (CLOUDFLARED), el PATH o donde lo deja el instalador de Windows. */
@@ -18,9 +21,65 @@ const START_TIMEOUT_MS = 45_000;
 const CHECK_MS = 30_000;
 const CHECK_FAILS = 3;
 
+/**
+ * Primera prueba del enlace nuevo recién a los FIRST_CHECK_MS. Un enlace de trycloudflare tarda unos
+ * segundos en existir en el DNS; si se pregunta antes, el DNS de la red (el del router o el del
+ * proveedor) guarda "no existe" y lo repite por minutos (medido el 2026-10-20 en una red con DNS
+ * 10.128.128.128: más de 60 s sin poder abrirlo desde el propio servidor, y el modo online fallaba).
+ */
+const FIRST_CHECK_MS = 15_000;
+/**
+ * DNS públicos para probar el enlace sin pasar por el DNS de Windows ni el del router: así este
+ * computador nunca guarda el "no existe" (y el navegador del profesor lo puede abrir aquí mismo).
+ * Se van rotando: cada uno también recuerda un "no existe" por un rato.
+ */
+const PUBLIC_DNS = ['1.1.1.1', '8.8.8.8', '9.9.9.9', '1.0.0.1', '8.8.4.4', '149.112.112.112'];
+let dnsTurn = 0;
+
+/** Dirección del nombre según un DNS público (o null si no responde ninguno de los que se prueban). */
+async function publicLookup(host: string): Promise<{ ip: string } | { missing: true } | null> {
+  for (let k = 0; k < 2; k++) {
+    const r = new dns.Resolver({ timeout: 3000, tries: 1 });
+    r.setServers([PUBLIC_DNS[dnsTurn++ % PUBLIC_DNS.length]]);
+    try {
+      const [ip] = await r.resolve4(host);
+      if (ip) return { ip };
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      // "No existe todavía": se reintenta más tarde con otro DNS (este ya lo recuerda).
+      if (code === 'ENOTFOUND' || code === 'ENODATA') return { missing: true };
+      // Sin respuesta (la red bloquea los DNS públicos): se prueba el siguiente.
+    }
+  }
+  return null;
+}
+
+/** HEAD a una dirección ya resuelta, con el nombre correcto para el certificado (SNI) y el Host. */
+function headAt(ip: string, url: URL): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      { host: ip, port: url.port || 443, path: '/', method: 'HEAD', servername: url.hostname, headers: { Host: url.host }, timeout: 10_000 },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 /** ¿Responde el enlace público? (desde este computador, saliendo por internet). */
 export async function linkAlive(url: string): Promise<boolean> {
   try {
+    const u = new URL(url);
+    if (u.protocol === 'https:' && !net.isIP(u.hostname)) {
+      const found = await publicLookup(u.hostname);
+      if (found && 'missing' in found) return false;
+      if (found) return (await headAt(found.ip, u)) < 500;
+      // La red no deja usar DNS públicos: queda el del sistema (por eso la primera prueba espera).
+    }
     const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(10_000) });
     return res.status < 500;
   } catch {
@@ -58,6 +117,7 @@ export class Tunnel {
     private readonly alive: (url: string) => Promise<boolean> = linkAlive,
     private readonly checkMs = CHECK_MS,
     private readonly spawner: typeof spawn = spawn,
+    private readonly firstCheckMs = Math.min(FIRST_CHECK_MS, checkMs),
   ) {}
 
   view(): TunnelView {
@@ -112,6 +172,8 @@ export class Tunnel {
    * funcionara). Por eso se muestra recién cuando responde desde aquí.
    */
   private async confirm(child: ChildProcess, url: string): Promise<void> {
+    // No preguntar por el nombre antes de que exista (ver FIRST_CHECK_MS).
+    await new Promise((r) => setTimeout(r, this.firstCheckMs));
     for (let i = 0; i < 20 && this.child === child; i++) {
       if (await this.alive(url)) {
         if (this.child !== child) return;

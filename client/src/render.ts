@@ -208,6 +208,8 @@ type Drawable =
 
 /** Destello al recibir un golpe (ms). */
 const HURT_MS = 160;
+/** Último golpe que se sigue pasando aunque la unidad ya esté "moviendo" (disparo en marcha del jinete arquero). */
+const RECENT_STRIKE_MS = 3000;
 /** Cuánto quedan los caídos en el suelo (ms). */
 const CORPSE_MS = 25_000;
 /** Los últimos segundos se desvanecen. */
@@ -472,7 +474,7 @@ export class Renderer {
       }
       if (cu.v.dn) cu.downAt ??= now;
       else cu.downAt = undefined;
-      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.hurtAt !== undefined && now - cu.hurtAt < HURT_MS ? { hf: 1 - (now - cu.hurtAt) / HURT_MS } : {}), ...(cu.v.state === 'attacking' ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
+      if (inView(p.x, p.y)) list.push({ depth: p.x + p.y + (flying ? 10_000 : 0) + (lift ? 0.9 : 0), k: 'unit', u: { ...cu.v, walk: cu.moving ? 1 : undefined, sp: cu.speed, ...(cu.hurtAt !== undefined && now - cu.hurtAt < HURT_MS ? { hf: 1 - (now - cu.hurtAt) / HURT_MS } : {}), ...(cu.v.state === 'attacking' || (cu.hitAt !== undefined && now - cu.hitAt < RECENT_STRIKE_MS) ? { ha: cu.hitAt, cool: swingMs(state.statsOf(cu.v.owner, cu.v.type).attack.cooldown) } : {}) }, x: p.x, y: p.y, face: cu.turn!, lift });
     }
     list.sort((a, b) => a.depth - b.depth);
 

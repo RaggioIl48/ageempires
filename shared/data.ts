@@ -1171,6 +1171,14 @@ export const REGIMENT_TIME_PER_EXTRA = 0.25;
 export const REGIMENT_PANIC = 10;
 /** Fracción del regimiento que tiene que huir para que cunda el pánico. */
 export const REGIMENT_PANIC_FROM = 0.3;
+/**
+ * Un regimiento pelea entero: si alguno de sus soldados está peleando, los que están quietos buscan
+ * enemigos hasta esta cantidad de casillas más allá de su vista. Igual que el límite con que un soldado
+ * deja de perseguir a quien eligió solo (vista + 3), para que no salga y vuelva enseguida.
+ * Medido el 2026-10-21: sin esto, hasta un 36 % de los soldados se quedaban mirando mientras su
+ * regimiento peleaba (legionarios contra berserkers, 24 contra 24).
+ */
+export const REGIMENT_JOIN = 3;
 
 /** Soldados por regimiento de un tipo (0 = no forma regimientos: trabajadores, General, máquinas). */
 export function regimentSize(type: UnitType): number {
@@ -1284,6 +1292,13 @@ export const GUARD_LEASH = 3;
 export const SKIRMISH_DIST = 2.2;
 export const SKIRMISH_STEP = 3.5;
 /**
+ * Límite del hostigamiento: un tirador que ya se retiró SKIRMISH_MAX veces en los últimos
+ * SKIRMISH_WINDOW segundos deja de huir y pelea donde está. Sin límite, el arquero a caballo
+ * retrocede siempre y el lancero que lo persigue (a la mitad de velocidad) nunca lo alcanza.
+ */
+export const SKIRMISH_MAX = 3;
+export const SKIRMISH_WINDOW = 10;
+/**
  * Marchando con una orden de mover simple: si un enemigo militar se les pega a esta fracción de su
  * visión (como mínimo GUARD_ENGAGE casillas), traban combate y después siguen hacia su destino.
  */
@@ -1343,6 +1358,10 @@ export const FATIGUE_TIERS = [
   { min: 20, name: 'Tired', speed: 0.82, attack: 0.84, morale: 1.2 },
   { min: 0, name: 'Exhausted', speed: 0.68, attack: 0.72, morale: 1.35 },
 ] as const;
+
+/** Aviso de economía parada: obreros sin trabajo durante este tiempo (s), y cada cuánto se repite. */
+export const IDLE_WARN_SECONDS = 45;
+export const IDLE_WARN_REPEAT = 90;
 
 // ---------- Victoria ----------
 /** Colina Sagrada (la del centro): radio de la cima, minutos para ganar, soldados y era mínimos. */

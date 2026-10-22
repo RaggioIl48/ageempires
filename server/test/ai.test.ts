@@ -28,7 +28,7 @@ describe('computer rival', () => {
     expect(bs.some((b) => b.type === 'barracks' && b.progress >= 1)).toBe(true);
     expect(w.players.get(1)!.era).toBe(2);
     expect(mine.filter((u) => u.type !== 'worker' && u.type !== 'general').length).toBeGreaterThanOrEqual(8);
-  });
+  }, 60_000); // 8 minutos de partida: con las pruebas en paralelo pasa de los 5 s por defecto
 
   it('counters what it sees: enemy cavalry near its city → it trains spearmen', () => {
     const g = flatGame(['germans', 'romans']);

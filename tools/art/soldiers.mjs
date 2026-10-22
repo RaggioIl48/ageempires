@@ -125,10 +125,12 @@ const citizen = (unit, actor) => ({
  * `ranged`: el jinete tira (jabalina, arco) mientras el caballo queda en reposo.
  * La escala sale de un soldado de a pie (jinete e infante miden lo mismo).
  */
-const horse = (unit, actor, { ranged = false, coat = 'brown', extra } = {}) => ({
+const horse = (unit, actor, { ranged = false, coat = 'brown', extra, rider } = {}) => ({
   units: [unit],
   actor: `units/${actor}.xml`,
   extra,
+  // Accesorios del jinete (punto → actor, '' = quitar), p. ej. otro casco.
+  rider,
   // Pelaje del caballo (variante de 0 A.D.: brown, cherrybay, tan, gray, white, black…).
   choose: [coat],
   scaleFrom: 'units/romans/infantry_swordsman_b.xml',
@@ -235,9 +237,9 @@ export const SOLDIERS = {
   'vikings-knight-3d': horse('vikings/knight', 'athenians/cavalry_swordsman_b_m', { coat: 'halflinger', extra: IRON }),
   'vikings-general-3d': horse('vikings/general', 'athenians/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
   'mongols-scout-3d': horse('mongols/scout', 'persians/cavalry_javelinist_a_m', { ranged: true, coat: 'beige' }),
-  'mongols-knight-3d': horse('mongols/knight', 'persians/cavalry_spearman_b_m', { coat: 'beige', extra: IRON }),
+  'mongols-knight-3d': horse('mongols/knight', 'han/cavalry_spearman_a_m', { extra: IRON, rider: { helmet: 'props/units/helmets/han_cavalry_swordsman_helmet.xml' } }),
   'mongols-general-3d': horse('mongols/general', 'han/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
-  'mongols-horse_archer-3d': horse('mongols/horse_archer', 'persians/cavalry_archer_b_m', { ranged: true, coat: 'beige' }),
+  'mongols-horse_archer-3d': horse('mongols/horse_archer', 'han/cavalry_archer_e_m', { ranged: true }),
   'mongols-keshig-3d': horse('mongols/keshig', 'han/cavalry_spearman_e_m', { coat: 'beige', extra: IRON }),
 
   // ---------- Trabajadores: ciudadanas de 0 A.D., con la herramienta de cada tarea ----------
@@ -353,16 +355,16 @@ async function resolve(rel, choose, anims, depth = 0, over = null) {
       } else slots.set(at, a);
     }
   }
-  // Receta (solo el cuerpo): cambiar o quitar accesorios (`props`: punto → actor, '' = quitar) y sumar
+  // Receta (el cuerpo, o el jinete con `rider`): cambiar o quitar accesorios (`props`: punto → actor, '' = quitar) y sumar
   // piezas en la raíz (`extra`, p. ej. la armadura del caballo). Así unidades parecidas se distinguen.
-  if (over && depth === 0) {
+  if (over) {
     for (const [at, a] of Object.entries(over.props ?? {})) slots.set(at, a);
     (over.extra ?? []).forEach((a, i) => slots.set(`root#extra${i}@${slots.size}`, a));
   }
   for (const [key, a] of slots) {
     if (!a) continue;
     const at = key.startsWith('root#') ? 'root' : key;
-    const child = await resolve(a, choose, anims, depth + 1);
+    const child = await resolve(a, choose, anims, depth + 1, depth === 0 && at === 'rider' && over?.rider ? { props: over.rider } : null);
     if (child) node.props.push({ at, node: child });
   }
   if (meshRel) node.mesh = fs.readFileSync(await file(`meshes/${meshRel}`), 'utf8');
@@ -387,16 +389,19 @@ function posedParts(body, skinned, world, phase = 0, clipName = null) {
       const { tris, points: own } = p.node.model;
       if (/<skin\b/.test(p.node.mesh)) {
         p.node.skinned ??= loadSkinned(p.node.mesh);
-        const clip = clipName && p.node.clips?.[clipName];
-        if (clip) {
-          // Jinete: su propio esqueleto, en la misma fase que el caballo, montado en el punto.
-          const local = pose(p.node.skinned.nodes, clip, phase * clip.duration, { fixRoot: false });
+        // Esqueleto propio (el jinete, el arco recurvo): se pone en su punto, con su animación en la
+        // misma fase que el caballo o en reposo. Con los huesos de quien lo lleva no encontraría los
+        // suyos y caería al suelo.
+        if (!p.node.skinned.joints.some((j) => w?.has(j))) {
+          const clip = clipName && p.node.clips?.[clipName];
+          const local = pose(p.node.skinned.nodes, clip || null, clip ? phase * clip.duration : 0, { fixRoot: false });
           const w2 = new Map([...local].map(([k2, v]) => [k2, mul(m, v)]));
           parts.push({ tris: skinTris(p.node.skinned, w2), tex: p.node.tex, mode: p.node.mode });
           addProps(p.node, w2, m, null);
           continue;
         }
-        // Capas, faldas: siguen a los huesos de quien las lleva.
+        // Capas, faldas, crin, manta del caballo: siguen a los huesos de quien las lleva (aunque
+        // traigan animaciones propias, como la crin, que se desfasarían del cuerpo).
         parts.push({ tris: skinTris(p.node.skinned, w), tex: p.node.tex, mode: p.node.mode });
         addProps(p.node, w, m, null);
         continue;
@@ -494,7 +499,7 @@ export async function soldierSheet(r) {
   const bodyFor = async (variant) => {
     if (!bodies.has(variant)) {
       const animsByName = {};
-      const body = await resolve(r.actor, variant ? [...(r.choose ?? []), variant] : (r.choose ?? []), animsByName, 0, { props: r.props, extra: r.extra });
+      const body = await resolve(r.actor, variant ? [...(r.choose ?? []), variant] : (r.choose ?? []), animsByName, 0, { props: r.props, extra: r.extra, rider: r.rider });
       bodies.set(variant, { body, animsByName, skinned: loadSkinned(body.mesh) });
     }
     return bodies.get(variant);

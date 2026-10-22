@@ -6,10 +6,10 @@
 // Si una unidad no tiene hoja, o la imagen aún no llegó, se dibuja con las formas
 // de sprites.ts: el juego nunca queda sin dibujo.
 
-import { BUILDING_DEFS, type FactionId, type UnitType } from '../../shared/data.ts';
+import { BUILDING_DEFS, UNIT_DEFS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
 import { stickyRow } from './motion.ts';
-import { attackFrame, defaultHit } from './attackSync.ts';
+import { attackFrame, chargeFrame, defaultHit, firingOnTheMove } from './attackSync.ts';
 
 interface AnimMeta {
   /** Esquina del bloque (x: columna, si la hoja tiene las animaciones lado a lado; y: fila);
@@ -273,7 +273,15 @@ function sheetId(faction: FactionId, type: UnitType): string | undefined {
   // Primero la experimental, pero solo si su imagen ya está lista (si falla o tarda, la normal).
   const ex = experimental?.units[`${faction}/${type}`] ?? experimental?.units[`*/${type}`];
   if (ex && experimental!.sheets[ex] && artImage(experimental!.sheets[ex].file)) return ex;
-  return manifest?.units[`${faction}/${type}`] ?? manifest?.units[`*/${type}`];
+  return manifest?.units[`${faction}/${type}`] ?? manifest?.units[`*/${type}`] ?? anyPeople(type);
+}
+
+/** Unidad única de otro pueblo (p. ej. el arquero a caballo mongol en otras manos): su hoja, no un dibujo plano. */
+const otherPeople = new Map<UnitType, string | undefined>();
+function anyPeople(type: UnitType): string | undefined {
+  if (!manifest) return undefined;
+  if (!otherPeople.has(type)) otherPeople.set(type, Object.entries(manifest.units).find(([k]) => k.endsWith(`/${type}`))?.[1]);
+  return otherPeople.get(type);
 }
 
 /** Datos de una hoja (experimental o normal). */
@@ -366,12 +374,14 @@ const RUN_FROM = 1.0;
 const WALK_BELOW = 0.9;
 const galloping = new Set<number>();
 
-function animName(u: UnitView, sheet?: SheetMeta): string {
+function animName(u: UnitView, now: number, sheet?: SheetMeta): string {
   // Jinetes: trote al marchar, galope al correr o cargar.
   if (u.walk === 1) {
     if (!sheet?.anims.run) return 'walk';
     // Carga (Total War): atacando en movimiento, el jinete golpea al galope y atraviesa la línea.
-    if (u.state === 'attacking' && sheet.anims.charge) {
+    // El jinete arquero que dispara en marcha (u hostigando) también: tira al galope.
+    const shootsOnTheMove = UNIT_DEFS[u.type].attack.type === 'ranged' && firingOnTheMove(u.ha, u.cool, now);
+    if ((u.state === 'attacking' || shootsOnTheMove) && sheet.anims.charge) {
       galloping.add(u.id);
       return 'charge';
     }
@@ -426,7 +436,7 @@ export function drawSpriteUnit(
   const sheet = sheetMeta(id);
   const img = pick(ctx, sheet, now);
   if (!img) return null;
-  const name = animName(u, sheet);
+  const name = animName(u, now, sheet);
   const a = sheet.anims[name] ?? sheet.anims.idle;
   const t = now / 1000 + u.id * 0.37;
   // Caminar: las piernas al ritmo de la velocidad real (al paso, más lentas; al galope, más rápidas).
@@ -441,10 +451,13 @@ export function drawSpriteUnit(
   // La carga va sobre el galope: misma zancada.
   const stride = a.st ?? (name === 'charge' ? sheet.anims.run?.st : undefined);
   const fps = marching && stride ? Math.min(a.fps * 3, Math.max(a.fps * 0.5, (u.sp! / stride) * a.n)) : a.fps * pace;
+  // Carga: el golpe (o la flecha) al galope cae en el instante real del servidor, como el ataque a pie.
   const f =
     name === 'attack' && u.cool
       ? attackFrame(now, u.ha, { n: a.n, fps: a.fps, hit: a.hit ?? defaultHit(a.n), cooldownMs: u.cool }).frame
-      : Math.floor(t * fps) % a.n;
+      : name === 'charge'
+        ? chargeFrame(now, u.ha, a.n, a.hit ?? defaultHit(a.n), fps, t)
+        : Math.floor(t * fps) % a.n;
   if (sheet.anims.run) drawLongShadow(ctx, x, y, face, shadow);
   else drawShadow(ctx, x, y, shadow);
   const row = rowOf(u, sheet, a.d, face);

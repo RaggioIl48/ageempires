@@ -30,6 +30,7 @@ import { tires, updateFatigue } from './fatigue.ts';
 import { updateSiege } from './siege.ts';
 import { pathToRect, resetPathBudget } from './pathfinding.ts';
 import { gloryOf, updateVictory } from './victory.ts';
+import { warnIdleWorkers } from './idle.ts';
 import { isHero, updateBuffs, useAbility } from './general.ts';
 import type { Building, ResourceNode, Unit, World } from './world.ts';
 import { resupply, updateKnockdowns, updateProjectiles } from './projectiles.ts';
@@ -86,6 +87,7 @@ export class Game {
     recordHistory(w);
     updateWar(w);
     updateVictory(w);
+    warnIdleWorkers(w);
     updateSiege(w);
     separateUnits(w);
     updateVision(w);

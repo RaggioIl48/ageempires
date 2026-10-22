@@ -1060,6 +1060,126 @@ played, was a single step.
 - Most of the size is the unit art (149 MB; the same the normal game uses), node.exe (89 MB) and
   cloudflared (53 MB).
 
+## Online mode works on networks whose DNS remembers "does not exist" (2026-10-20)
+
+- **Symptom**: "Turn on online play" ended with "No working public link after 90 s".
+- **Cause**: cloudflared made the link fine (checked by hand: tunnel created, all connectivity
+  checks passed). But the server tested the link about 5 s after cloudflared printed it, before the
+  name existed. The DNS of this network (10.128.128.128) remembered that "does not exist" and kept
+  answering it for more than a minute, so the confirmation never came and the start timed out. On
+  the previous network the router's DNS did not do that, which is why it worked before.
+- **Fix** (`server/src/net/tunnel.ts`): the first check waits 15 s, and the link is checked through
+  public DNS servers (1.1.1.1, 8.8.8.8, 9.9.9.9…, rotating), never through Windows or the router.
+  So this computer never stores the "does not exist" either, and the teacher can open the link on
+  the server computer too. If the network blocks public DNS, it falls back to the system one (after
+  the 15 s wait).
+- Checked on this network: the link appears in ~20 s; the page and the art load through it; a
+  student joining through `wss://…trycloudflare.com` received 129 updates in ~14 s (10 per second,
+  the normal rate); the built-in browser connects too.
+- Two tests depended on how fast the computer was (on battery the CPU slows down and 47 test files
+  share 12 cores): the 8-minute computer-rival test now has a 60 s limit like the other long ones,
+  and the performance test takes the best of three batches (same 40 ms limit). Same code measured
+  6.2–6.5 ms per step before and after yesterday's changes.
+- The portable package was rebuilt with the fix (`npm run portable`).
+
+## Duels tool with advance mode; cavalry skirmishers can be caught (2026-10-21)
+
+- **`scripts/duels.ts`** (new): duels of 8 against 8 on a flat map, each pair played on both sides and
+  averaged. `--avance` makes the left side attack-move. The first version gave contradictory results
+  because the two fronts were not at the same distance from the centre (a mistake in the test, not the
+  game); fixed.
+- **Mounted archers outplay infantry that waits**: spearmen quiet 6 against 8 horse archers; spearmen that
+  attack-move 6.5 against 1.5. The cause is the skirmish rule (a ranged unit backs off 3.5 tiles when a
+  melee enemy is within 2.2): with the rule off, advancing spearmen win 8 to 0.
+- **Change**: a mounted skirmisher stops backing away after 3 retreats in 10 s (`SKIRMISH_MAX`,
+  `SKIRMISH_WINDOW`, `Unit.retreats`), so the infantry that chases can reach it. Foot archers are not
+  affected (the full tables show no duel without cavalry changed).
+- Advancing spearmen against horse archers: 6.5 to 1.5 becomes 7.0 to 0.5.
+- Tests: `server/test/skirmish-cap.test.ts` (2). Open issue found on the way (audit P6), first described
+  as "a melee unit that meets an enemy line stops"; measured per soldier, it was something else (next entry).
+
+## Regiments fight as a whole; cavalry shoots and strikes in time at a gallop (2026-10-21)
+
+- **Audit P6, corrected.** Measured soldier by soldier (24 duels, 8 and 24 a side): units stuck against an
+  enemy line were rare in infantry (0–1.9 %) and up to 9.5 % in cavalry (knights against swordsmen). The
+  real problem was **bystanders**: up to 36 % of the soldiers stood idle while their own regiment fought,
+  because the enemy was beyond their own sight (legionaries against berserkers, 24 a side).
+- **A regiment fights as a whole** (`server/src/sim/combat.ts`): when one soldier of a regiment is
+  fighting, its idle mates look for enemies up to `REGIMENT_JOIN` = 3 tiles beyond their sight. Not in
+  guard mode. Bystanders: up to 36 % → at most 3 %.
+- **Fight what is in contact**: a melee soldier that cannot reach its target but has an enemy against it
+  strikes that enemy instead of standing still; a target given by the player is kept. Stuck: up to 9.5 % →
+  at most 1 %. It does not walk around by itself (as in Total War, flanking is the player's order).
+- **Balance effect**: the duel winner changed in 9 of 66 pairs (both sides quiet) and 5 of 66 (one
+  advancing), nearly all with ranged units, which used to win because the enemy regiment arrived one by
+  one. Two now contradict their description and are left to decide: the chosen spearman and the naked
+  fanatic say "loses to archers" and now beat them (see `docs/AUDITORIA_JUGABILIDAD.md`, P6).
+- **Computer rival**: it reserved the place of the counterweight trebuchet only once in the Late Middle
+  Ages, by when regiments had filled the population (58 of 60), and a stray "−1" in the reserve
+  discounted a place even when nothing had been queued. Now it keeps that place from the High Middle Ages
+  and discounts only what it queued that turn. It trains the trebuchet again (before minute 12).
+- **Cavalry animations** (`client/src/art.ts`, `client/src/attackSync.ts`, `client/src/render.ts`):
+  - A mounted archer that shoots while moving (plain move order or skirmishing) was drawn trotting or
+    galloping, so the arrow left a rider who did not draw the bow (the server reports it as "moving").
+    Now, after each shot it uses the shoot-at-a-gallop animation for a moment (up to the next shot), so a
+    burst reads as continuous.
+  - The charge animation (strike or shot at a gallop) ran on a free loop; its impact frame did not match
+    the real hit. Now the impact frame lands on the exact server tick of the hit and then follows the
+    gallop stride, like the attack on foot already did.
+  - Checked in the browser (local test server, demo armies): the battle runs, no console errors. A live
+    horse archer was not seen (the demo armies have none); the choice and the timing are covered by tests.
+- Tests: 451 pass (new `server/test/regiment-cohesion.test.ts`, 3; 3 more in `attack-sync.test.ts`). The
+  mangonel test moved its own soldier out of melee reach: it measures the splash only, and with the new
+  behaviour an enemy in contact now fights it (before, that enemy turned its back to chase the mangonel).
+
+## New Mongol horse archer and Khan's camp; idle-worker reminder; the Sacred Hill needs a rival (2026-10-21)
+
+- **Mongol horse archer, new art** (`tools/art/soldiers.mjs`). It was a Persian rider whose bow lay on
+  the ground under the horse. The cause: the recurve bow is a mesh with its own small skeleton, and the
+  renderer posed it with the rider's bones; it found none of its own and fell to the origin. Now a prop
+  with its own skeleton is placed at its attach point (posed with its own animation in step with the
+  horse, or at rest). The rider is now the Han elite horse archer from 0 A.D. (East Asian face, fur-trimmed
+  cap, robe in the player's colour, leather saddle blanket, Han bow): the closest steppe look 0 A.D. has.
+  He draws and shoots both standing and at a gallop.
+- **Horse manes and saddle blankets** flipped up at the end of every shot and charge, in all cavalry. They
+  carry the horse's own animations, and were played as if they were a rider (the rearing clip, out of step
+  with the body). Now a prop that shares the wearer's bones always follows the wearer. All cavalry and
+  archer sheets were rebuilt with both fixes.
+- **Mongol Town Center** (`client/src/sprites.ts`): 0 A.D. has no gers, so it is drawn. The Khan's camp
+  (ordu): a great ger with shaded felt walls, the wooden lattice showing through, a band in the player's
+  colour with gold trim, an orange painted door, roof poles, the smoke-hole crown with a gold finial and
+  smoke; two guard gers; a white and a black nine-tail standard (tug); a cart with chests; a low pole fence
+  open at the front with pennants; a felt rug at the door. Every Mongol building uses the new ger.
+- **Idle-worker reminder** (audit P4, `server/src/sim/idle.ts`): when a player has workers doing nothing
+  for 45 s, they get a notice ("2 workers are doing nothing. Click "Idle"…"), repeated every 90 s while it
+  lasts (`IDLE_WARN_SECONDS`, `IDLE_WARN_REPEAT`). Seen live in a local game.
+- **Sacred Hill needs a rival** (audit P4, `server/src/sim/victory.ts`): it only counts while some rival
+  of the holder is still standing. A student alone in a room no longer wins by the hill.
+- Tests: `server/test/idle-hill.test.ts` (4).
+- **Why the old horse archer kept showing (found with REA in a live battle).** A local experimental sheet
+  (`client/public/art/experimental/`, the AI-generated test image, git-ignored) overrode the Mongol horse
+  archer for Mongol players: 1 idle frame, no gallop or charge, no player colour. Its mapping was removed
+  from that local manifest (the image is kept). Now Mongol players see the 0 A.D. rider, with the saddle
+  blanket in their colour. Checked with REA: rider, bow and red blanket in a live battle, no page errors.
+- **A unique unit in other hands** (e.g. a horse archer of a non-Mongol player in a test) used a flat
+  drawing; now it uses that unit's sheet from the people that has it (`client/src/art.ts`).
+- **Art review option**: `DEMO_TYPES=horse_archer,spearman` (with `DEMO_ARMY`) picks the demo regiments,
+  to see a unit in battle (`server/src/sim/demo.ts`). Without it, nothing changes.
+- The 44 rebuilt sheets had their strides measured again (`tools/art/stride.mjs`). 455 tests pass.
+
+## Mongol knight and Mongol city for the later eras (2026-10-22)
+
+- **Mongol knight** (`tools/art/soldiers.mjs`): it was a Persian spearman. Now it is the Han advanced
+  lancer from 0 A.D. with a ji halberd, iron horse armour, and a closed steel helmet (Han cavalry helmet)
+  instead of the cloth cap. A horse recipe can now swap the rider's props (`rider: { helmet: … }`).
+- **Mongol buildings in eras 3 and 4** (`tools/art/forts.mjs`, `CITY`): they used the generic timber and
+  stone houses. Now the Mongols build a Yuan city (the dynasty the Mongols founded in China, with its
+  capital Khanbaliq): Han buildings from 0 A.D., rendered like the fortresses, with the player's colour.
+  Town Center → civil centre, house, storehouse, barracks, archery range, stable, academy (tech center),
+  market, arsenal (workshop), temple (monastery). Farms, quarries, mines and factories stay common. Up to
+  the Middle Ages they keep the gers and the Khan's camp. Only these images: `node tools/art/forts.mjs city`.
+- Checked in the game renderer at era 3 (red player): all ten draw with their team colour. 455 tests pass.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

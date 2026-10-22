@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cropRender, render } from './raster.mjs';
 import { ZeroAD } from './zeroad.mjs';
 
@@ -25,6 +26,25 @@ const PEOPLE = {
   ostrogoths: { fortress: 'athenians/fortress', wood: 'hellenes/wooden_tower', tower: 'hellenes/wall_tower', wall: 'hellenes/wall_short', gate: 'hellenes/wall_gate' },
   mongols: { fortress: 'han/fortress', wood: 'han/tower_small', tower: 'han/tower_large', wall: 'han/wall_short', gate: 'han/wall_gate' },
 };
+
+/**
+ * Ciudad mongola en las eras de entramado y de piedra (3 y 4): la de la dinastía Yuan, que los
+ * mongoles fundaron en China (Janbalic, hoy Pekín), con los edificios Han de 0 A.D.
+ * Tipo del juego → [actor, casillas]. Granjas, canteras, minas y fábricas siguen siendo las comunes.
+ */
+const CITY = {
+  town_center: ['han/civil_centre', 3],
+  house: ['han/house', 2],
+  storehouse: ['han/storehouse', 2],
+  barracks: ['han/barracks', 3],
+  archery_range: ['han/range', 3],
+  stable: ['han/stable', 3],
+  tech_center: ['han/academy', 3],
+  market: ['han/market', 3],
+  workshop: ['han/arsenal', 3],
+  monastery: ['han/temple', 3],
+};
+const CITY_ERAS = [3, 4];
 
 /** Grosor de la muralla y altura máxima de murallas y puertas (en casillas). */
 const WALL_THICKNESS = 0.8;
@@ -71,7 +91,7 @@ function toTiles(parts, b, unit, rot, extra = {}, maxHeight = Infinity) {
   return parts.map((p) => ({ ...p, ...extra, tris: p.tris.map((t) => t.map((c) => ({ ...c, p: pt(c.p), n: c.n ? dir(c.n) : null }))) }));
 }
 
-export async function buildForts(cache, out) {
+export async function buildForts(cache, out, { onlyCity = false } = {}) {
   const z = new ZeroAD(cache);
   const dir = path.join(out, 'buildings');
   fs.mkdirSync(dir, { recursive: true });
@@ -103,6 +123,13 @@ export async function buildForts(cache, out) {
     const unit = Math.max(b.ex, b.ey) / (tiles * 0.96);
     save(id, render(toTiles(parts, b, unit, rot, { clip: (u, v, h) => h >= GROUND })), tiles);
   };
+
+  for (const [type, [actor, tiles]] of Object.entries(CITY)) {
+    await building(`city-mongols-${type}`, actor, tiles);
+    for (const era of CITY_ERAS) map[`mongols@${era}/${type}`] = [`city-mongols-${type}`];
+  }
+  console.log(`  0 A.D. ciudad mongola (Han): ${Object.keys(CITY).length} edificios`);
+  if (onlyCity) return { sprites, walls, map, bytes, downloads: z.downloads };
 
   for (const [people, def] of Object.entries(PEOPLE)) {
     await building(`fortress-${people}`, def.fortress, 4);
@@ -148,4 +175,17 @@ export async function buildForts(cache, out) {
     console.log(`  0 A.D. ${people}: fuerte, torres, muralla y puerta`);
   }
   return { sprites, walls, map, bytes, downloads: z.downloads };
+}
+
+// node tools/art/forts.mjs city → solo la ciudad mongola, sobre el buildings.json que ya existe.
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'city') {
+  const out = path.resolve(HERE, '../../client/public/art');
+  const r = await buildForts(path.join(HERE, '.cache'), out, { onlyCity: true });
+  const file = path.join(out, 'buildings.json');
+  const bm = JSON.parse(fs.readFileSync(file, 'utf8'));
+  Object.assign(bm.sprites, r.sprites);
+  Object.assign(bm.map, r.map);
+  fs.writeFileSync(file, JSON.stringify(bm));
+  console.log(`  ${Object.keys(r.sprites).length} imágenes, ${(r.bytes / 1024).toFixed(0)} KB`);
 }

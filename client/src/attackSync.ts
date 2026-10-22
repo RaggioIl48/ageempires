@@ -57,3 +57,26 @@ export function attackFrame(now: number, lastHit: number | undefined, t: SwingTi
 
 /** Cuadro de impacto por defecto cuando la hoja no lo indica: la mitad del movimiento. */
 export const defaultHit = (n: number): number => Math.floor(n / 2);
+
+/**
+ * ¿Un tirador a caballo disparó hace poco mientras se mueve? (disparo en marcha u hostigando: el
+ * servidor lo deja "moviendo", no "atacando"). Mientras tanto se dibuja la carga a distancia (el
+ * jinete tira al galope) en vez del galope solo, que soltaba la flecha sin hacer el gesto.
+ * La ventana alcanza para el próximo disparo (espera real × 1,3), así la ráfaga se ve continua.
+ */
+export function firingOnTheMove(lastHit: number | undefined, cooldownMs: number | undefined, now: number): boolean {
+  if (lastHit === undefined || cooldownMs === undefined) return false;
+  const e = now - lastHit;
+  return e >= 0 && e < Math.max(900, cooldownMs * 1.3);
+}
+
+/**
+ * Cuadro de la carga (golpe o disparo al galope) alineado con el golpe real: el cuadro de impacto
+ * cae justo en el instante en que el servidor aplicó el golpe, y desde ahí sigue al ritmo del
+ * galope (`fps`, el de la zancada). Sin golpe conocido, el ciclo libre (`freeT` en segundos).
+ */
+export function chargeFrame(now: number, lastHit: number | undefined, n: number, hit: number, fps: number, freeT: number): number {
+  if (lastHit === undefined) return Math.floor(freeT * fps) % n;
+  const e = Math.max(0, now - lastHit) / 1000;
+  return (((Math.max(0, Math.min(n - 1, hit)) + Math.floor(e * fps + 1e-6)) % n) + n) % n; // margen: 5/24 s × 24 da 4,999…
+}

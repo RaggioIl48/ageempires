@@ -55,6 +55,21 @@ describe('online mode (tunnel)', () => {
     t.stop();
   });
 
+  it('does not ask for a fresh link right away (the network DNS would remember "does not exist" for minutes)', async () => {
+    const seen: TunnelView[] = [];
+    const asked: number[] = [];
+    const t0 = Date.now();
+    const { spawner } = fakeSpawner(['https://late-dns.trycloudflare.com']);
+    const t = new Tunnel(() => 8080, (v) => seen.push(v), () => 'cloudflared', async () => (asked.push(Date.now() - t0), true), 5, spawner, 80);
+    t.start();
+    await tick(40);
+    expect(asked).toEqual([]); // todavía no
+    await tick(100);
+    expect(asked[0]).toBeGreaterThanOrEqual(75);
+    expect(t.url).toBe('https://late-dns.trycloudflare.com');
+    t.stop();
+  });
+
   it('if the link dies, it opens a new one by itself', async () => {
     const seen: TunnelView[] = [];
     let dead = false;

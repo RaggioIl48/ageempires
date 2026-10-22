@@ -6,7 +6,7 @@
 // final edificios). El Centro Urbano y las torres disparan a los enemigos
 // cercanos. A los aviones solo los alcanzan los ataques a distancia.
 
-import { BUILDING_DEFS, SHIELD_WALL_ARMOR, CHARGE_READY_SEC, CHARGE_THROUGH_TILES, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, ENGAGE_NEAR, MOVING_FIRE_SLOW, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
+import { BUILDING_DEFS, SHIELD_WALL_ARMOR, CHARGE_READY_SEC, CHARGE_THROUGH_TILES, FLANK_DAMAGE, MELEE_REACH, REAR_DAMAGE, ROUTING_DAMAGE, TICK_RATE, UNIT_DEFS, ELEV_RANGE_PER_LEVEL, CLIMB_DAMAGE_DEALT, CLIMB_DAMAGE_TAKEN, WALL_COVER, FATIGUE_CHARGE, FATIGUE_MELEE_HIT, FATIGUE_RANGED_HIT, GUARD_ENGAGE, GUARD_LEASH, ENGAGE_NEAR, MOVING_FIRE_SLOW, RANK_DAMAGE, SPEAR_BRACE_DAMAGE, SKIRMISH_DIST, SKIRMISH_STEP, SKIRMISH_MAX, SKIRMISH_WINDOW, REGIMENT_JOIN, rankOf, type AttackDef, type Category } from '../../../shared/data.ts';
 import { canHitAir, chargeOf, damage } from '../../../shared/stats.ts';
 import { elevationDamage } from '../../../shared/terrain.ts';
 import { isEnemy } from './diplomacy.ts';
@@ -294,6 +294,9 @@ export function updateCombat(world: World, dt: number): void {
   const grid = new UnitGrid(world);
 
   const crowd = crowdMap(world);
+  // Regimientos con alguien peleando: los demás soldados del regimiento salen a ayudar (ver REGIMENT_JOIN).
+  const regFight = new Set<number>();
+  for (const u of world.units.values()) if (u.reg && u.hp > 0 && u.task?.kind === 'attack') regFight.add(u.reg);
   for (const u of world.units.values()) {
     if (u.cooldown > 0) u.cooldown = Math.max(0, u.cooldown - dt);
     if (isRouting(u)) continue; // huyendo no pelea
@@ -315,7 +318,10 @@ export function updateCombat(world: World, dt: number): void {
     // Atacar-moviendo: también busca mientras marcha hacia su puesto.
     const scanning = !u.task && (u.state === 'idle' || (u.amove !== null && u.state === 'moving'));
     if (scanning && stats.category !== 'worker' && (world.tick + u.id) % SCAN_EVERY === 0) {
-      const scan = holding ? (stats.attack.type === 'ranged' ? stats.attack.range + 0.5 : GUARD_ENGAGE) : stats.sight;
+      let scan = holding ? (stats.attack.type === 'ranged' ? stats.attack.range + 0.5 : GUARD_ENGAGE) : stats.sight;
+      // Un regimiento pelea entero (Total War): si un compañero ya pelea, busca enemigos más allá de su
+      // propia vista. Antes, los que no veían al enemigo se quedaban mirando cómo caían los de adelante.
+      if (!holding && u.reg && regFight.has(u.reg)) scan = Math.max(scan, stats.sight + REGIMENT_JOIN);
       const t = findTarget(world, grid, u.owner, u.x, u.y, scan, false, hitsAir, onlyBuildings, crowd);
       if (t) {
         assignAttack(u, t.kind === 'unit' ? t.unit.id : t.building.id, true);
@@ -362,6 +368,22 @@ export function updateCombat(world: World, dt: number): void {
         u.cooldown = stats.attack.cooldown;
       }
       continue;
+    }
+    // Trabado: no llega a su objetivo pero tiene un enemigo pegado. Pelea con ese (como en Total War, se
+    // traba con lo que tiene delante) en vez de quedarse parado contra la línea. Si el objetivo lo eligió
+    // el jugador, lo conserva: cuando el de delante cae o se aparta, sigue hacia él.
+    if (stats.attack.type === 'melee' && !onlyBuildings) {
+      const blocker = contactEnemy(world, grid, u, hitsAir);
+      if (blocker) {
+        if (u.task.auto) assignAttack(u, blocker.id, true);
+        u.path = [];
+        u.chaseGoal = null;
+        if (u.cooldown <= 0) {
+          strike(world, u.owner, stats.attack, stats.category, u, { kind: 'unit', unit: blocker }, u);
+          u.cooldown = stats.attack.cooldown;
+        }
+        continue;
+      }
     }
     chase(world, u, t);
   }
@@ -487,6 +509,11 @@ function skirmish(world: World, grid: UnitGrid, u: Unit, stats: ReturnType<World
   if (stats.attack.type !== 'ranged' || stats.category === 'siege' || stats.category === 'building' || u.guard || u.hold) return false;
   if (u.task && !(u.task.kind === 'attack' && u.task.auto)) return false; // el jugador le ordenó atacar: obedece
   if (world.tick < u.skirmishUntil || u.state === 'moving') return false;
+  // Límite: tras SKIRMISH_MAX retiradas seguidas en la ventana, pelea donde está (la infantería la alcanza).
+  const recent = u.retreats.filter((t) => world.tick - t < SKIRMISH_WINDOW * TICK_RATE);
+  u.retreats = recent;
+  // Solo la caballería: el tope es por su velocidad (a pie, el arquero sigue retrocediendo como antes).
+  if (stats.category === 'cavalry' && recent.length >= SKIRMISH_MAX) return false;
   if (world.onWall(u) === 1) return false; // sobre su muralla está a salvo: no baja
   // Primero dispara: solo retrocede mientras recarga (si no, retrocedía sin parar y nunca tiraba).
   if (u.cooldown <= 0 && u.ammo > 0) return false;
@@ -507,6 +534,7 @@ function skirmish(world: World, grid: UnitGrid, u: Unit, stats: ReturnType<World
   u.path = [goal];
   u.state = 'moving';
   u.skirmishUntil = world.tick + 2 * TICK_RATE;
+  recent.push(world.tick);
   return true;
 }
 
@@ -523,6 +551,18 @@ function chargeThrough(world: World, rider: Unit, target: Unit): void {
   rider.repathIn = 0;
   const speed = Math.max(0.5, world.statsOf(rider).speed);
   rider.passUntil = world.tick + Math.ceil(((len + CHARGE_THROUGH_TILES) / speed) * TICK_RATE);
+}
+
+/** El enemigo más cercano en contacto (al alcance del cuerpo a cuerpo), o null. */
+function contactEnemy(world: World, grid: UnitGrid, u: Unit, hitsAir: boolean): Unit | null {
+  let best: Unit | null = null, bd = MELEE_REACH * MELEE_REACH;
+  for (const o of grid.near(u.x, u.y, MELEE_REACH)) {
+    if (o === u || !isEnemy(world, u.owner, o.owner)) continue;
+    if (!hitsAir && world.statsOf(o).flies) continue;
+    const d = (o.x - u.x) ** 2 + (o.y - u.y) ** 2;
+    if (d <= bd) [bd, best] = [d, o];
+  }
+  return best;
 }
 
 /** Persigue al objetivo: en línea recta si se puede, si no con A*. */

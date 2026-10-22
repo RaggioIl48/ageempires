@@ -3,7 +3,7 @@
 // · Conquista: quien pierde su Centro Urbano (su capital) pierde su imperio: sus tropas se rinden
 //   y sus edificios quedan en ruinas. Gana el último en pie (o la última alianza).
 // · Colina Sagrada: el que mantiene la cima de la colina central (con al menos 3 soldados y sin
-//   enemigos cerca) durante 5 minutos en total, gana. Solo cuenta desde la Edad Media.
+//   enemigos cerca) durante 5 minutos en total, gana. Solo cuenta desde la Edad Media y con algún rival en pie.
 // · Maravilla (Age of Empires): si una queda en pie terminada 5 minutos, su imperio gana.
 // · Si se acaba el tiempo, gana quien tiene más Gloria (bajas, ciudades tomadas, colina, era…).
 
@@ -106,7 +106,9 @@ function updateHill(world: World): void {
     // El que más soldados tiene arriba (entre aliados) es quien la tiene.
     const [best, n] = [...count].sort((a, b) => b[1] - a[1])[0];
     const total = [...count.values()].reduce((s, v) => s + v, 0);
-    if (total >= HILL_MIN_SOLDIERS && world.eraOf(best) >= HILL_MIN_ERA && n > 0) holder = best;
+    // Solo cuenta si queda algún rival en pie: un alumno solo en la sala no gana por la colina.
+    const rival = alive(world).some((q) => q.id !== best && world.relation(q.id, best) !== 'ally');
+    if (total >= HILL_MIN_SOLDIERS && world.eraOf(best) >= HILL_MIN_ERA && n > 0 && rival) holder = best;
   }
   const changed = holder !== h.holder || contested !== h.contested;
   h.holder = holder;
