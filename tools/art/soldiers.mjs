@@ -31,6 +31,7 @@ import { HEIGHT_PX, cropRender, render } from './raster.mjs';
 import { kid, kids, parseXml } from './xml.mjs';
 import { ZEROAD_COMMIT, ZEROAD_CREDIT } from './zeroad.mjs';
 import { normalizeLicenses, sheetLicense } from './licenses.mjs';
+import { HAND_GUNS } from './guns.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
@@ -55,8 +56,13 @@ const footAnims = (attack = 'attack_melee') => ({
   attack: { from: attack, frames: 8, fps: 12 },
   die: { from: 'death', frames: 8, fps: 10, loop: false },
 });
+/**
+ * Altura de referencia de los soldados a pie: la del espadachín romano. Si cada hoja se midiera con su
+ * propio modelo, el punto más alto de un lancero sería la punta de la lanza y el hombre saldría chico.
+ */
+const FOOT_SCALE = 'units/romans/infantry_swordsman_b.xml';
 /** Soldado a pie: unidad del juego ('pueblo/tipo'), actor de 0 A.D. y variantes elegidas. */
-const foot = (unit, actor, { attack, choose = [], props, extra } = {}) => ({ units: [unit], actor: `units/${actor}.xml`, choose, props, extra, anims: footAnims(attack) });
+const foot = (unit, actor, { attack, choose = [], props, extra } = {}) => ({ units: [unit], actor: `units/${actor}.xml`, choose, props, extra, scaleFrom: FOOT_SCALE, anims: footAnims(attack) });
 
 /**
  * Arquero de un pueblo sin arqueros en 0 A.D. (romanos, galos, germanos, visigodos): la ropa y la
@@ -79,6 +85,7 @@ const archer = (unit, actor, { extra } = {}) => ({
   choose: [],
   props: BOW,
   extra,
+  scaleFrom: FOOT_SCALE,
   anims: {
     idle: { from: 'idle', actor: ARCHER, frames: 6, fps: 4 },
     walk: { from: 'walk', actor: ARCHER, frames: 10, fps: 12 },
@@ -88,11 +95,18 @@ const archer = (unit, actor, { extra } = {}) => ({
   },
 });
 
+/** Vikingos (los modelos son griegos): escudo redondo de madera pintado y casco cónico de hierro. */
+const NORSE = (helmet) => ({ shield_arm: 'props/units/shields/celt_round_swirl.xml', helmet: `props/units/helmets/${helmet}.xml` });
+
 /** Guerrero (Edad Tribal): tropa ligera, con hacha o maza, sin escudo ni casco (se distingue del lancero). */
 const light = (weapon) => ({ weapon_R: `props/units/weapons/${weapon}.xml`, shield: '', shield_arm: '', helmet: '' });
 /** Armaduras de caballo de 0 A.D.: hierro (caballeros y jinetes acorazados), bronce (General). */
 const IRON = ['props/horse/cav_front_armor_iron.xml', 'props/horse/cav_back_armor_iron.xml'];
 const BRONZE = ['props/horse/cav_front_armor_bronze.xml', 'props/horse/cav_back_armor_bronze.xml'];
+/** Cascos para que cada pueblo se distinga (0 A.D. no tiene vikingos ni germanos propios). */
+const HELMET = (name) => ({ helmet: `props/units/helmets/${name}.xml` });
+/** La cola suelta de algunos caballos queda tiesa al galope: la crin común en su lugar. */
+const MANE = { hair: 'props/horse/horse_hair_mane_black_brown.xml' };
 /** (La de catafracto de 0 A.D. queda mal ubicada en este render: no se usa por ahora.) */
 
 /**
@@ -121,14 +135,36 @@ const citizen = (unit, actor) => ({
 });
 
 /**
+ * Tirador con arma de fuego (eras Industrial y Moderna): el cuerpo de un soldado de 0 A.D. (el jabalinero
+ * íbero, cuya túnica es la que más lleva el color del jugador: el uniforme), los gestos
+ * del ballestero Han (apuntar al hombro, trotar con el arma lista) y un arma armada a mano (guns.mjs).
+ */
+const XBOW = 'units/han/infantry_crossbowman_b.xml';
+const gunner = (units, actor, props) => ({
+  units,
+  actor: `units/${actor}.xml`,
+  choose: [],
+  props: { back: '', ammo: '', shield: '', shield_arm: '', head: 'props/units/heads/new/head_hele_b.xml', ...props },
+  scaleFrom: FOOT_SCALE,
+  anims: {
+    idle: { from: 'idle', actor: XBOW, frames: 6, fps: 4 },
+    walk: { from: 'walk', actor: XBOW, frames: 10, fps: 12 },
+    run: { from: 'run', actor: XBOW, frames: 10, fps: 15 },
+    attack: { from: 'attack_ranged', actor: XBOW, frames: 8, fps: 12 },
+    die: { from: 'death', frames: 8, fps: 10, loop: false },
+  },
+});
+
+/**
  * Jinete: unidad del juego y actor del CABALLO de 0 A.D. (`…_m`; el jinete `…_r` va montado).
  * `ranged`: el jinete tira (jabalina, arco) mientras el caballo queda en reposo.
  * La escala sale de un soldado de a pie (jinete e infante miden lo mismo).
  */
-const horse = (unit, actor, { ranged = false, coat = 'brown', extra, rider } = {}) => ({
+const horse = (unit, actor, { ranged = false, coat = 'brown', extra, props, rider } = {}) => ({
   units: [unit],
   actor: `units/${actor}.xml`,
   extra,
+  props,
   // Accesorios del jinete (punto → actor, '' = quitar), p. ej. otro casco.
   rider,
   // Pelaje del caballo (variante de 0 A.D.: brown, cherrybay, tan, gray, white, black…).
@@ -201,10 +237,10 @@ export const SOLDIERS = {
   'ostrogoths-gothic_warband-3d': foot('ostrogoths/gothic_warband', 'macedonians/infantry_swordsman_c_thracian'),
   // Vikingos ← atenienses y espartanos (escudo redondo, lanza, casco); berserker y ulfhednar ← guerreros celtas e íberos.
   'vikings-warrior-3d': foot('vikings/warrior', 'athenians/infantry_spearman_a', { props: light('axe_double') }),
-  'vikings-spearman-3d': foot('vikings/spearman', 'athenians/infantry_spearman_b'),
-  'vikings-swordsman-3d': foot('vikings/swordsman', 'athenians/infantry_swordsman_c'),
+  'vikings-spearman-3d': foot('vikings/spearman', 'athenians/infantry_spearman_b', { props: NORSE('pers_conical_a1') }),
+  'vikings-swordsman-3d': foot('vikings/swordsman', 'athenians/infantry_swordsman_c', { props: NORSE('pers_conical_b1') }),
   'vikings-archer-3d': foot('vikings/archer', 'athenians/infantry_archer_b', { attack: 'attack_ranged' }),
-  'vikings-huscarl-3d': foot('vikings/huscarl', 'spartans/infantry_spearman_e'),
+  'vikings-huscarl-3d': foot('vikings/huscarl', 'spartans/infantry_spearman_e', { props: NORSE('pers_conical_b1') }),
   'vikings-berserker-3d': foot('vikings/berserker', 'gauls/infantry_swordsman_c'),
   'vikings-ulfhednar-3d': foot('vikings/ulfhednar', 'iberians/infantry_swordsman_e'),
   // Mongoles ← han y persas (su ejército sumó infantería china y persa de los pueblos conquistados).
@@ -222,27 +258,40 @@ export const SOLDIERS = {
   'gauls-knight-3d': horse('gauls/knight', 'gauls/cavalry_swordsman_b_m', { coat: 'tan', extra: IRON }),
   'gauls-general-3d': horse('gauls/general', 'gauls/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
   'germans-scout-3d': horse('germans/scout', 'britons/cavalry_javelinist_a_m', { ranged: true, coat: 'brown' }),
-  'germans-knight-3d': horse('germans/knight', 'britons/cavalry_swordsman_b_m', { coat: 'brown', extra: IRON }),
-  'germans-general-3d': horse('germans/general', 'britons/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
+  'germans-knight-3d': horse('germans/knight', 'britons/cavalry_swordsman_b_m', { coat: 'brown', extra: IRON, rider: HELMET('rome_helmet_wolfskin') }),
+  'germans-general-3d': horse('germans/general', 'britons/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE, rider: HELMET('celt_helmet_agris') }),
   'visigoths-scout-3d': horse('visigoths/scout', 'iberians/cavalry_javelinist_a_m', { ranged: true, coat: 'gray' }),
   'visigoths-knight-3d': horse('visigoths/knight', 'iberians/cavalry_spearman_b_m', { coat: 'gray', extra: IRON }),
   'visigoths-general-3d': horse('visigoths/general', 'iberians/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
-  'visigoths-gothic_knight-3d': horse('visigoths/gothic_knight', 'iberians/cavalry_spearman_e_m', { coat: 'gray', extra: IRON }),
+  'visigoths-gothic_knight-3d': horse('visigoths/gothic_knight', 'iberians/cavalry_spearman_e_m', { coat: 'gray', extra: IRON, props: MANE }),
   'visigoths-javelin_rider-3d': horse('visigoths/javelin_rider', 'iberians/cavalry_javelinist_b_m', { ranged: true, coat: 'gray' }),
   'ostrogoths-scout-3d': horse('ostrogoths/scout', 'seleucids/cavalry_javelinist_a_m', { ranged: true, coat: 'black' }),
   'ostrogoths-knight-3d': horse('ostrogoths/knight', 'seleucids/cavalry_spearman_b_m', { coat: 'black', extra: IRON }),
   'ostrogoths-general-3d': horse('ostrogoths/general', 'seleucids/cavalry_spearman_e_m', { coat: 'white', extra: BRONZE }),
   'ostrogoths-gothic_lancer-3d': horse('ostrogoths/gothic_lancer', 'seleucids/cavalry_spearman_c_m', { coat: 'black', extra: IRON }),
-  'vikings-scout-3d': horse('vikings/scout', 'athenians/cavalry_javelinist_a_m', { ranged: true, coat: 'halflinger' }),
-  'vikings-knight-3d': horse('vikings/knight', 'athenians/cavalry_swordsman_b_m', { coat: 'halflinger', extra: IRON }),
-  'vikings-general-3d': horse('vikings/general', 'athenians/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
+  'vikings-scout-3d': horse('vikings/scout', 'athenians/cavalry_javelinist_a_m', { ranged: true, coat: 'halflinger', rider: HELMET('pers_conical_a1') }),
+  'vikings-knight-3d': horse('vikings/knight', 'athenians/cavalry_swordsman_b_m', { coat: 'halflinger', extra: IRON, rider: HELMET('pers_conical_b1') }),
+  'vikings-general-3d': horse('vikings/general', 'athenians/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE, rider: HELMET('pers_conical_b1') }),
   'mongols-scout-3d': horse('mongols/scout', 'persians/cavalry_javelinist_a_m', { ranged: true, coat: 'beige' }),
-  'mongols-knight-3d': horse('mongols/knight', 'han/cavalry_spearman_a_m', { extra: IRON, rider: { helmet: 'props/units/helmets/han_cavalry_swordsman_helmet.xml' } }),
+  'mongols-knight-3d': horse('mongols/knight', 'han/cavalry_spearman_a_m', { extra: IRON, rider: HELMET('han_cavalry_swordsman_helmet') }),
   'mongols-general-3d': horse('mongols/general', 'han/cavalry_swordsman_e_m', { coat: 'white', extra: BRONZE }),
   'mongols-horse_archer-3d': horse('mongols/horse_archer', 'han/cavalry_archer_e_m', { ranged: true }),
-  'mongols-keshig-3d': horse('mongols/keshig', 'han/cavalry_spearman_e_m', { coat: 'beige', extra: IRON }),
+  'mongols-keshig-3d': horse('mongols/keshig', 'han/cavalry_spearman_e_m', { extra: BRONZE, rider: HELMET('han_heavy_cavalry_helmet') }),
+  // Monjes (Edad Media): el sacerdote de 0 A.D. de cada cultura. Curar es un aura, así que el gesto de
+  // bendecir queda como su "ataque". Romanos, visigodos y ostrogodos (cristianos): el sacerdote con capucha;
+  // galos, germanos y vikingos: el druida; mongoles: el sacerdote Han.
+  'monk-hooded-3d': { ...foot('romans/monk', 'romans/healer', { attack: 'heal' }), units: ['romans/monk', 'visigoths/monk', 'ostrogoths/monk'] },
+  'monk-druid-3d': { ...foot('gauls/monk', 'celts/healer', { attack: 'heal' }), units: ['gauls/monk', 'germans/monk', 'vikings/monk'] },
+  'mongols-monk-3d': foot('mongols/monk', 'han/healer', { attack: 'heal' }),
 
   // ---------- Trabajadores: ciudadanas de 0 A.D., con la herramienta de cada tarea ----------
+  // Eras Industrial y Moderna (iguales para todos los pueblos): fusilero con fusil y bayoneta, equipo
+  // antitanque con lanzacohetes e infantería mecanizada con fusil de asalto y casco de acero.
+  'any-rifleman-3d': gunner(['*/rifleman'], 'iberians/infantry_javelinist_b', { weapon_R: 'gun:rifle', helmet: 'props/units/helmets/hele_kausia_cap.xml' }),
+  'any-antitank-3d': gunner(['*/antitank'], 'iberians/infantry_javelinist_b', { weapon_R: 'gun:bazooka', helmet: 'props/units/helmets/rome_helmet_montefortino.xml' }),
+  'any-mech_infantry-3d': gunner(['*/mech_infantry'], 'iberians/infantry_javelinist_b', { weapon_R: 'gun:assaultRifle', helmet: 'props/units/helmets/rome_helmet_montefortino.xml' }),
+  // Húsares (caballería ligera napoleónica): jinete sin escudo, con sable curvo y gorra, en caballo negro.
+  'any-light_vehicle-3d': { ...horse('any/light_vehicle', 'romans/cavalry_swordsman_c_m', { coat: 'black', rider: { shield_arm: '', helmet: 'props/units/helmets/hele_kausia_cap.xml', weapon_R: 'props/units/weapons/falcata.xml' } }), units: ['*/light_vehicle'] },
   'romans-worker-3d': citizen('romans/worker', 'romans/female_citizen'),
   'gauls-worker-3d': citizen('gauls/worker', 'celts/female_citizen'),
   'germans-worker-3d': citizen('germans/worker', 'celts/female_citizen'),
@@ -302,6 +351,8 @@ async function texture(rel) {
  */
 async function resolve(rel, choose, anims, depth = 0, over = null) {
   if (depth > 6) return null;
+  // Arma armada a mano (fusil, lanzacohetes): piezas de color, sin archivo de 0 A.D.
+  if (rel.startsWith('gun:')) return { actor: rel, mode: 'opaque', mesh: null, tex: null, props: [], anims: {}, gun: HAND_GUNS[rel.slice(4)]() };
   const actor = kid(await readXml(`actors/${rel}`), 'actor');
   if (!actor) return null;
   const material = kid(actor, 'material')?.text.trim() ?? '';
@@ -384,6 +435,10 @@ function posedParts(body, skinned, world, phase = 0, clipName = null) {
   const addProps = (node, w, at, points) => {
     for (const p of node.props) {
       const m = p.at === 'root' ? at : points ? points[p.at] && mul(at, points[p.at]) : w && pointIn(w, p.at);
+      if (m && p.node.gun) {
+        for (const g of p.node.gun) parts.push({ tris: g.tris.map((t) => t.map((c) => ({ ...c, p: applyM(m, c.p), n: c.n ? applyN(m, c.n) : null }))), color: g.color, mode: g.mode });
+        continue;
+      }
       if (!m || !p.node.mesh) continue;
       p.node.model ??= loadCollada(p.node.mesh);
       const { tris, points: own } = p.node.model;

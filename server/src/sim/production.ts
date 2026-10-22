@@ -77,6 +77,7 @@ export function researchError(world: World, playerId: number, tech: TechId): str
   if (techQueued(world, playerId, tech)) return `${def.label}: already being researched`;
   if (def.advancesTo !== undefined) {
     if (p.era >= def.advancesTo) return 'You are already in that age';
+    if (def.advancesTo > world.maxEra) return `This game ends in the ${eraLabel(world.maxEra)}`;
     if (p.era < def.era) return `First advance to the ${eraLabel(def.era)}`;
   } else if (p.era < def.era) return `${def.label}: you need the ${eraLabel(def.era)}`;
   const stage = stageOf(p.techs);

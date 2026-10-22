@@ -266,7 +266,9 @@ export function cacheHeaders(root: string, file: string): Record<string, string>
   } catch {
     etag = undefined;
   }
-  const cache = rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : rel.startsWith('art/') ? 'public, max-age=86400' : 'no-cache';
+  // El arte (art/) se revalida siempre con su ETag: al rehacer una hoja o un edificio cambia el archivo
+  // con el mismo nombre, y con un día de caché los alumnos seguían viendo el arte viejo (o ninguno).
+  const cache = rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
   return etag ? { 'Cache-Control': cache, ETag: etag } : { 'Cache-Control': cache };
 }
 

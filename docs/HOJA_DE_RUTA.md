@@ -68,7 +68,7 @@ Legend: ✅ done · 🔜 next · ⬜ pending
 | # | Step | Status |
 |---|---|---|
 | 7.1 | Optimization for modest computers | ✅ trimmed atlases, ImageBitmap, half-res copies, faster A* (2026-10-16) |
-| 7.2 | Interface polish and simple original sounds | ⬜ |
+| 7.2 | Interface polish and simple original sounds | 🔄 art pass done: every people's city from 0 A.D., cavalry review and fixes (2026-10-22); sounds pending |
 | 7.3 | Easy setup for the teacher (double click, no Node.js install needed) | ⬜ |
 | 7.4 | Teacher guide and student guide | ⬜ |
 | 7.5 | Final test: 16 browsers (Chrome, Edge, Firefox, Safari; Windows and macOS) | ⬜ |

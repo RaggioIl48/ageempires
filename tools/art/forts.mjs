@@ -27,24 +27,27 @@ const PEOPLE = {
   mongols: { fortress: 'han/fortress', wood: 'han/tower_small', tower: 'han/tower_large', wall: 'han/wall_short', gate: 'han/wall_gate' },
 };
 
+/** Tamaño (casillas) de cada edificio del juego que se dibuja con un modelo de 0 A.D. */
+const SIZE = { town_center: 3, house: 2, storehouse: 2, barracks: 3, archery_range: 3, stable: 3, tech_center: 3, market: 3, workshop: 3, monastery: 3 };
+
 /**
- * Ciudad mongola en las eras de entramado y de piedra (3 y 4): la de la dinastía Yuan, que los
- * mongoles fundaron en China (Janbalic, hoy Pekín), con los edificios Han de 0 A.D.
- * Tipo del juego → [actor, casillas]. Granjas, canteras, minas y fábricas siguen siendo las comunes.
+ * Ciudad de cada pueblo con los edificios de la cultura de 0 A.D. más cercana, en las eras indicadas
+ * (en las demás siguen los de Unknown Horizons: así la ciudad cambia al avanzar de era).
+ * Tipo del juego → actor. Lo que falta (granjas, canteras, minas, fábricas…) sigue siendo común.
+ *   romanos → romanos (desde la Edad Media; en la Tribal, el entramado)
+ *   galos → galos, germanos → britanos, vikingos → celtas (aldeas de madera y paja, eras 1 y 2)
+ *   visigodos → íberos (Hispania) y ostrogodos → helenos (Italia bizantina), eras 2 y 3
+ *   mongoles → Han, eras 3 y 4: la dinastía Yuan que fundaron en China (Janbalic, hoy Pekín)
  */
-const CITY = {
-  town_center: ['han/civil_centre', 3],
-  house: ['han/house', 2],
-  storehouse: ['han/storehouse', 2],
-  barracks: ['han/barracks', 3],
-  archery_range: ['han/range', 3],
-  stable: ['han/stable', 3],
-  tech_center: ['han/academy', 3],
-  market: ['han/market', 3],
-  workshop: ['han/arsenal', 3],
-  monastery: ['han/temple', 3],
+const CITIES = {
+  romans: { eras: [2, 3, 4], town_center: 'romans/civic_centre', house: 'romans/house', storehouse: 'romans/storehouse', barracks: 'romans/barracks', archery_range: 'romans/range', stable: 'romans/stable', market: 'romans/market', tech_center: 'romans/temple' },
+  gauls: { eras: [1, 2], town_center: 'gauls/civic_centre', house: 'gauls/house', storehouse: 'gauls/storehouse', barracks: 'celts/barracks', archery_range: 'gauls/range', stable: 'gauls/stable', market: 'gauls/market', tech_center: 'celts/temple' },
+  germans: { eras: [1, 2], town_center: 'britons/civic_centre', house: 'britons/house', storehouse: 'britons/storehouse', barracks: 'britons/barracks', archery_range: 'britons/range', stable: 'britons/stable', market: 'britons/market', tech_center: 'britons/temple' },
+  vikings: { eras: [1, 2], town_center: 'celts/civic_centre', house: 'celts/house', storehouse: 'celts/storehouse', barracks: 'celts/barracks', archery_range: 'britons/range', stable: 'britons/stable', market: 'celts/market_newest', tech_center: 'celts/temple' },
+  visigoths: { eras: [2, 3], house: 'iberians/house', storehouse: 'iberians/storehouse', barracks: 'iberians/barracks', archery_range: 'iberians/range', stable: 'iberians/stable', market: 'iberians/market', tech_center: 'iberians/temple' },
+  ostrogoths: { eras: [2, 3], town_center: 'spartans/civic_centre', house: 'hellenes/house', storehouse: 'hellenes/storehouse', barracks: 'athenians/barracks', archery_range: 'hellenes/range', stable: 'hellenes/stable', market: 'romans/market', tech_center: 'romans/temple_vesta' },
+  mongols: { eras: [3, 4], town_center: 'han/civil_centre', house: 'han/house', storehouse: 'han/storehouse', barracks: 'han/barracks', archery_range: 'han/range', stable: 'han/stable', tech_center: 'han/academy', market: 'han/market', workshop: 'han/arsenal', monastery: 'han/temple' },
 };
-const CITY_ERAS = [3, 4];
 
 /** Grosor de la muralla y altura máxima de murallas y puertas (en casillas). */
 const WALL_THICKNESS = 0.8;
@@ -91,7 +94,7 @@ function toTiles(parts, b, unit, rot, extra = {}, maxHeight = Infinity) {
   return parts.map((p) => ({ ...p, ...extra, tris: p.tris.map((t) => t.map((c) => ({ ...c, p: pt(c.p), n: c.n ? dir(c.n) : null }))) }));
 }
 
-export async function buildForts(cache, out, { onlyCity = false } = {}) {
+export async function buildForts(cache, out, { onlyCity = false, people: onlyPeople } = {}) {
   const z = new ZeroAD(cache);
   const dir = path.join(out, 'buildings');
   fs.mkdirSync(dir, { recursive: true });
@@ -124,11 +127,17 @@ export async function buildForts(cache, out, { onlyCity = false } = {}) {
     save(id, render(toTiles(parts, b, unit, rot, { clip: (u, v, h) => h >= GROUND })), tiles);
   };
 
-  for (const [type, [actor, tiles]] of Object.entries(CITY)) {
-    await building(`city-mongols-${type}`, actor, tiles);
-    for (const era of CITY_ERAS) map[`mongols@${era}/${type}`] = [`city-mongols-${type}`];
+  for (const [people, { eras, ...set }] of Object.entries(CITIES)) {
+    if (onlyPeople && people !== onlyPeople) continue;
+    for (const [type, actor] of Object.entries(set)) {
+      const id = `city-${people}-${type}`;
+      await building(id, actor, SIZE[type]);
+      for (const era of eras) map[`${people}@${era}/${type}`] = [id];
+      // El monasterio vale en todas las eras (el mongol es budista, de estilo chino, como Erdene Zuu).
+      if (type === 'monastery') map[`${people}/${type}`] = [id];
+    }
+    console.log(`  0 A.D. ciudad de ${people}: ${Object.keys(set).length} edificios`);
   }
-  console.log(`  0 A.D. ciudad mongola (Han): ${Object.keys(CITY).length} edificios`);
   if (onlyCity) return { sprites, walls, map, bytes, downloads: z.downloads };
 
   for (const [people, def] of Object.entries(PEOPLE)) {
@@ -177,11 +186,11 @@ export async function buildForts(cache, out, { onlyCity = false } = {}) {
   return { sprites, walls, map, bytes, downloads: z.downloads };
 }
 
-// node tools/art/forts.mjs city → solo la ciudad mongola, sobre el buildings.json que ya existe.
+// node tools/art/forts.mjs city [pueblo] → solo las ciudades (de todos o de uno), sobre el buildings.json que ya existe.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'city') {
   const out = path.resolve(HERE, '../../client/public/art');
-  const r = await buildForts(path.join(HERE, '.cache'), out, { onlyCity: true });
+  const r = await buildForts(path.join(HERE, '.cache'), out, { onlyCity: true, people: process.argv[3] });
   const file = path.join(out, 'buildings.json');
   const bm = JSON.parse(fs.readFileSync(file, 'utf8'));
   Object.assign(bm.sprites, r.sprites);

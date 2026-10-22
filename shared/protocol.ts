@@ -201,6 +201,11 @@ export interface RoomSettings {
   /** Pausa táctica automática al empezar cada batalla (segundos; 0 = no). */
   battlePause: number;
   /**
+   * Última era de la partida: 2 = la Edad Media (por defecto, donde está la jugabilidad de Total War);
+   * 4 = también la Industrial y la Moderna.
+   */
+  maxEra?: 2 | 4;
+  /**
    * Preguntas para avanzar de era: 'off' = no hay; 'history' = las del juego (historia);
    * 'custom' = las que escribió el profesor (`questions`).
    */
@@ -601,6 +606,7 @@ function parseSettings(v: unknown): RoomSettings | null {
   if (s.fog !== undefined && typeof s.fog !== 'boolean') return null;
   if (s.testMode !== undefined && typeof s.testMode !== 'boolean') return null;
   if (s.battlePause !== undefined && (!Number.isInteger(s.battlePause) || (s.battlePause as number) < 0 || (s.battlePause as number) > 60)) return null;
+  if (s.maxEra !== undefined && s.maxEra !== 2 && s.maxEra !== 4) return null;
   if (s.quiz !== undefined && s.quiz !== 'off' && s.quiz !== 'history' && s.quiz !== 'custom') return null;
   let questions: QuizQuestion[] | undefined;
   if (s.questions !== undefined) {
@@ -623,6 +629,7 @@ function parseSettings(v: unknown): RoomSettings | null {
     chat: (s.chat as boolean | undefined) ?? true,
     fog: (s.fog as boolean | undefined) ?? true,
     battlePause: (s.battlePause as number | undefined) ?? 15,
+    maxEra: (s.maxEra as 2 | 4 | undefined) ?? 2,
     quiz: (s.quiz as QuizMode | undefined) ?? 'history',
     ...(s.testMode === true ? { testMode: true } : {}),
     ...(questions?.length ? { questions } : {}),

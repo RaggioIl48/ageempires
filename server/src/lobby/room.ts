@@ -369,6 +369,7 @@ export class Room {
       players: players.map((m) => ({ name: m.name, color: m.color, faction: m.faction })),
     });
     // Los del mismo equipo empiezan aliados; el resto, en guerra.
+    this.game.world.maxEra = this.settings.maxEra ?? 2;
     initRelations(this.game.world, (id) => players.find((m) => m.id === id)?.team ?? 0, this.settings.diplomacy === 'locked');
     // Solo para medir la fluidez (DEMO_ARMY=n): ejércitos listos al empezar.
     spawnDemoArmies(this.game.world, Number(process.env.DEMO_ARMY) || 0);

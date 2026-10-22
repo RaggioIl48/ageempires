@@ -825,39 +825,11 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, b: BuildingView, col
       flag(ctx, c.px, c.py, color, 26);
       break;
     }
-    case 'monastery': {
-      // Monasterio: iglesia de piedra con tejado rojo, huerto de hierbas y campanario con cruz.
-      fillFootprint(ctx, b.tx + 0.1, b.ty + 0.1, s - 0.2, 'rgba(110,140,70,0.4)');
-      const k = corners({ tx: b.tx + 0.15, ty: b.ty + 0.15 }, s - 0.9, 0.1);
-      const H = 22;
-      poly(ctx, [k.T.px, k.T.py + 4, k.R.px + 8, k.R.py + 4, k.B.px, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
-      box(ctx, k, H, '#d9d0bd', '#b8ae98');
-      // Ventanas en arco y puerta
-      for (const f of [0.25, 0.5, 0.75]) {
-        const a = along(k.B, k.R, f);
-        poly(ctx, [a.px - 2, a.py - 8, a.px + 2, a.py - 8, a.px + 2, a.py - 15, a.px, a.py - 17, a.px - 2, a.py - 15], '#4a3a2a');
-      }
-      const d0 = along(k.L, k.B, 0.42), d1 = along(k.L, k.B, 0.58);
-      poly(ctx, [d0.px, d0.py, d1.px, d1.py, d1.px, d1.py - 13, (d0.px + d1.px) / 2, (d0.py + d1.py) / 2 - 17, d0.px, d0.py - 13], '#5a3d26');
-      band(ctx, k, H * 0.82, color);
-      hipRoof(ctx, k, H, 20, '#a8452f');
-      // Campanario en la esquina de adelante
-      const bt = corners({ tx: b.tx + s - 1.05, ty: b.ty + s - 1.05 }, 0.9, 0.05);
-      // Más alto que la iglesia y con tejado de pizarra, para que se distinga delante del tejado rojo.
-      box(ctx, bt, 60, '#e2d9c6', '#c0b6a0');
-      const w = along(bt.L, bt.B, 0.5), e = along(bt.B, bt.R, 0.5);
-      for (const p of [w, e]) poly(ctx, [p.px - 2, p.py - 48, p.px + 2, p.py - 48, p.px + 2, p.py - 55, p.px, p.py - 57, p.px - 2, p.py - 55], '#3a2c20');
-      const top = hipRoof(ctx, bt, 60, 18, '#5d6670');
-      line(ctx, top.px, top.py, top.px, top.py - 9, '#d9b45a', 1.6);
-      line(ctx, top.px - 3, top.py - 6, top.px + 3, top.py - 6, '#d9b45a', 1.6);
-      // Huerto de hierbas medicinales
-      for (const [dx, dy] of [[0.5, s - 0.4], [1.0, s - 0.35], [s - 0.4, 0.5]] as const) {
-        const p = worldToPx(b.tx + dx, b.ty + dy);
-        ellipse(ctx, p.px, p.py - 2, 4, 2.5, '#5f8f3e');
-        ellipse(ctx, p.px + 1, p.py - 3, 1.2, 1.2, '#c9a0dc');
-      }
+    case 'monastery':
+      // Monasterio: iglesia de madera de duelas (vikingos) o de piedra con claustro (los demás).
+      if (look.dragons) staveChurch(ctx, b, s, color);
+      else church(ctx, b, s, color);
       break;
-    }
     // ---- Edificios únicos de cada pueblo ----
     case 'castrum': {
       // Fuerte romano: muro bajo de piedra, torres en las esquinas y el cuartel general al centro.
@@ -2137,4 +2109,174 @@ function drawPlane(ctx: CanvasRenderingContext2D, x: number, y: number, color: s
   ellipse(ctx, x - 2.5, a + 6, 2.2, 1.6, color); // escarapela
   ellipse(ctx, x + 3, a - 2.5, 3, 1.8, '#a9c1d4'); // cabina
   ellipse(ctx, x + 15, a, 1, 5 * Math.abs(Math.sin(t * 40)) + 1, 'rgba(230,230,230,0.8)'); // hélice
+}
+
+// ---------- Monasterios ----------
+
+/** Esquinas de un rectángulo de casillas (w a lo largo de x, h a lo largo de y), subidas dy píxeles. */
+function rect(tx: number, ty: number, w: number, h: number, dy = 0): { T: P; R: P; B: P; L: P; C: P } {
+  const at = (x: number, y: number) => {
+    const p = worldToPx(x, y);
+    return { px: p.px, py: p.py - dy };
+  };
+  return { T: at(tx, ty), R: at(tx + w, ty), B: at(tx + w, ty + h), L: at(tx, ty + h), C: at(tx + w / 2, ty + h / 2) };
+}
+
+/** Ciprés: llama verde oscura, con su lado en sombra. */
+function cypress(ctx: CanvasRenderingContext2D, p: P, h: number): void {
+  ellipse(ctx, p.px + 3, p.py, 5, 2, 'rgba(0,0,0,0.25)');
+  const half = (dir: number, fill: string) => {
+    ctx.beginPath();
+    ctx.moveTo(p.px, p.py - h);
+    ctx.quadraticCurveTo(p.px + dir * 6, p.py - h * 0.45, p.px + dir * 2, p.py);
+    ctx.lineTo(p.px, p.py);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  };
+  half(-1, '#356630');
+  half(1, '#244722');
+}
+
+/** Ventana en arco (vidrio azulado y marco claro), con la base `y0` píxeles sobre el punto p. */
+function archWindow(ctx: CanvasRenderingContext2D, p: P, y0: number, w: number, h: number): void {
+  const x = p.px, y = p.py - y0;
+  poly(ctx, [x - w / 2 - 1, y + 1, x + w / 2 + 1, y + 1, x + w / 2 + 1, y - h, x, y - h - w * 0.7, x - w / 2 - 1, y - h], '#e8e0cc');
+  poly(ctx, [x - w / 2, y, x + w / 2, y, x + w / 2, y - h, x, y - h - w * 0.6, x - w / 2, y - h], '#3d5a78');
+  line(ctx, x, y, x, y - h - w * 0.5, 'rgba(230,220,190,0.6)', 0.7);
+}
+
+/** Hiladas de piedra en las dos caras visibles de un muro. */
+function courses(ctx: CanvasRenderingContext2D, k: { R: P; B: P; L: P }, H: number, step: number): void {
+  for (let y = step; y < H; y += step) {
+    line(ctx, k.L.px, k.L.py - y, k.B.px, k.B.py - y, 'rgba(120,100,70,0.18)', 0.7);
+    line(ctx, k.B.px, k.B.py - y, k.R.px, k.R.py - y, 'rgba(90,75,55,0.2)', 0.7);
+  }
+}
+
+/**
+ * Iglesia de piedra con claustro: nave con tejado a dos aguas, contrafuertes, ventanas en arco,
+ * rosetón y puerta en el hastial, campanario con campana y cruz, cipreses y huerto de hierbas.
+ */
+function church(ctx: CanvasRenderingContext2D, b: BuildingView, s: number, color: string): void {
+  const roof = '#a8452f';
+  fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(120,150,80,0.45)');
+  // Sendero de grava hasta la puerta y huerto de hierbas (hileras moradas y verdes).
+  const g = rect(b.tx + 2.35, b.ty + 1.35, s - 2.4, 0.4);
+  poly(ctx, [g.T.px, g.T.py, g.R.px, g.R.py, g.B.px, g.B.py, g.L.px, g.L.py], '#cbbf9f');
+  for (let i = 0; i < 4; i++) {
+    const p = worldToPx(b.tx + 0.35 + i * 0.22, b.ty + 2.3), q = worldToPx(b.tx + 0.35 + i * 0.22, b.ty + 2.85);
+    line(ctx, p.px, p.py, q.px, q.py, i % 2 ? '#7a9a4c' : '#9b7cc0', 3);
+  }
+  cypress(ctx, worldToPx(b.tx + 0.35, b.ty + 0.35), 30);
+  cypress(ctx, worldToPx(b.tx + 2.7, b.ty + 0.3), 26);
+  // Campanario detrás de la nave (más alto que el tejado), con la campana a la vista y la cruz.
+  const tw = rect(b.tx + 0.45, b.ty + 0.2, 0.7, 0.7);
+  const TH = 70;
+  box(ctx, tw, TH, '#e2d9c6', '#bfb39b');
+  courses(ctx, tw, TH, 7);
+  for (const [p, q] of [[tw.L, tw.B], [tw.B, tw.R]] as const) {
+    const m = along(p, q, 0.5);
+    poly(ctx, [m.px - 4, m.py - TH + 6, m.px + 4, m.py - TH + 6, m.px + 4, m.py - TH + 17, m.px, m.py - TH + 20, m.px - 4, m.py - TH + 17], '#2b2219');
+  }
+  const bm = along(tw.L, tw.B, 0.5);
+  poly(ctx, [bm.px - 3, bm.py - TH + 7, bm.px + 3, bm.py - TH + 7, bm.px + 2, bm.py - TH + 13, bm.px - 2, bm.py - TH + 13], '#c89b3c');
+  band(ctx, tw, TH - 24, color);
+  const spire = hipRoof(ctx, tw, TH, 22, '#5d6670');
+  line(ctx, spire.px, spire.py, spire.px, spire.py - 10, '#d9b45a', 1.6);
+  line(ctx, spire.px - 3.5, spire.py - 6.5, spire.px + 3.5, spire.py - 6.5, '#d9b45a', 1.6);
+  flag(ctx, tw.R.px + 2, tw.R.py - TH + 4, color, 16);
+  // Nave a lo largo de x.
+  const H = 26, k = rect(b.tx + 0.3, b.ty + 0.9, 2.05, 1.3);
+  poly(ctx, [k.T.px, k.T.py + 3, k.R.px + 10, k.R.py + 3, k.B.px + 8, k.B.py + 6, k.L.px - 4, k.L.py + 4], 'rgba(0,0,0,0.25)');
+  box(ctx, k, H, '#e6dccb', '#c4b79e');
+  courses(ctx, k, H, 5);
+  // Contrafuertes y ventanas en el muro largo.
+  for (let i = 0; i <= 4; i++) {
+    const p = along(k.L, k.B, i / 4);
+    poly(ctx, [p.px - 2.5, p.py + 1, p.px + 2.5, p.py + 1, p.px + 2.5, p.py - H + 6, p.px, p.py - H + 3, p.px - 2.5, p.py - H + 6], '#d3c8b2');
+    if (i < 4) archWindow(ctx, along(k.L, k.B, (i + 0.5) / 4), 8, 4, 9);
+  }
+  band(ctx, k, H - 3, color);
+  // Tejado a dos aguas: cumbrera a lo largo de x.
+  const top = (p: P) => ({ px: p.px, py: p.py - H });
+  const rise = 16;
+  const r0 = along(top(k.T), top(k.L), 0.5), r1 = along(top(k.R), top(k.B), 0.5);
+  const ridge0 = { px: r0.px, py: r0.py - rise }, ridge1 = { px: r1.px, py: r1.py - rise };
+  poly(ctx, [top(k.T).px, top(k.T).py, top(k.R).px, top(k.R).py, ridge1.px, ridge1.py, ridge0.px, ridge0.py], shade(roof, 0.72));
+  // Hastial (la fachada de la puerta) con rosetón.
+  poly(ctx, [top(k.R).px, top(k.R).py, top(k.B).px, top(k.B).py, ridge1.px, ridge1.py], '#cdbfa5');
+  const rose = { px: (top(k.R).px + top(k.B).px + ridge1.px) / 3, py: (top(k.R).py + top(k.B).py + ridge1.py) / 3 + 1 };
+  ellipse(ctx, rose.px, rose.py, 4, 4, '#3d5a78', '#e8e0cc', 1.2);
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 4, dx = 4 * Math.cos(a), dy = 4 * Math.sin(a);
+    line(ctx, rose.px - dx, rose.py - dy, rose.px + dx, rose.py + dy, 'rgba(230,220,190,0.7)', 0.6);
+  }
+  poly(ctx, [top(k.L).px, top(k.L).py, top(k.B).px, top(k.B).py, ridge1.px, ridge1.py, ridge0.px, ridge0.py], shade(roof, 1.02));
+  for (let i = 1; i < 10; i++) {
+    const p = along(top(k.L), top(k.B), i / 10), q = along(ridge0, ridge1, i / 10);
+    line(ctx, p.px, p.py, q.px, q.py, 'rgba(70,25,15,0.25)', 0.8); // tejas
+  }
+  line(ctx, ridge0.px, ridge0.py, ridge1.px, ridge1.py, shade(roof, 0.55), 1.6);
+  line(ctx, ridge1.px, ridge1.py, ridge1.px, ridge1.py - 8, '#d9b45a', 1.5); // cruz del hastial
+  line(ctx, ridge1.px - 3, ridge1.py - 5, ridge1.px + 3, ridge1.py - 5, '#d9b45a', 1.5);
+  // Puerta en arco en el hastial.
+  const dm = along(k.B, k.R, 0.5);
+  poly(ctx, [dm.px - 5, dm.py - 1, dm.px + 3, dm.py - 5, dm.px + 3, dm.py - 17, dm.px - 1, dm.py - 21, dm.px - 5, dm.py - 15], '#e8e0cc');
+  poly(ctx, [dm.px - 4, dm.py - 1, dm.px + 2, dm.py - 4, dm.px + 2, dm.py - 16, dm.px - 1, dm.py - 19, dm.px - 4, dm.py - 14], '#5a3d26');
+  // Claustro: arcada baja a lo largo del frente izquierdo.
+  const c0 = worldToPx(b.tx + 0.1, b.ty + s - 0.1), c1 = worldToPx(b.tx + 1.8, b.ty + s - 0.1);
+  poly(ctx, [c0.px, c0.py - 9, c1.px, c1.py - 9, c1.px, c1.py - 13, c0.px, c0.py - 13], shade(roof, 0.95));
+  for (let i = 0; i <= 8; i++) {
+    const p = along(c0, c1, i / 8);
+    poly(ctx, [p.px - 1.5, p.py, p.px + 1.5, p.py, p.px + 1.5, p.py - 9, p.px - 1.5, p.py - 9], '#ddd3bf');
+  }
+}
+
+/**
+ * Iglesia de madera de duelas (Noruega): madera oscura, galería baja, tres pisos de tejados empinados
+ * de tablillas, cabezas de dragón en los aleros y una cruz en la punta.
+ */
+function staveChurch(ctx: CanvasRenderingContext2D, b: BuildingView, s: number, color: string): void {
+  fillFootprint(ctx, b.tx + 0.05, b.ty + 0.05, s - 0.1, 'rgba(110,130,80,0.45)');
+  const wood = '#5a3c22', woodD = '#432c18', roof = '#3d3a32';
+  const k0 = rect(b.tx + 0.35, b.ty + 0.35, s - 0.7, s - 0.7);
+  poly(ctx, [k0.T.px, k0.T.py + 3, k0.R.px + 10, k0.R.py + 3, k0.B.px + 6, k0.B.py + 6, k0.L.px - 4, k0.L.py + 4], 'rgba(0,0,0,0.25)');
+  box(ctx, k0, 12, wood, woodD);
+  for (let i = 0; i <= 10; i++) {
+    const p = along(k0.L, k0.B, i / 10), q = along(k0.B, k0.R, i / 10);
+    line(ctx, p.px, p.py, p.px, p.py - 12, 'rgba(30,20,10,0.4)', 0.8);
+    line(ctx, q.px, q.py, q.px, q.py - 12, 'rgba(20,12,6,0.4)', 0.8);
+  }
+  band(ctx, k0, 9, color);
+  hipRoof(ctx, k0, 12, 8, roof);
+  // Puerta tallada en el frente.
+  const d = along(k0.L, k0.B, 0.5);
+  poly(ctx, [d.px - 4, d.py, d.px + 4, d.py, d.px + 4, d.py - 10, d.px, d.py - 13, d.px - 4, d.py - 10], '#2a1d10');
+  // Pisos: cada uno más angosto y más alto.
+  let base = 12;
+  let apex: P = k0.C;
+  for (const [inset, wallH, rise] of [[0.8, 22, 16], [1.15, 18, 18], [1.4, 14, 24]] as const) {
+    const kk = rect(b.tx + inset, b.ty + inset, s - inset * 2, s - inset * 2, base);
+    box(ctx, kk, wallH, wood, woodD);
+    for (let i = 0; i <= 6; i++) {
+      const p = along(kk.L, kk.B, i / 6);
+      line(ctx, p.px, p.py, p.px, p.py - wallH, 'rgba(30,20,10,0.35)', 0.8);
+    }
+    apex = hipRoof(ctx, kk, wallH, rise, roof);
+    const top = (p: P) => ({ px: p.px, py: p.py - wallH });
+    for (let j = 1; j < 4; j++) {
+      const a1 = along(top(kk.L), apex, j / 4), a2 = along(top(kk.B), apex, j / 4), a3 = along(top(kk.R), apex, j / 4);
+      line(ctx, a1.px, a1.py, a2.px, a2.py, 'rgba(0,0,0,0.25)', 0.7); // tablillas
+      line(ctx, a2.px, a2.py, a3.px, a3.py, 'rgba(0,0,0,0.3)', 0.7);
+    }
+    // Cabezas de dragón en las esquinas de los costados.
+    for (const [p, dir] of [[top(kk.L), -1], [top(kk.R), 1]] as const)
+      poly(ctx, [p.px, p.py, p.px + dir * 7, p.py - 6, p.px + dir * 10, p.py - 5, p.px + dir * 7, p.py - 3], '#2a2018');
+    base += wallH * 0.82;
+  }
+  line(ctx, apex.px, apex.py, apex.px, apex.py - 12, '#d9b45a', 1.4);
+  line(ctx, apex.px - 3, apex.py - 8, apex.px + 3, apex.py - 8, '#d9b45a', 1.4);
+  const fp = worldToPx(b.tx + s - 0.3, b.ty + 0.4);
+  flag(ctx, fp.px, fp.py, color, 22);
 }

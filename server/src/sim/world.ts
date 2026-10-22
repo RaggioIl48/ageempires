@@ -436,6 +436,8 @@ export class World {
   /** Maravillas terminadas: id del edificio → paso en que se terminó. */
   wonders = new Map<number, number>();
   outcome: { winners: number[]; reason: string } | null = null;
+  /** Última era a la que se puede avanzar en esta partida (opción del profesor). */
+  maxEra = 4;
   victoryVersion = 0;
 
   relation(a: number, b: number): Relation {

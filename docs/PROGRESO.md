@@ -1180,6 +1180,80 @@ played, was a single step.
   the Middle Ages they keep the gers and the Khan's camp. Only these images: `node tools/art/forts.mjs city`.
 - Checked in the game renderer at era 3 (red player): all ten draw with their team colour. 455 tests pass.
 
+## Phase 7 art pass: every people's city, cavalry review (2026-10-22)
+
+- **Cavalry review** (all 26 rider sheets, every animation, aligned on their ground anchor): the gallop,
+  charge, attack and fall read well. Found and fixed:
+  - Visigoth Gothic knight: a loose tail prop stood out as a stiff black blade at the gallop; it now has
+    the regular mane (`MANE`).
+  - Viking riders wore Greek wide-brimmed hats (they come from Athenian models): now conical iron
+    helmets. Germanic knight and general looked like the Gauls: wolf-pelt hood and a crested Celtic
+    helmet. The keshig looked like the Mongol knight: bronze barding and the Han heavy cavalry helmet.
+    Horse recipes can now swap horse props too (`props`), like rider props (`rider`).
+- **Every people has its own city** (`tools/art/forts.mjs`, `CITIES`): besides the fortress, towers and
+  walls, the Town Center, house, storehouse, barracks, archery range, stable, market and tech center now
+  come from the closest 0 A.D. culture, in the eras that fit; in the other eras the Unknown Horizons
+  buildings stay, so a city still changes as it advances. Romans → Roman (eras 2–4); Gauls → Gallic,
+  Germans → Briton, Vikings → Celtic (eras 1–2); Visigoths → Iberian and Ostrogoths → Hellenic with Roman
+  market and round temple (eras 2–3); Mongols → Han (eras 3–4). 57 images, 2.4 MB.
+  `node tools/art/forts.mjs city [people]` rebuilds them.
+- Checked with REA in a live game (Romans, era 2): Roman civic centre, knights and scouts galloping in the
+  player's colour, the idle-worker notice; no page errors. 455 tests pass.
+
+## Monk and monastery art; infantry review (2026-10-22)
+
+- **Monk** (`tools/art/soldiers.mjs`): it was a hand-drawn figure. Now each people has the 0 A.D. priest
+  of its culture, with walk, run, fall and the blessing gesture (healing is an aura, so the gesture is
+  kept as its "attack"): the hooded priest for Romans, Visigoths and Ostrogoths, the druid for Gauls,
+  Germans and Vikings, the Han priest for Mongols. The robe takes the player's colour.
+- **Monastery** (`client/src/sprites.ts`): the flat stone church was redrawn: nave with gable roof,
+  stone courses, buttresses, arched glass windows, rose window and arched door, bell tower behind the
+  nave with its bell, slate spire and cross, cloister arcade, cypresses and herb garden. Vikings get a
+  stave church (dark wood, three tiers of shingled roofs, dragon heads). Mongols get a Buddhist monastery
+  in Chinese style (the Han temple from 0 A.D., in every era).
+- **Infantry review** (all 41 sheets, every animation):
+  - Capes stayed standing upright where a soldier died (and floated during some attacks): they have their
+    own small skeleton, which the renderer posed at the feet. The fix made for the bow (a prop with its own
+    skeleton follows its attach point) covers them; every infantry sheet was rebuilt.
+  - Pikemen and hoplites were drawn smaller than everyone else: each sheet was scaled so its highest
+    point fitted, and for them that point is the spear tip. Foot soldiers now share one height reference
+    (the Roman swordsman), like the riders.
+  - The Viking spearman, swordsman and huscarl looked like Greek hoplites: now a painted round wooden
+    shield and a conical iron helmet (`NORSE`).
+- Checked with REA (headless Chrome) on a test page drawn with the game's own code: the monastery of
+  every people.
+
+## Workers reviewed; Industrial and Modern soldiers in 3D (2026-10-22)
+
+- **Workers** (all 7 sheets, every task: chop, farm, mine, build, fall): no defects found; they keep
+  their 0 A.D. citizen of each culture.
+- **Rifleman, anti-tank team and mechanized infantry** (`tools/art/soldiers.mjs`, `gunner`): they were
+  small 4-direction pixel figures. Now they are 0 A.D. soldiers in 8 directions with the aiming, ready-jog
+  and run gestures of the Han crossbowman, an Iberian body whose tunic takes the player's colour as a
+  uniform, and firearms built by hand (`tools/art/guns.mjs`, `HAND_GUNS`): musket with bayonet,
+  shoulder rocket launcher, assault rifle with curved magazine. A recipe can mount them as
+  `gun:<name>` on any attach point.
+- **Hussars** (the Industrial light cavalry): a 3D rider on a black horse, with a curved sabre and a cap.
+- Seen with REA in a live game (Industrial demo armies): riflemen, anti-tank teams, mechanized infantry
+  and hussars marching and fighting; no page errors.
+- Still as before: tanks, the biplane and the artillery crews (they were already 3D models in 8
+  directions).
+
+## Games end in the Medieval Age by default; art always fresh (2026-10-22)
+
+- **Game option "Last age"** (teacher panel): *Medieval Age* (default) or *Modern Age*. With the
+  Medieval Age, the "Advance to the Industrial Age" button does not appear and the server refuses it
+  ("This game ends in the Medieval Age"). The Industrial and Modern code, units and art stay, for the
+  other option. `RoomSettings.maxEra` (2 or 4), `World.maxEra`, `researchError`. Tests:
+  `server/test/max-era.test.ts` (2).
+- **Why the Germans looked like polygons on the teacher's computer**: the server sent the art (the
+  building and unit lists and their images) with one day of browser cache, so the browser kept the list
+  from before the Germanic city existed. Now art is always re-checked against its ETag (a quick "304
+  not modified" when nothing changed). After updating, restart the server and reload once with
+  Ctrl+Shift+R.
+- Every people's buildings in all four ages were checked with REA on a page drawn with the game's code:
+  all have art. Remaining gaps are listed in `docs/AUDITORIA_JUGABILIDAD.md`, section 6.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

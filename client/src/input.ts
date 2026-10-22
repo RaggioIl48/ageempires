@@ -255,6 +255,7 @@ export class Input {
       if (hasTech(mask, tech) || queued.has(tech)) continue;
       if (t.faction && t.faction !== s.faction(s.you)) continue;
       if (t.advancesTo !== undefined ? t.advancesTo !== era + 1 : era < t.era) continue;
+      if (t.advancesTo !== undefined && t.advancesTo > (s.settings?.maxEra ?? 4)) continue; // la partida termina antes
       // Etapas de la Edad Media: solo la siguiente, y lo de una etapa posterior queda oculto hasta llegar.
       if (t.advancesStage !== undefined && (era !== MEDIEVAL_ERA || t.advancesStage !== stage + 1)) continue;
       if (!stageReached(t.stage, era, stage)) continue;

@@ -182,3 +182,50 @@ export const GUN_LAYOUT = {
   maxim: { muzzle: [0, -1.15, 0.62], crew: [[-0.25, 0.75], [0.45, 0.55]] },
   howitzer: { muzzle: [0, -2.55, 1.55], crew: [[-0.75, 1.6], [0.8, 1.25]] },
 };
+
+// ---------- Armas de mano (para los soldados de 0 A.D. de las eras Industrial y Moderna) ----------
+// Van en el punto "weapon_R" en lugar de la ballesta: el caño hacia −y (adelante), la empuñadura en
+// el origen, como la ballesta Han cuyo gesto de apuntar se usa.
+
+/** Fusil de chispa con bayoneta (era Industrial): culata y caja de madera, caño de hierro. */
+export function rifle() {
+  const stock = [
+    ...box([0, 0.22, -0.02], [0.06, 0.34, 0.12], -0.12, [0, 0.05, 0]), // culata
+    ...box([0, -0.35, 0.05], [0.055, 0.85, 0.07]), // caja
+  ];
+  const metal = [
+    ...cylinder([0, 0.05, 0.1], [0, -1.12, 0.1], 0.018, 0.016, 8), // caño
+    ...box([0, -0.02, 0.08], [0.05, 0.12, 0.06]), // llave
+    ...cylinder([0, -1.1, 0.1], [0, -1.42, 0.1], 0.008, 0.002, 5), // bayoneta
+  ];
+  return [part(stock, WOOD, 'opaque', 'stock'), part(metal, IRON, 'opaque', 'metal')];
+}
+
+/** Fusil de asalto (era Moderna): acero oscuro, cargador curvo y culata con el color del jugador. */
+export function assaultRifle() {
+  const body = [
+    ...box([0, -0.25, 0.08], [0.06, 0.5, 0.11]), // cajón de mecanismos
+    ...cylinder([0, -0.48, 0.1], [0, -0.95, 0.1], 0.018, 0.018, 8), // caño
+    ...box([0, -0.36, -0.03], [0.045, 0.1, 0.18], 0.35, [0, -0.36, 0.03]), // cargador
+    ...box([0, 0.02, 0.0], [0.04, 0.06, 0.13], 0.3, [0, 0.02, 0.06]), // empuñadura
+  ];
+  const stock = [...box([0, 0.2, 0.06], [0.05, 0.32, 0.1])];
+  return [part(body, DARK, 'opaque', 'body'), part(stock, OLIVE, 'team', 'stock')];
+}
+
+/** Lanzacohetes antitanque sobre el hombro: tubo verde oliva, empuñadura y mira. */
+export function bazooka() {
+  const tube = [
+    ...cylinder([0, 0.6, 0.16], [0, -0.95, 0.16], 0.065, 0.065, 14),
+    ...cylinder([0, 0.62, 0.16], [0, 0.72, 0.16], 0.075, 0.09, 14, false), // tobera de atrás
+  ];
+  const grip = [...box([0, -0.02, 0.04], [0.04, 0.07, 0.16]), ...box([0, -0.35, 0.24], [0.03, 0.08, 0.05])];
+  return [part(tube, OLIVE, 'team', 'tube'), part(grip, DARK, 'opaque', 'grip')];
+}
+
+/** Más grandes que en la realidad, como las armas de 0 A.D.: si no, en el juego no se ven. */
+const HAND_SCALE = 1.4;
+const scaled = (parts) => parts.map((p) => ({ ...p, tris: p.tris.map((t) => t.map((c) => ({ ...c, p: c.p.map((x) => x * HAND_SCALE) }))) }));
+
+/** Armas de mano por nombre (el actor "gun:<nombre>" en las recetas de soldados). */
+export const HAND_GUNS = { rifle: () => scaled(rifle()), assaultRifle: () => scaled(assaultRifle()), bazooka: () => scaled(bazooka()) };

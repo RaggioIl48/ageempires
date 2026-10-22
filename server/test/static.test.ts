@@ -57,10 +57,10 @@ describe('static files', () => {
     });
   }
 
-  it('files are cached (built code forever, art for a day) and re-checked with a 304', async () => {
+  it('built code is cached forever; art is always re-checked (a 304 when unchanged)', async () => {
     expect((await get('/assets/app.js')).headers['cache-control']).toContain('immutable');
     const art = await get('/art/units.png');
-    expect(art.headers['cache-control']).toBe('public, max-age=86400');
+    expect(art.headers['cache-control']).toBe('no-cache');
     const etag = art.headers.etag as string;
     expect(etag).toBeTruthy();
     const again = await get('/art/units.png', { 'If-None-Match': etag });

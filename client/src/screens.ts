@@ -32,6 +32,7 @@ export function settingsText(s: RoomSettings): string {
     s.chat ? 'chat on' : 'no chat',
     s.fog === false ? 'no fog of war' : 'fog of war',
     ...(s.testMode ? ['test mode (resource key on)'] : []),
+    s.maxEra === 4 ? 'up to the Modern Age' : 'ends in the Medieval Age',
     s.battlePause ? `${s.battlePause} s tactical pause per battle` : 'no battle pause',
     s.quiz === 'off' ? 'no questions' : s.quiz === 'custom' && s.questions?.length ? `${s.questions.length} teacher questions to advance` : 'history questions to advance',
   ].join(' · ');
@@ -260,6 +261,7 @@ export class TeacherScreen {
           fog: el<HTMLSelectElement>('in-fog').value === '1',
           ...(el<HTMLSelectElement>('in-test').value === '1' ? { testMode: true } : {}),
           battlePause: Number(el<HTMLSelectElement>('in-bpause').value),
+          maxEra: el<HTMLSelectElement>('in-maxera').value === '4' ? 4 : 2,
           quiz: el<HTMLSelectElement>('in-quiz').value as QuizMode,
           ...(el<HTMLSelectElement>('in-quiz').value === 'custom' ? { questions: parseQuizText(el<HTMLTextAreaElement>('in-questions').value) } : {}),
         },

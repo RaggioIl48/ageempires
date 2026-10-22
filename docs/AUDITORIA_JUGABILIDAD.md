@@ -295,6 +295,61 @@ No comparten partida (el servidor no reparte una partida entre máquinas). Eso e
 código nuevo, solo dos copias del paquete portátil (`LEEME.txt`). Si los dos grupos tienen que jugar uno
 contra el otro, hace falta otra cosa (un servidor central), que no está hecho.
 
+## 6. Verificación del arte de todos los pueblos y qué sigue para parecerse a Total War (2026-10-22)
+
+### 6.1 Arte de los edificios (verificado con REA)
+
+Se dibujó cada edificio de los 7 pueblos en las 4 eras con el código del juego, en Chrome sin ventana.
+Ningún pueblo queda sin arte.
+
+**Por qué el profesor veía casas de polígonos en los germanos.** El servidor mandaba el arte
+(`art/*.json` y las imágenes) con un día de caché. El navegador seguía usando la lista de edificios de
+antes de que existiera la ciudad germana, y el juego dibujaba las formas. Ahora el arte se revalida
+siempre (`server/src/net/server.ts`): si no cambió, el servidor responde "304" sin volver a mandarlo.
+Hay que reiniciar el servidor una vez y recargar la página con Ctrl+Shift+R.
+
+**Lo que todavía falta:**
+
+| Qué | Dónde |
+|---|---|
+| El cuartel, la arquería, el establo, el centro de tecnología y el mercado de los mongoles, en las eras 1 y 2, son casas europeas de entramado | 0 A.D. no tiene campamento nómada: habría que dibujarlos (como el campamento del kan) |
+| El monasterio es la misma iglesia para 5 pueblos | Variantes por pueblo (iglesia de madera para germanos, de piedra visigoda) |
+| Los edificios únicos (salón de guerra, nemeton, castrum…) siguen dibujados con formas | Pasarlos a modelos de 0 A.D. como los fuertes |
+| El centro urbano visigodo de las eras 2 y 3 es el genérico | 0 A.D. no tiene uno íbero |
+
+### 6.2 ¿Eliminar las eras Industrial y Moderna?
+
+| Era | Unidades |
+|---|---|
+| 1 Tribal | 4 |
+| 2 Edad Media | **30** (con tres etapas) |
+| 3 Industrial | 4 |
+| 4 Moderna | 5 |
+
+**Recomendación: sí, terminar la partida en la Edad Media, pero con una opción de partida, no borrando
+el código.**
+- Casi todo el juego ya vive en la Edad Media: 30 de 43 unidades, las tres etapas, las murallas, el
+  asedio y las reglas de regimientos, moral, cargas y cansancio.
+- En las eras 3 y 4 hay muy pocas unidades (9) y no tienen las reglas que dan sabor a Total War
+  (formaciones cerradas, cargas, armaduras): un fusil a distancia anula todo lo demás.
+- Con una opción "Última era: Edad Media" (activada por defecto) se ocultan los botones de avance y sus
+  unidades. Si algún día se quiere volver, no hay que rehacer nada.
+- Lo que se libera: la Colina Sagrada, la Maravilla y la Gloria se terminan en la Edad Media, y el
+  tiempo de desarrollo va a lo que distingue a Total War.
+
+### 6.3 Qué falta para parecerse más a Total War (en orden)
+
+| # | Qué | Por qué | Esfuerzo |
+|---|---|---|---|
+| 1 | ~~**Opción "Última era: Edad Media"**~~ **Hecho (2026-10-22)**: activada por defecto en el panel del profesor | Concentra el juego donde ya está todo | S |
+| 2 | **Bonificación por flanco y retaguardia más visible** (ya existe en el código): flecha o aviso "¡Flanqueados!" y más caída de moral | En Total War la batalla se gana rodeando; hoy el alumno no lo nota | S |
+| 3 | **Terreno que importa**: más ataque y alcance desde la altura, el bosque esconde y frena a la caballería | Hoy la altura apenas cuenta (3 archivos la usan) y no hay emboscadas | M |
+| 4 | **Formaciones de regimiento elegibles**: cuña para la caballería, testudo y muro de escudos con reglas propias, cuadro contra caballería | El muro de escudos existe solo para vikingos; faltan las demás | M |
+| 5 | **Pausa táctica y velocidad** (ya existe la pausa de batalla) con órdenes en pausa | Es lo que permite pensar la batalla | S |
+| 6 | **Generales con área de mando** que se vea en el mapa, y caída de moral grande si muere | Ya hay general; falta que se note el radio | S |
+| 7 | **Balance pendiente**: el lancero elegido y el fanático ganan a los arqueros contra lo que dicen (P6) | Coherencia con las descripciones | S |
+| 8 | **Mapa de campaña** (regiones, ciudades, turnos) | Es la otra mitad de Total War, pero es un proyecto aparte | L |
+
 ## 5. Qué no cubre esta auditoría
 
 - Batallas largas (20–40 min) y con muchos regimientos: solo medí duelos de 8 contra 8 y el simulador de
