@@ -4,12 +4,11 @@
 
 import { BUILD_MENU, BUILDING_DEFS, PLAYER_COLORS, type FactionId, type UnitType } from '../../shared/data.ts';
 import type { UnitView } from '../../shared/protocol.ts';
-import { drawDyingUnit, drawSpriteUnit, forceSheet, loadArt, preloadGame, setLod } from './art.ts';
+import { artUrl, drawDyingUnit, drawSpriteUnit, forceSheet, loadArt, preloadGame, setLod } from './art.ts';
 import { drawBuilding, setWallLookup } from './sprites.ts';
 import { wallLine } from '../../shared/wall.ts';
 import { worldToPx } from './view.ts';
 
-const BASE = import.meta.env.BASE_URL ?? '/';
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const unitSel = document.getElementById('unit') as HTMLSelectElement;
@@ -30,7 +29,7 @@ interface Manifest {
 
 async function main(): Promise<void> {
   await loadArt();
-  const m = (await (await fetch(`${BASE}art/units.json`)).json()) as Manifest;
+  const m = (await (await fetch(artUrl('units.json'))).json()) as Manifest;
   for (const key of Object.keys(m.units).sort()) unitSel.add(new Option(key, key));
   for (const id of Object.keys(m.sheets).sort()) sheetSel.add(new Option(`${id} (${m.sheets[id].o})`, id));
   const fromUrl = new URLSearchParams(location.search).get('unit');
@@ -86,7 +85,7 @@ async function main(): Promise<void> {
  */
 async function stress(n: number, art: string): Promise<void> {
   await loadArt();
-  const m = (await (await fetch(`${BASE}art/units.json`)).json()) as Manifest;
+  const m = (await (await fetch(artUrl('units.json'))).json()) as Manifest;
   document.querySelector('header')!.innerHTML = '<b>Stress test</b> <span id="stats">measuring…</span>';
   // Por defecto, siempre las mismas unidades (romanos y galos), para comparar corridas entre sí.
   // types=all: todos los tipos 3D de todos los pueblos (como una partida real con muchos tipos a la vista).

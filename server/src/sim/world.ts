@@ -64,14 +64,14 @@ export interface Battle {
   /** Soldados y edificios que participaron (para contar las pérdidas). */
   aIds: Set<number>;
   dIds: Set<number>;
-  /** Batalla de asedio (la ciudad tiene murallas): los atacantes tienen escalas. */
+  /** Batalla de asedio (la ciudad tiene murallas): se entra rompiendo la muralla o con torres de asedio. */
   siege: boolean;
   buildings: Set<number>;
 }
 
 /** Valor de `solid` para las puertas: bloquean solo a quien no es aliado. */
 export const GATE = 2;
-/** Casilla de muralla: la pisan los soldados de a pie propios o aliados, y los atacantes con escalas en una batalla. */
+/** Casilla de muralla: la pisan los soldados de a pie propios o aliados, y los atacantes por la rampa de una torre de asedio. */
 export const WALL = 3;
 
 export interface Point {
@@ -356,9 +356,10 @@ export class World {
       if (this.walker === 0 || !this.walkerFoot) return false;
       const wall = this.buildings.get(this.occupant[i]);
       if (!wall) return false;
-      // Propia o aliada: solo quien la guarnece. Enemiga: solo con escalas, en una batalla por esa ciudad.
+      // Propia o aliada: solo quien la guarnece. Enemiga: solo por la rampa de una torre de asedio acoplada.
+      // Sin ella, la muralla se rompe (arietes, asedio) o se entra por una puerta abierta: no hay escalas.
       if (this.relation(this.walker, wall.owner) === 'ally') return this.walkerWalls;
-      return this.rampFor(this.walker, i) || this.battles.some((b) => b.attacker === this.walker && b.defender === wall.owner);
+      return this.rampFor(this.walker, i);
     }
     if (s !== GATE || this.walker === 0) return false;
     const gate = this.buildings.get(this.occupant[i]);

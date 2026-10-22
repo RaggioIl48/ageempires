@@ -1254,6 +1254,25 @@ played, was a single step.
 - Every people's buildings in all four ages were checked with REA on a page drawn with the game's code:
   all have art. Remaining gaps are listed in `docs/AUDITORIA_JUGABILIDAD.md`, section 6.
 
+## Walls hold until broken; soldiers no longer drawn in pieces; temples as monasteries (2026-10-22)
+
+- **Enemies crossed intact walls.** During a siege the attacker's infantry could step onto the walls
+  ("ladders"): measured with a walled city and 40 attackers, the first one stood on the wall at 8 s with
+  all 48 sections intact. Ladders were removed (`World.isWalkable`): an enemy only gets onto a wall by
+  the ramp of a docked siege tower; otherwise the wall or gate must be broken (rams, siege engines).
+  Measured again: nobody on the wall, and no step with an enemy inside while the ring was closed (they
+  enter only through a breach). Two tests now check the new rule; the in-game guide and the siege notice
+  say so.
+- **Soldiers drawn as loose pieces** (seen on the teacher's screen: torsos, legs and arms cut apart).
+  The browser mixed an image kept in its cache with a newer frame map, so each frame was cut from the
+  wrong place. Besides re-checking art on every visit, every build now adds the art version to the
+  address of each art file (`?v=…`, a hash of the art lists, `vite.config.ts` → `artUrl` in
+  `client/src/art.ts`): after an update the browser always fetches the new files, no Ctrl+F5 needed.
+- **Monastery**: a 0 A.D. temple for every people, in every age, different from its tech center
+  (Roman temple of Mars, Celtic and Briton shrines, Spartan temple for the Visigoths, Hellenic temple
+  for the Ostrogoths, Han temple for the Mongols). The drawn church stays only as a fallback. The monk
+  already had its 3D sheet; the polygons seen were the old cached art.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

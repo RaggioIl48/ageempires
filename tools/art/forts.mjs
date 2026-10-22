@@ -38,14 +38,15 @@ const SIZE = { town_center: 3, house: 2, storehouse: 2, barracks: 3, archery_ran
  *   galos → galos, germanos → britanos, vikingos → celtas (aldeas de madera y paja, eras 1 y 2)
  *   visigodos → íberos (Hispania) y ostrogodos → helenos (Italia bizantina), eras 2 y 3
  *   mongoles → Han, eras 3 y 4: la dinastía Yuan que fundaron en China (Janbalic, hoy Pekín)
+ * El monasterio es un templo de 0 A.D. distinto del centro de tecnología, y vale en todas las eras.
  */
 const CITIES = {
-  romans: { eras: [2, 3, 4], town_center: 'romans/civic_centre', house: 'romans/house', storehouse: 'romans/storehouse', barracks: 'romans/barracks', archery_range: 'romans/range', stable: 'romans/stable', market: 'romans/market', tech_center: 'romans/temple' },
-  gauls: { eras: [1, 2], town_center: 'gauls/civic_centre', house: 'gauls/house', storehouse: 'gauls/storehouse', barracks: 'celts/barracks', archery_range: 'gauls/range', stable: 'gauls/stable', market: 'gauls/market', tech_center: 'celts/temple' },
-  germans: { eras: [1, 2], town_center: 'britons/civic_centre', house: 'britons/house', storehouse: 'britons/storehouse', barracks: 'britons/barracks', archery_range: 'britons/range', stable: 'britons/stable', market: 'britons/market', tech_center: 'britons/temple' },
-  vikings: { eras: [1, 2], town_center: 'celts/civic_centre', house: 'celts/house', storehouse: 'celts/storehouse', barracks: 'celts/barracks', archery_range: 'britons/range', stable: 'britons/stable', market: 'celts/market_newest', tech_center: 'celts/temple' },
-  visigoths: { eras: [2, 3], house: 'iberians/house', storehouse: 'iberians/storehouse', barracks: 'iberians/barracks', archery_range: 'iberians/range', stable: 'iberians/stable', market: 'iberians/market', tech_center: 'iberians/temple' },
-  ostrogoths: { eras: [2, 3], town_center: 'spartans/civic_centre', house: 'hellenes/house', storehouse: 'hellenes/storehouse', barracks: 'athenians/barracks', archery_range: 'hellenes/range', stable: 'hellenes/stable', market: 'romans/market', tech_center: 'romans/temple_vesta' },
+  romans: { eras: [2, 3, 4], town_center: 'romans/civic_centre', house: 'romans/house', storehouse: 'romans/storehouse', barracks: 'romans/barracks', archery_range: 'romans/range', stable: 'romans/stable', market: 'romans/market', tech_center: 'romans/temple', monastery: 'romans/temple_mars' },
+  gauls: { eras: [1, 2], town_center: 'gauls/civic_centre', house: 'gauls/house', storehouse: 'gauls/storehouse', barracks: 'celts/barracks', archery_range: 'gauls/range', stable: 'gauls/stable', market: 'gauls/market', tech_center: 'celts/temple', monastery: 'britons/temple' },
+  germans: { eras: [1, 2], town_center: 'britons/civic_centre', house: 'britons/house', storehouse: 'britons/storehouse', barracks: 'britons/barracks', archery_range: 'britons/range', stable: 'britons/stable', market: 'britons/market', tech_center: 'britons/temple', monastery: 'celts/temple' },
+  vikings: { eras: [1, 2], town_center: 'celts/civic_centre', house: 'celts/house', storehouse: 'celts/storehouse', barracks: 'celts/barracks', archery_range: 'britons/range', stable: 'britons/stable', market: 'celts/market_newest', tech_center: 'celts/temple', monastery: 'britons/temple' },
+  visigoths: { eras: [2, 3], house: 'iberians/house', storehouse: 'iberians/storehouse', barracks: 'iberians/barracks', archery_range: 'iberians/range', stable: 'iberians/stable', market: 'iberians/market', tech_center: 'iberians/temple', monastery: 'spartans/temple' },
+  ostrogoths: { eras: [2, 3], town_center: 'spartans/civic_centre', house: 'hellenes/house', storehouse: 'hellenes/storehouse', barracks: 'athenians/barracks', archery_range: 'hellenes/range', stable: 'hellenes/stable', market: 'romans/market', tech_center: 'romans/temple_vesta', monastery: 'hellenes/temple_c' },
   mongols: { eras: [3, 4], town_center: 'han/civil_centre', house: 'han/house', storehouse: 'han/storehouse', barracks: 'han/barracks', archery_range: 'han/range', stable: 'han/stable', tech_center: 'han/academy', market: 'han/market', workshop: 'han/arsenal', monastery: 'han/temple' },
 };
 

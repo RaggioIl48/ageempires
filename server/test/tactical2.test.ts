@@ -41,20 +41,13 @@ describe('torres de asedio', () => {
     return { g, w };
   }
 
-  it('con escalas se trepa unos segundos (expuesto) y después se pelea arriba', () => {
+  it('sin torre de asedio no hay escalas: la infantería no sube a una muralla intacta', () => {
     const { g, w } = siege();
     const army = Array.from({ length: 3 }, (_, i) => w.addUnit('spearman', 1, 22.5, 26.5 + i));
-    runUntil(g, () => w.battles.length > 0, 20); // al acercarse a la ciudad empieza la batalla (y hay escalas)
+    runUntil(g, () => w.battles.length > 0, 20); // al acercarse a la ciudad empieza la batalla
     g.enqueue(1, { kind: 'move', unitIds: army.map((u) => u.id), x: 29.5, y: 27.5 });
-    const climber = army[0];
-    runUntil(g, () => w.onWall(climber) !== 0, 20);
-    expect(w.onWall(climber)).toBe(2); // trepando
-    expect(climber.climb).toBeGreaterThan(0);
-    // Quieto sobre la muralla, termina de trepar y queda arriba.
-    climber.path = [];
-    climber.state = 'idle';
-    run(g, CLIMB_SECONDS + 0.5);
-    if (w.onWall(climber)) expect(w.onWall(climber)).toBe(3);
+    run(g, 20);
+    for (const u of army) expect(w.onWall(u)).toBe(0);
   });
 
   it('la torre se acopla a la muralla enemiga y por ahí se sube sin trepar', () => {

@@ -97,6 +97,8 @@ export interface WallPieces {
 }
 
 const BASE = import.meta.env.BASE_URL ?? '/';
+/** Dirección de un archivo de arte, con la versión del arte (ver vite.config.ts). */
+export const artUrl = (file: string): string => `${BASE}art/${file}${typeof __ART_VERSION__ === 'string' && __ART_VERSION__ ? `?v=${__ART_VERSION__}` : ''}`;
 let manifest: Manifest | null = null;
 /**
  * Arte experimental (de prueba, no publicado): si existe art/experimental/units.json, sus hojas
@@ -121,7 +123,7 @@ const tints = new Map<string, HTMLCanvasElement>();
 export let artVersion = 0;
 
 const getJson = <T>(file: string): Promise<T | null> =>
-  fetch(`${BASE}art/${file}`)
+  fetch(artUrl(file))
     .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
     .catch(() => null);
 
@@ -160,7 +162,7 @@ function artImage(file: string): ArtImage | null {
       images.set(file, null);
       wake(file);
     };
-    img.src = `${BASE}art/${file}`;
+    img.src = artUrl(file);
   }
   return null;
 }
@@ -825,7 +827,7 @@ export function prefetchFaction(faction: FactionId): void {
     for (const f of files) {
       if (prefetched.has(f) || ready.has(f)) continue;
       prefetched.add(f);
-      chain = chain.then(() => fetch(`${BASE}art/${f}`).then((r) => r.blob()).then(() => undefined, () => undefined));
+      chain = chain.then(() => fetch(artUrl(f)).then((r) => r.blob()).then(() => undefined, () => undefined));
     }
   });
 }

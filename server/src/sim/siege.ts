@@ -1,6 +1,6 @@
 // Torres de asedio (Total War): pegadas a una muralla enemiga dejan subir a la infantería sin
-// demora ni castigo. Con escalas, en cambio, se trepa unos segundos (lento, débil y expuesto)
-// y recién después se pelea arriba.
+// demora ni castigo. Es la única forma de subir a una muralla enemiga intacta (no hay escalas).
+// El contador de trepada (climb) queda para quien suba de otra forma (hoy, ninguna).
 
 import { TOWER_REACH, UNIT_DEFS } from '../../../shared/data.ts';
 import { isEnemy } from './diplomacy.ts';

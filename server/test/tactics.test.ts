@@ -173,7 +173,7 @@ describe('asedios', () => {
     expect(onWall.dealt).toBeGreaterThan(ground.dealt);
   });
 
-  it('en una batalla de asedio (más larga) la infantería atacante trepa con escalas, lenta y expuesta', () => {
+  it('en una batalla de asedio (más larga) no hay escalas; el que sube por una torre y aún trepa, recibe más daño', () => {
     const { g, w } = walled();
     const army = Array.from({ length: 4 }, (_, i) => w.addUnit('spearman', 1, 22.5, 26.5 + i));
     g.enqueue(1, { kind: 'move', unitIds: army.map((u) => u.id), x: 29, y: 27 });
@@ -182,11 +182,9 @@ describe('asedios', () => {
     expect(b.siege).toBe(true);
     expect((b.endTick - b.startTick) / TICK_RATE).toBe(SIEGE_SECONDS);
     expect(battleViews(w)[0].siege).toBe(1);
-    // Con la batalla en curso, la muralla enemiga se puede escalar.
+    // Aun con la batalla en curso, la muralla enemiga intacta no se pisa (solo por la rampa de una torre).
     w.walker = 1;
     w.walkerFoot = true;
-    expect(w.isWalkable(26, 26)).toBe(true);
-    w.walkerFoot = false;
     expect(w.isWalkable(26, 26)).toBe(false);
     // El que trepa recibe más daño.
     const climber = w.addUnit('spearman', 1, 26.5, 25.5);

@@ -2,6 +2,7 @@
 // (lo exigen las licencias CC-BY, OGA-BY, CC-BY-SA y GPL). Sale de art/credits.json,
 // que genera tools/art/build.mjs.
 
+import { artUrl } from './art.ts';
 import { el, esc } from './screens.ts';
 
 interface CreditItem {
@@ -19,7 +20,6 @@ interface CreditsFile {
   items: Record<string, CreditItem>;
 }
 
-const BASE = import.meta.env.BASE_URL ?? '/';
 
 export function setupCredits(): void {
   const panel = el('credits-panel');
@@ -42,8 +42,8 @@ async function showCredits(): Promise<void> {
   let data: CreditsFile;
   let licenses: string[];
   try {
-    data = (await (await fetch(`${BASE}art/credits.json`)).json()) as CreditsFile;
-    const units = (await (await fetch(`${BASE}art/units.json`)).json()) as { sheets: Record<string, { license: string }> };
+    data = (await (await fetch(artUrl('credits.json'))).json()) as CreditsFile;
+    const units = (await (await fetch(artUrl('units.json'))).json()) as { sheets: Record<string, { license: string }> };
     licenses = [...new Set(Object.values(units.sheets).map((s) => s.license))];
   } catch {
     box.innerHTML = '<p class="error">Could not load the credits.</p><button data-close>Close</button>';

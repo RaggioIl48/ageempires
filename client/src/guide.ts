@@ -163,10 +163,9 @@ export class GuidePanel {
         recovers. Tired troops are slower, weaker and break sooner. After a forced march your army arrives tired: let it rest
         before attacking, and keep fresh reserves.</p>
         <p><b>Sieges 🏰:</b> put infantry and archers <b>on your walls</b> (right click on the wall): they stand higher, shoot farther
-        and are covered from arrows. In a battle for a walled city the attacker's infantry can <b>climb with ladders</b>, but
-        slowly and exposed (a few seconds on the ladder, then they fight on top). Better: build a <b>Siege Tower</b> (Barracks) and
-        right click an enemy wall: once docked, your infantry crosses onto the wall fast and safe. Or break the gate with a
-        <b>battering ram</b>. Sieges last longer (6 minutes).</p>
+        and are covered from arrows. An intact wall cannot be crossed: to get in, break a
+        wall or the gate with a <b>battering ram</b> or siege engines, or build a <b>Siege Tower</b> (Barracks) and right click an
+        enemy wall: once docked, your infantry crosses onto the wall. Sieges last longer (6 minutes).</p>
         <p><b>Veterans ▲:</b> soldiers that kill enemies gain ranks (2, 5 and 10 kills): each rank hits harder and holds its
         nerve better; from rank 2 they also get extra armour. Keep your veterans alive!</p>
         <p><b>Battering ram:</b> only attacks buildings, walls and gates; arrows barely hurt it, but soldiers destroy it.</p>

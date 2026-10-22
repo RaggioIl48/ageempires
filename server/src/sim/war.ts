@@ -206,7 +206,7 @@ function openBattle(world: World, attacker: number, defender: number, city: Poin
   world.announce(`⚔ Battle! ${nameOf(world, attacker)} attacks ${nameOf(world, defender)}'s city`, 'battle');
   const mins = Math.round((b.endTick - b.startTick) / TICK_RATE / 60);
   if (b.siege) {
-    world.notify(attacker, `🏰 Siege of ${nameOf(world, defender)}'s city! Your infantry can climb the walls with ladders, or break the gate with rams. ${mins} minutes`);
+    world.notify(attacker, `🏰 Siege of ${nameOf(world, defender)}'s city! Break the walls or the gate with rams and siege engines, or bring a siege tower to the wall. ${mins} minutes`);
     world.notify(defender, `🏰 ${nameOf(world, attacker)} besieges your city! Put infantry and archers on the walls and hold for ${mins} minutes`);
   } else {
     world.notify(attacker, `⚔ The battle for ${nameOf(world, defender)}'s city begins! Destroy their Town Center within ${mins} minutes`);
