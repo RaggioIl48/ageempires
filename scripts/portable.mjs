@@ -79,22 +79,34 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT) || 8080;
+const FIRST_PORT = Number(process.env.PORT) || 8080;
 process.env.STATIC_DIR = path.join(HERE, 'web');
 if (fs.existsSync(path.join(HERE, 'cloudflared.exe'))) process.env.CLOUDFLARED = path.join(HERE, 'cloudflared.exe');
 if (process.argv.includes('--online')) process.env.AUTO_TUNNEL = '1';
 const open = (url) => process.env.NO_BROWSER || spawnSync('cmd', ['/c', 'start', '""', url], { stdio: 'ignore' });
 
-const inUse = await new Promise((resolve) => {
-  const s = net.connect(PORT, '127.0.0.1');
+// El primer puerto libre desde 8080; si en uno ya está el juego abierto, se usa ese (otro programa,
+// como un emulador, puede ocupar el 8080).
+const busy = (port) => new Promise((resolve) => {
+  const s = net.connect(port, '127.0.0.1');
   s.once('connect', () => (s.destroy(), resolve(true)));
   s.once('error', () => resolve(false));
 });
-if (inUse) {
-  console.log(\`\\n  The game server is already open on this computer (port \${PORT}). Opening the teacher panel.\\n\`);
-  open(\`http://localhost:\${PORT}/teacher\`);
-  process.exit(0);
+const isGame = (port) => fetch(\`http://127.0.0.1:\${port}/\`, { signal: AbortSignal.timeout(2000) }).then((r) => r.text()).then((t) => t.includes('Classroom Empires'), () => false);
+let PORT = 0;
+for (let p = FIRST_PORT; p < FIRST_PORT + 20 && !PORT; p++) {
+  if (!(await busy(p))) PORT = p;
+  else if (await isGame(p)) {
+    console.log(\`\\n  The game server is already open on this computer (port \${p}). Opening the teacher panel.\\n\`);
+    open(\`http://localhost:\${p}/teacher\`);
+    process.exit(0);
+  } else console.log(\`  Port \${p} is used by another program on this computer: trying the next one.\`);
 }
+if (!PORT) {
+  console.log(\`\\n  No free port between \${FIRST_PORT} and \${FIRST_PORT + 19}. Close other programs and try again.\\n\`);
+  process.exit(1);
+}
+process.env.PORT = String(PORT);
 await import('./server.mjs');
 setTimeout(() => open(\`http://localhost:\${PORT}/teacher\`), 1200);
 `,

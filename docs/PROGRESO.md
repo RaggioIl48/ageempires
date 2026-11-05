@@ -1273,6 +1273,19 @@ played, was a single step.
   for the Ostrogoths, Han temple for the Mongols). The drawn church stays only as a fallback. The monk
   already had its 3D sheet; the polygons seen were the old cached art.
 
+## The desktop icon works when another program uses port 8080 (2026-10-23)
+
+- The icon did not start the game: port 8080 was taken by another program (a Firebase emulator from
+  another project). The launcher took any program on 8080 for the game, said "already open" and opened
+  the teacher panel there, which answered "not found".
+- Now the launchers (`scripts/classroom.mjs` for the icons and `.bat` files, and `start.mjs` in the
+  portable package) check that what answers on a port is really the game. They go from 8080 to 8099:
+  if the game is already open on one, they open that one; if a port is free, they start the game there;
+  other programs are skipped with a note ("Port 8080 is used by another program…"). The teacher panel
+  and the STUDENTS address show the port actually used.
+- Checked: with the emulator on 8080, the launcher skipped it and found or started the game on the next
+  port.
+
 ## Known limits
 - Units are not upgraded when an era changes: the old ones stay, the new ones replace them in the menus.
 - If the server is restarted, the games in progress are lost (they are in memory).

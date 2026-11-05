@@ -5,6 +5,27 @@ import type { ClientMessage, Command, ServerMessage } from '../../shared/protoco
 
 export type NetStatus = 'connecting' | 'online' | 'offline';
 
+/**
+ * Servidor de juego. Normalmente, el mismo que sirvió la página. Si el juego se abrió desde GitHub
+ * Pages, el enlace trae el túnel de la PC del profesor (?server=algo.trycloudflare.com): la página y
+ * el arte (pesados) bajan rápido de Pages y por el túnel solo pasa la partida (liviana). Solo se
+ * aceptan direcciones de túnel, para que un enlace no lleve a los alumnos a cualquier servidor.
+ */
+const TUNNEL_HOST = /^[a-z0-9-]+\.(trycloudflare\.com|ts\.net)$/i;
+export function gameServerUrl(): string {
+  let host: string | null = null;
+  try {
+    const q = new URLSearchParams(location.search).get('server')?.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (q && TUNNEL_HOST.test(q)) sessionStorage.setItem('server', q);
+    host = sessionStorage.getItem('server');
+  } catch {
+    host = null; // sin sessionStorage (modo privado estricto): el servidor de la página
+  }
+  if (host && TUNNEL_HOST.test(host)) return `wss://${host}/ws`;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${location.host}/ws`;
+}
+
 export class Net {
   private ws: WebSocket | null = null;
   status: NetStatus = 'connecting';
@@ -19,8 +40,7 @@ export class Net {
   ) {}
 
   connect(): void {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws`);
+    const ws = new WebSocket(gameServerUrl());
     this.ws = ws;
     this.setStatus('connecting');
     ws.onopen = () => {

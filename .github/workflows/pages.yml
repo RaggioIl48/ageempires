@@ -1,0 +1,44 @@
+# Copia del juego (cliente y arte) en GitHub Pages, para el modo online:
+# los alumnos bajan el juego de aquí (rápido) y por el túnel de la PC del profesor solo pasa la partida.
+# El enlace lo arma el panel del profesor: https://raggioil48.github.io/ageempires/?server=<túnel>
+name: Pages
+
+on:
+  push:
+    branches: [main, soldados-3d-0ad]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Una publicación a la vez; la más nueva reemplaza a la que esté en curso.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # La página vive en /ageempires/ (nombre del repositorio).
+      - run: npx vite build --base=/ageempires/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

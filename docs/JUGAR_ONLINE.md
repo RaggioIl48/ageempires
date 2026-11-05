@@ -9,6 +9,57 @@ El juego tiene dos partes:
 Lo único que cambia entre las opciones es **dónde corre el servidor** y **cómo llegan los
 estudiantes hasta él**.
 
+## Por qué el túnel fallaba con la clase (medido con REA el 2026-10-29)
+
+| Qué se midió | Resultado |
+|---|---|
+| Tráfico de la partida por el túnel (10 estudiantes simulados, 3 minutos) | Estable: ninguna desconexión, el túnel no se cayó. Unos 80 KB por estudiante en 3 minutos |
+| Un estudiante real (Chrome) entrando por el túnel, **antes** del arreglo | Pedía **250 imágenes a la vez**; el túnel gratuito respondió **429 "Too Many Requests"** a 49 (cabecera `cf-int-tunnel-request-limit-hit`). Esas imágenes no se reintentaban: edificios en polígonos, soldados sin dibujo |
+| El mismo estudiante **después** del arreglo | 0 errores, a lo sumo 8 pedidos a la vez |
+| Velocidad de subida de esta PC por el túnel | **150–200 KB/s (1,2–1,6 Mbit/s)** |
+| Lo que baja cada estudiante al empezar | **≈ 12 MB** (10 MB de soldados, 2 MB de edificios) |
+
+**Conclusión.**
+- El túnel aguanta bien la partida.
+- Lo que no aguanta es la **descarga inicial**: 16 estudiantes × 12 MB ≈ 190 MB, y a 1,5 Mbit/s eso
+  son unos **18 minutos**.
+- Render carga rápido (sus servidores tienen buena subida), pero su plan gratuito tiene muy poca CPU,
+  por eso la partida va lenta.
+
+**Arreglado en el juego:**
+- Cada estudiante baja solo los edificios de los pueblos de su partida (antes, los de los 7).
+- A lo sumo 6 descargas a la vez (antes, ~250 juntas).
+- Una imagen que falla se reintenta (1, 2, 4, 8 y 15 s) en vez de quedar sin dibujo.
+
+**Hecho (2026-11-04): el juego en GitHub Pages, la partida en la PC del profesor.**
+- Al encender "🌐 Turn on online play", el panel del profesor muestra para la casa un enlace como
+  `https://raggioil48.github.io/ageempires/?server=algo.trycloudflare.com`. El juego y su arte bajan
+  de GitHub Pages; solo la partida pasa por el túnel.
+- La copia en Pages se publica sola con cada `git push` a `main` o `soldados-3d-0ad`
+  (`.github/workflows/pages.yml`). **Importante:** si se cambia el juego en la PC, hay que subirlo
+  (push) antes de jugar online; si no, la copia de Pages queda vieja y puede no entenderse con el
+  servidor.
+- `STUDENT_SITE=` (vacío) al arrancar el servidor vuelve al enlace del túnel solo.
+- Por seguridad, el juego solo acepta `?server=` de túneles (`*.trycloudflare.com` o `*.ts.net`).
+- Ensayado con REA: un estudiante abrió la copia con `?server=`, entró a la sala y jugó. Bajó 290
+  archivos de la copia y ninguno por el túnel; por el túnel solo pasó la conexión de la partida.
+
+**La solución de fondo (recomendada): separar las dos cosas.**
+
+| Parte | Peso | Dónde |
+|---|---|---|
+| El juego y su arte (≈ 12 MB por estudiante, una vez; después queda en caché) | Pesado | **GitHub Pages**: gratis, rápido, el repositorio ya es público |
+| La partida (unos KB por segundo) | Liviano | La PC del profesor, por el túnel (como ahora) |
+
+Así la subida de la PC del profesor solo lleva la partida (16 estudiantes ≈ 1 Mbit/s) y la CPU es la
+de su PC, no la de Render.
+
+**Otras opciones:**
+- **Servidor en la nube con buena CPU.** Oracle Cloud "Always Free" (4 núcleos ARM, gratis, pide
+  tarjeta para verificar) o un VPS de ~4–5 USD/mes. Rápido para bajar y para jugar, y no depende de
+  la PC del profesor. Cuesta más armarlo.
+- **Render con plan pago (7 USD/mes).** Más CPU que el gratuito y no se duerme.
+
 ## Recomendación (auditada el 2026-10-16, todo gratis)
 
 | Situación | Usar | Por qué |

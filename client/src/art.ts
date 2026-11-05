@@ -137,12 +137,26 @@ export function loadArt(): Promise<void> {
   return loading;
 }
 
-/** Imagen de un archivo de arte, o null si aún no cargó (y la pide). */
-function artImage(file: string): ArtImage | null {
-  if (ready.has(file)) return images.get(file)!;
-  if (!images.has(file)) {
-    const img = new Image();
-    images.set(file, img);
+/**
+ * Descargas de arte: pocas a la vez y con reintentos. El túnel gratuito de Cloudflare (modo online)
+ * corta con "429 Too Many Requests" pasando ~200 pedidos simultáneos (medido con REA: un solo
+ * estudiante pedía 250 imágenes juntas y 49 fallaban; con 16 estudiantes, el juego quedaba sin arte).
+ */
+const MAX_DOWNLOADS = 6;
+const RETRY_MS = [1000, 2000, 4000, 8000, 15000];
+const queue: { file: string; img: HTMLImageElement }[] = [];
+let downloading = 0;
+
+function pump(): void {
+  while (downloading < MAX_DOWNLOADS && queue.length) {
+    const { file, img } = queue.shift()!;
+    if (images.get(file) !== img) continue; // ya no hace falta
+    downloading++;
+    let attempt = 0;
+    const finish = () => {
+      downloading--;
+      pump();
+    };
     const done = (out: ArtImage) => {
       if (images.get(file) !== img) {
         if (out instanceof ImageBitmap) out.close(); // se liberó mientras cargaba
@@ -154,15 +168,37 @@ function artImage(file: string): ArtImage | null {
       wake(file);
     };
     img.onload = () => {
+      finish();
       // Decodificar fuera del hilo del juego (sin tirón al aparecer una unidad nueva).
       if (typeof createImageBitmap === 'function') createImageBitmap(img).then(done, () => done(img));
       else done(img);
     };
     img.onerror = () => {
+      // Reintento (red ocupada, túnel saturado); recién después de varios se da por perdida.
+      if (attempt < RETRY_MS.length && images.get(file) === img) {
+        setTimeout(() => (img.src = `${artUrl(file)}${artUrl(file).includes('?') ? '&' : '?'}r=${attempt}`), RETRY_MS[attempt++]);
+        return;
+      }
+      finish();
       images.set(file, null);
       wake(file);
     };
     img.src = artUrl(file);
+  }
+}
+
+/**
+ * Imagen de un archivo de arte, o null si aún no cargó (y la pide). `urgent`: la necesita la pantalla
+ * ahora (pasa adelante de lo que se precarga).
+ */
+function artImage(file: string, urgent = true): ArtImage | null {
+  if (ready.has(file)) return images.get(file)!;
+  if (!images.has(file)) {
+    const img = new Image();
+    images.set(file, img);
+    if (urgent) queue.unshift({ file, img });
+    else queue.push({ file, img });
+    pump();
   }
   return null;
 }
@@ -171,7 +207,7 @@ function artImage(file: string): ArtImage | null {
 const waiters = new Map<string, (() => void)[]>();
 function whenLoaded(file: string): Promise<void> {
   if (ready.has(file) || images.get(file) === null) return Promise.resolve();
-  artImage(file);
+  artImage(file, false);
   return new Promise((done) => waiters.set(file, [...(waiters.get(file) ?? []), done]));
 }
 function wake(file: string): void {
@@ -759,6 +795,27 @@ export function unitPortrait(faction: FactionId, type: UnitType, color: string, 
  * completa se sigue pidiendo al acercar mucho el zoom), los edificios y árboles, y la máscara de
  * cada pueblo con el color de cada jugador que lo usa. Todo el arte junto serían ~400 MB de video.
  */
+/**
+ * Imágenes de edificios que puede necesitar una partida con estos pueblos: los suyos (en todas las
+ * eras), los comunes, sus murallas y los árboles. Antes se bajaban los de los 7 pueblos (~210).
+ */
+function buildingFiles(factions: Iterable<FactionId>): Set<string> {
+  const out = new Set<string>();
+  const b = buildingArt;
+  if (!b) return out;
+  const add = (id: string) => {
+    const sp = b.sprites[id];
+    if (sp) out.add(sp.file);
+  };
+  for (const f of new Set(factions)) {
+    const prefixes = [`${f}/`, `${f}@`, '*/', ...(b.styles[f] ?? []).map((st) => `${st}/`)];
+    for (const [key, ids] of Object.entries(b.map)) if (prefixes.some((p) => key.startsWith(p))) ids.forEach(add);
+    for (const id of Object.values(b.walls?.[f] ?? {})) add(id);
+  }
+  for (const stages of b.trees ?? []) stages.forEach(add);
+  return out;
+}
+
 export async function preloadGame(
   players: { faction: FactionId; color: string }[],
   onProgress: (done: number, total: number) => void,
@@ -778,7 +835,7 @@ export async function preloadGame(
     }
   const files = new Set<string>();
   for (const id of sheetColors.keys()) files.add(m.sheets[id].lo ?? m.sheets[id].file);
-  for (const sp of Object.values(buildingArt?.sprites ?? {})) files.add(sp.file);
+  for (const f of buildingFiles(players.map((p) => p.faction))) files.add(f);
   const tints: [string, string][] = [];
   for (const [id, colors] of sheetColors) if (Object.values(m.sheets[id].anims).some((a) => a.m.length)) for (const c of colors) tints.push([id, c]);
   const total = files.size + tints.length;
@@ -808,9 +865,9 @@ export async function preloadGame(
 }
 
 /**
- * En la sala de espera: baja (sin decodificar) el arte del pueblo elegido y los edificios, para que la
- * pantalla de carga de la partida solo tenga que prepararlos. Queda en la caché del navegador (el
- * servidor la permite por un día). Una sola vez por pueblo; si cambia de pueblo, baja el nuevo.
+ * En la sala de espera: baja (sin decodificar) el arte del pueblo elegido y sus edificios, para que la
+ * pantalla de carga de la partida solo tenga que prepararlos. Queda en la caché del navegador.
+ * Una sola vez por pueblo; si cambia de pueblo, baja el nuevo.
  */
 const prefetched = new Set<string>();
 export function prefetchFaction(faction: FactionId): void {
@@ -821,14 +878,16 @@ export function prefetchFaction(faction: FactionId): void {
       const sheet = manifest.sheets[id];
       if (sheet && (key.startsWith(`${faction}/`) || key.startsWith('*/'))) files.push(sheet.lo ?? sheet.file);
     }
-    for (const sp of Object.values(buildingArt?.sprites ?? {})) files.push(sp.file);
-    // De a una por vez: en el Wi-Fi del aula no compite con lo que necesitan los demás.
-    let chain = Promise.resolve();
-    for (const f of files) {
-      if (prefetched.has(f) || ready.has(f)) continue;
-      prefetched.add(f);
-      chain = chain.then(() => fetch(artUrl(f)).then((r) => r.blob()).then(() => undefined, () => undefined));
-    }
+    files.push(...buildingFiles([faction]));
+    // Tres a la vez: no compite con lo que necesitan los demás en el Wi-Fi del aula, y con 16 alumnos
+    // queda lejos del límite del túnel gratuito (~200 pedidos simultáneos).
+    const todo = files.filter((f) => !prefetched.has(f) && !ready.has(f));
+    for (const f of todo) prefetched.add(f);
+    const next = (): Promise<void> => {
+      const f = todo.shift();
+      return f ? fetch(artUrl(f)).then((r) => r.blob()).then(() => undefined, () => undefined).then(next) : Promise.resolve();
+    };
+    for (let k = 0; k < 3; k++) void next();
   });
 }
 

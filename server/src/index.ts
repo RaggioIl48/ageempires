@@ -44,6 +44,9 @@ function lanAddresses(): string[] {
  */
 const publicUrl = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
 
+/** Copia del juego en GitHub Pages para el modo online (STUDENT_SITE= vacío la desactiva). */
+const studentSite = process.env.STUDENT_SITE ?? 'https://raggioil48.github.io/ageempires/';
+
 let server;
 try {
   server = await startGameServer({
@@ -53,8 +56,9 @@ try {
     // Modo online (túnel) desde el panel del profesor: siempre, salvo publicado en Render.
     tunnel: !process.env.RENDER_EXTERNAL_URL,
     autoTunnel: process.env.AUTO_TUNNEL === '1',
+    studentSite,
     onTunnel: (v) => {
-      if (v.state === 'on') console.log(`\n  ONLINE (from home):  ${v.url}   (also in the teacher panel)\n`);
+      if (v.state === 'on') console.log(`\n  ONLINE (from home):  ${studentSite ? `${studentSite}?server=${new URL(v.url!).host}` : v.url}   (also in the teacher panel)\n`);
       else if (v.state === 'missing') console.log('\n  Online play needs cloudflared:  winget install --id Cloudflare.cloudflared\n');
       else if (v.state === 'error') console.log(`\n  Online play could not start: ${v.message}\n`);
     },

@@ -35,6 +35,12 @@ export interface GameServerOptions {
   autoTunnel?: boolean;
   /** Avisa los cambios del modo online (para mostrar el enlace en la consola). */
   onTunnel?: (v: TunnelView) => void;
+  /**
+   * Copia del juego publicada en internet (GitHub Pages). Con el modo online encendido, el enlace para
+   * los alumnos es esa copia apuntando al túnel (?server=…): bajan el juego y el arte de ahí, rápido,
+   * y por el túnel (la subida de esta PC) solo pasa la partida.
+   */
+  studentSite?: string;
 }
 
 export interface RunningServer {
@@ -120,7 +126,9 @@ export function startGameServer(opts: GameServerOptions): Promise<RunningServer>
     : null;
   const urls = () => {
     const base = opts.urls?.(port) ?? [`http://localhost:${port}`];
-    return tunnel?.url ? [tunnel.url, ...base.filter((u) => u !== tunnel.url)] : base;
+    if (!tunnel?.url) return base;
+    const site = opts.studentSite ? [`${opts.studentSite.replace(/\/*$/, '/')}?server=${new URL(tunnel.url).host}`] : [];
+    return [...site, tunnel.url, ...base.filter((u) => u !== tunnel.url)];
   };
   const lobby: Lobby = new Lobby({
     pin: opts.pin,
