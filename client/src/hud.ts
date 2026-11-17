@@ -28,10 +28,12 @@ import {
   type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId, regimentSize, shieldBearer, SHIELD_WALL_ARMOR,
   MEDIEVAL_ERA, MEDIEVAL_STAGES, POP_CAP_MAX, isAdvanceTech, stageLabel, stageReached } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
-import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost, trainCost, trainTime } from '../../shared/stats.ts';
+import { buildingCost, buildSpeed, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost, trainCost, trainTime } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
-import { unitPortrait } from './art.ts';
-import { ACTION_KEYS, ARMY_GROUPS, type ArmyGroup, type Input } from './input.ts';
+import { artUrl, unitPortrait } from './art.ts';
+import { ACTION_KEYS } from '../../shared/shortcuts.ts';
+import { ActionTooltip, actionDetails } from './action-tooltip.ts';
+import { ARMY_GROUPS, type ArmyGroup, type Input } from './input.ts';
 import type { NetStatus } from './net.ts';
 import type { ClientState } from './state.ts';
 import { heightAt } from './view.ts';
@@ -136,8 +138,16 @@ function el(id: string): HTMLElement {
 /** Asigna innerHTML solo si cambió (evita redibujar el DOM 10 veces por segundo). */
 function setHtml(node: HTMLElement, html: string): void {
   if (node.dataset.html !== html) {
+    const button = (node.id === 'actions' || node.id === 'selection-grid') && document.activeElement instanceof HTMLButtonElement && node.contains(document.activeElement)
+      ? document.activeElement : null;
     node.dataset.html = html;
     node.innerHTML = html;
+    if (button) {
+      const next = [...node.querySelectorAll<HTMLButtonElement>('button[data-action]')].find((candidate) =>
+        candidate.dataset.action === button.dataset.action && candidate.dataset.actionKey === button.dataset.actionKey &&
+        candidate.dataset.arg === button.dataset.arg && candidate.dataset.id === button.dataset.id);
+      next?.focus({ preventScroll: true });
+    }
   }
 }
 
@@ -146,6 +156,10 @@ function costHtml(cost: Cost, have?: Record<ResourceType, number>): string {
   return RESOURCE_TYPES.filter((r) => cost[r])
     .map((r) => `<span class="cost ${have && have[r] < cost[r]! ? 'short' : ''}"><span class="icon mini">${ICONS[r]}</span>${cost[r]}</span>`)
     .join(' ');
+}
+
+function actionIcon(name: 'hammer-nails' | 'castle' | 'broadsword' | 'checked-shield' | 'sprint' | 'archery-target' | 'stopwatch'): string {
+  return `<img class="action-icon" src="${artUrl(`hud/${name}.svg`)}" alt="" width="20" height="20">`;
 }
 
 const NOTICE_MS = 4000;
@@ -161,6 +175,7 @@ export interface SpectatorInfo {
 export type TeacherAction = 'pause' | 'resume' | 'end' | 'back';
 
 export class Hud {
+  private readonly actionTooltip = new ActionTooltip(el('bottombar'));
   private notices: { text: string; until: number }[] = [];
   /** Solo cuando mira el profesor. */
   spectator: SpectatorInfo | null = null;
@@ -181,7 +196,7 @@ export class Hud {
     });
     el('actions').addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
-      if (!btn || btn.hasAttribute('disabled')) return;
+      if (!btn || btn.hasAttribute('disabled') || btn.getAttribute('aria-disabled') === 'true') return;
       const arg = btn.dataset.arg ?? '';
       switch (btn.dataset.action) {
         case 'teacher':
@@ -248,6 +263,7 @@ export class Hud {
     this.renderTop();
     this.renderInfo();
     this.renderBottom();
+    this.actionTooltip.refresh();
     this.renderArmyBar();
     this.renderNotices();
   }
@@ -577,8 +593,12 @@ export class Hud {
         const def = BUILDING_DEFS[type];
         const cost = buildingCost(type, this.state.techsOf(this.state.you));
         const ok = !have || canAfford(have, cost);
-        return `<button class="act" data-action="build" data-arg="${type}" ${ok ? '' : 'disabled'} title="${esc(def.description)}">
-          <span class="key">${ACTION_KEYS[i]}</span><b>${def.label}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
+        const seconds = def.buildTime / buildSpeed(this.state.faction(this.state.you));
+        const tip = [def.label, def.description, actionDetails(cost, seconds), 'Time with one worker.'].join('\n');
+        const icon = def.attack || type === 'wall' || type === 'gate' ? 'castle' : 'hammer-nails';
+        return `<button class="act with-icon build-action" data-action="build" data-arg="${type}" aria-disabled="${!ok}" data-action-tip="${esc(tip)}">
+          <span class="key">${ACTION_KEYS[i] ?? ''}</span><b>${def.label}</b><span class="icon unit">${actionIcon(icon)}</span>
+          <span class="costs">${costHtml(cost, have)}</span></button>`;
       }).join('');
       const era = this.state.eraOf(this.state.you), stage = this.state.stageOf(this.state.you);
       const faction = this.state.faction(this.state.you);
@@ -590,8 +610,8 @@ export class Hud {
         : next.length
           ? `<p class="hint">In the ${eraLabel(next[0].era)}: ${next.filter((d) => d.era === next[0].era).map((d) => d.label).join(', ')}.</p>`
           : '';
-      return `${buttons}<button class="act small" data-action="stop" title="Stop">■ Stop</button>${locked}
-        <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
+      return `<div class="action-heading">Build</div>${buttons}<button class="act small" data-action="stop" data-action-tip="Stop current orders and clear the order queue.">${actionIcon('stopwatch')} Stop</button>${locked}
+        <button class="act small" data-action="delete" data-action-tip="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click: resource = gather · enemy = attack · foundation or damaged building = build/repair.</p>`;
     }
     if (own.length > 0) {
@@ -603,35 +623,35 @@ export class Hud {
       ];
       const formation =
         soldiers >= 2
-          ? `<div class="formations"><span class="muted">Formation:</span>${F.map(([f, label, tip]) => `<button class="act small ${this.input.formation === f ? 'on' : ''}" data-action="formation" data-arg="${f}" title="${tip}">${label}</button>`).join('')}</div>`
+          ? `<div class="formations"><span class="muted">Formation:</span>${F.map(([f, label, tip]) => `<button class="act small ${this.input.formation === f ? 'on' : ''}" data-action="formation" data-arg="${f}" data-action-tip="${esc(tip)}">${label}</button>`).join('')}</div>`
           : '';
       const gen = own.map((id) => this.state.units.get(id)?.v).find((u) => u?.type === 'general');
       const abilities = gen
         ? `<div class="abilities">${ABILITY_IDS.map((a, i) => {
             const d = ABILITIES[a], wait = gen.cd?.[i] ?? 0;
-            return `<button class="act ability" data-action="ability" data-arg="${a}" ${wait > 0 ? 'disabled' : ''} title="${esc(d.description)} (radius ${d.radius}, cooldown ${d.cooldown} s)">
+            return `<button class="act ability" data-action="ability" data-arg="${a}" ${wait > 0 ? 'disabled' : ''} data-action-tip="${esc(d.description)} (radius ${d.radius}, cooldown ${d.cooldown} s)">
               <span class="key">${ACTION_KEYS[i]}</span><b>${d.icon} ${d.label}</b><span class="costs">${wait > 0 ? `ready in ${wait} s` : 'ready'}</span></button>`;
           }).join('')}</div>`
         : '';
       const soldierViews = own.map((id) => this.state.units.get(id)?.v).filter((u) => u && u.type !== 'worker');
       const guardOn = soldierViews.length > 0 && soldierViews.every((u) => u!.guard);
       const guard = soldiers > 0
-        ? `<button class="act small ${guardOn ? 'on' : ''}" data-action="guard" title="Guard mode (G): they hold their position and formation, only fight enemies that come close and do not chase. Archers without guard mode back away from melee (skirmish).">🛡 Guard mode: ${guardOn ? 'ON' : 'off'} <span class="key">G</span></button>`
+        ? `<button class="act small ${guardOn ? 'on' : ''}" data-action="guard" data-action-tip="Guard mode (G): they hold their position and formation, only fight enemies that come close and do not chase. Archers without guard mode back away from melee (skirmish).">${actionIcon('checked-shield')} Guard mode: ${guardOn ? 'ON' : 'off'} <span class="key">G</span></button>`
         : '';
       const pace = soldiers > 0
-        ? `<button class="act small ${this.input.pace === 'run' ? 'on' : ''}" data-action="pace" title="Walk: slower but they barely tire. Run: full speed, but they get tired. Double right click = run just that order.">${this.input.pace === 'run' ? '🏃 Run' : '🚶 Walk'} <span class="key">R</span></button>`
+        ? `<button class="act small ${this.input.pace === 'run' ? 'on' : ''}" data-action="pace" data-action-tip="Walk: slower but they barely tire. Run: full speed, but they get tired. Double right click = run just that order.">${actionIcon('sprint')}${this.input.pace === 'run' ? ' Run' : ' Walk'} <span class="key">R</span></button>`
         : '';
       const amove = soldiers > 0
-        ? `<button class="act small ${this.input.attackMove ? 'on' : ''}" data-action="amove" title="Attack-move: they advance to the point you right click next and fight every enemy they meet on the way. Shortcut: Ctrl + right click. Shift + right click: add the order to a queue (one after the other).">⚔ Attack-move</button>`
+        ? `<button class="act small ${this.input.attackMove ? 'on' : ''}" data-action="amove" data-action-tip="Attack-move: they advance to the point you right click next and fight every enemy they meet on the way. Shortcut: Ctrl + right click. Shift + right click: add the order to a queue (one after the other).">${actionIcon('broadsword')} Attack-move</button>`
         : '';
       const shieldIds = own.filter((id) => { const t = this.state.units.get(id)?.v.type; return t !== undefined && shieldBearer(t); });
       const wallOn = shieldIds.length > 0 && shieldIds.every((id) => this.state.units.get(id)?.v.sw);
       const wall = shieldIds.length
-        ? `<button class="act small ${wallOn ? 'on' : ''}" data-action="shieldwall" title="Shield wall (F): the infantry with shields locks shields. Arrows do 35 % damage, +${SHIELD_WALL_ARMOR} melee armor and a cavalry charge from the front does not knock them down, but they march at half speed. Good against archers and charges.">🛡 Shield wall: ${wallOn ? 'ON' : 'off'} <span class="key">F</span></button>`
+        ? `<button class="act small ${wallOn ? 'on' : ''}" data-action="shieldwall" data-action-tip="Shield wall (F): the infantry with shields locks shields. Arrows do 35 % damage, +${SHIELD_WALL_ARMOR} melee armor and a cavalry charge from the front does not knock them down, but they march at half speed. Good against archers and charges.">${actionIcon('checked-shield')} Shield wall: ${wallOn ? 'ON' : 'off'} <span class="key">F</span></button>`
         : '';
-      const march = soldiers > 0 ? '<button class="act small march-btn" data-action="march" title="Forced march on an enemy city (Total War style): your soldiers leave the map and appear in front of the city, and a battle begins">⚔ March on a city</button>' : '';
-      return `${abilities}${formation}${pace}${amove}${wall}${guard}${march}<button class="act small" data-action="stop">■ Stop</button>
-        <button class="act small" data-action="delete" title="Delete (Del)">✖ Delete</button>
+      const march = soldiers > 0 ? `<button class="act small march-btn" data-action="march" data-action-tip="Forced march on an enemy city: your soldiers leave the map and appear in front of the city, and a battle begins">${actionIcon('broadsword')} March on a city</button>` : '';
+      return `${abilities}${formation}${pace}${amove}${wall}${guard}${march}<button class="act small" data-action="stop" data-action-tip="Stop current orders and clear the order queue.">${actionIcon('stopwatch')} Stop</button>
+        <button class="act small" data-action="delete" data-action-tip="Delete (Del)">✖ Delete</button>
         <p class="hint">Right click an enemy to attack, or the ground to move.
         <b>Right-drag</b> on the ground to draw the front line (Total War style): they line up along it, face forward and hold their spot.
         <b>Ctrl</b> + right click: attack-move · <b>Shift</b> + right click: queue the order. Clicking a soldier selects his whole regiment.
@@ -640,7 +660,7 @@ export class Hud {
     if (b) {
       const def = BUILDING_DEFS[b.type];
       if (b.progress < 1)
-        return `<button class="act small" data-action="delete" title="Cancel and get back what was not built yet">✖ Cancel construction</button>
+        return `<button class="act small" data-action="delete" data-action-tip="Cancel and get back what was not built yet">✖ Cancel construction</button>
           <p class="hint">Select workers and right click the foundation to help.</p>`;
       const actions = this.input.buildingActions(b);
       const buttons = actions
@@ -650,10 +670,10 @@ export class Hud {
         .join('');
       const rally = actions.some((a) => a.kind === 'train') ? '<p class="hint">Right click on the map: rally point (on a resource, new workers go gather it).</p>' : '';
       const warn = b.needsHouses ? '<p class="warn-text">⚠ Population limit reached: build more houses.</p>' : '';
-      return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete">✖ Delete</button>' : ''}${warn}${rally}`;
+      return `${buttons}${b.type !== 'town_center' ? '<button class="act small" data-action="delete" data-action-tip="Delete (Del)">✖ Delete</button>' : ''}${warn}${rally}`;
     }
     return `<p class="hint">Drag to select. <b>H</b>: Town Center (advance age there) · <b>.</b>: idle worker ·
-      <b>WASD</b>/arrows: camera · wheel: zoom · <b>Q E R T</b>…: build / train / research ·
+      <b>M</b>: mute · <b>WASD</b>/arrows: camera · wheel: zoom · <b>Q E R T</b>…: build / train / research ·
       <b>Shift+1…9</b>: save a group, <b>1…9</b>: select it (twice: go there) · double click: all of that type.</p>`;
   }
 
@@ -664,10 +684,11 @@ export class Hud {
     const name = this.state.labelOf(this.state.you, type);
     const cost = trainCost(type, this.state.techsOf(this.state.you));
     const ok = !have || canAfford(have, cost);
-    const tip = `${name}: ${u.strong}. ${u.weak}.\nGood against: ${goodAgainst(type).join(', ') || '—'}\nWeak against: ${weakAgainst(type).join(', ') || '—'}\nHealth ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)} · ${Math.round(trainTime(type))} s${regimentSize(type) ? `\nOne order = a regiment of ${regimentSize(type)} soldiers (40 % cheaper than one by one). Shift + click: 5 orders.` : ''}`;
-    const icon = iconOf(type, this.state.faction(this.state.you), this.state.color(this.state.you));
-    const portrait = icon.startsWith('<img');
-    return `<button class="act with-icon ${portrait ? 'with-portrait' : ''}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+    const tip = [name, u.strong, u.weak, actionDetails(cost, trainTime(type), type),
+      `Health ${st.hp} · Attack ${st.attack.damage} · Speed ${st.speed.toFixed(1)}`,
+      ...(regimentSize(type) ? [`Trains ${regimentSize(type)} soldiers as one regiment.`] : [])].join('\n');
+    const icon = actionIcon(u.category === 'ranged' ? 'archery-target' : u.category === 'worker' ? 'hammer-nails' : 'broadsword');
+    return `<button class="act with-icon" data-action="act" data-arg="${i}" data-action-key="${type}" aria-disabled="${!ok}" data-action-tip="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${icon}</span>
       <b>${esc(name)}${u.faction ? ' ⚜' : ''}${regimentSize(type) ? ` <span class="squad">×${regimentSize(type)}</span>` : ''}</b><span class="costs">${costHtml(cost, have)}</span></button>`;
   }
@@ -681,7 +702,7 @@ export class Hud {
     const tip = buy
       ? `Buy ${MARKET_LOT} ${RESOURCE_LABELS[resource]} for ${price} metal. Buying makes the price go up.`
       : `Sell ${MARKET_LOT} ${RESOURCE_LABELS[resource]} for ${metal} metal. Selling makes the price go down.`;
-    return `<button class="act with-icon trade-btn" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+    return `<button class="act with-icon trade-btn" data-action="act" data-arg="${i}" aria-disabled="${!ok}" data-action-tip="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit">${ICONS[resource]}</span>
       <b>${buy ? 'Buy' : 'Sell'} ${MARKET_LOT} ${RESOURCE_LABELS[resource]}</b>
       <span class="costs"><span class="cost ${buy && have && have.metal < price ? 'short' : ''}"><span class="icon mini">${ICONS.metal}</span>${buy ? '−' : '+'}${metal}</span></span></button>`;
@@ -692,9 +713,9 @@ export class Hud {
     const t = TECH_DEFS[tech];
     const missing = t.requires && !this.input.hasFinished(t.requires) ? BUILDING_DEFS[t.requires].label : '';
     const ok = !missing && (!have || canAfford(have, t.cost));
-    const tip = `${t.label}: ${t.description}\n${t.time} s${missing ? `\nYou need a finished ${missing}.` : ''}`;
+    const tip = [t.label, t.description, actionDetails(t.cost, t.time), missing ? `You need a finished ${missing}.` : ''].filter(Boolean).join('\n');
     const kind = isAdvanceTech(tech) ? 'era-btn' : t.unitMods ? 'upgrade-btn' : 'tech-btn';
-    return `<button class="act with-icon ${kind}" data-action="act" data-arg="${i}" ${ok ? '' : 'disabled'} title="${esc(tip)}">
+    return `<button class="act with-icon ${kind}" data-action="act" data-arg="${i}" data-action-key="${tech}" aria-disabled="${!ok}" data-action-tip="${esc(tip)}">
       <span class="key">${ACTION_KEYS[i] ?? ''}</span><span class="icon unit" style="color:${this.state.color(this.state.you)}">${techIcon(tech)}</span>${t.unitMods ? '<span class="up-badge">⬆</span>' : ''}
       <b>${t.label}</b><span class="costs">${missing ? `<span class="cost short">Needs: ${esc(missing)}</span>` : costHtml(t.cost, have)}</span></button>`;
   }
@@ -704,7 +725,7 @@ export class Hud {
     if (!b.queue || b.queue.length === 0) return '';
     return b.queue
       .map(
-        (q, i) => `<button class="card queue" data-action="cancel" data-arg="${i}" title="Click to cancel (refunds the cost)"
+        (q, i) => `<button class="card queue" data-action="cancel" data-arg="${i}" data-action-tip="Click to cancel (refunds the cost)"
           style="color:${this.state.color(this.state.you)}">${queueIcon(q, this.state.faction(this.state.you), this.state.color(this.state.you))}
           <div class="hp prog"><div style="width:${Math.round(q.progress * 100)}%"></div></div></button>`,
       )

@@ -5,7 +5,7 @@
 //                  construir/reparar, o punto de reunión (con un edificio elegido)
 //   rueda = zoom · botón central = desplazar · WASD/flechas = cámara
 //   H = Centro Urbano · . = trabajador inactivo · Esc = cancelar · Supr = eliminar
-//   Q E R T F G Z X C V B N M = construir (con trabajadores) o entrenar/investigar (con un edificio)
+//   Q E R T F G Z X C V B N J = construir (con trabajadores) o entrenar/investigar (con un edificio)
 //   Muralla: clic y arrastrar dibuja una muralla larga con una sola orden
 
 import {
@@ -29,6 +29,7 @@ import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
 import { dragFacing, formationLayout, rankOf } from '../../shared/formation.ts';
 import { wallLine } from '../../shared/wall.ts';
+import { actionSlot } from '../../shared/shortcuts.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
 import { buildingTop, UNIT_LOOK, unitTop } from './sprites.ts';
@@ -40,9 +41,6 @@ export type Picked = { kind: 'unit' | 'building' | 'node'; id: number } | null;
 const DRAG_THRESHOLD = 5; // px antes de considerar que es un arrastre
 const KEY_PAN_SPEED = 900; // px de pantalla por segundo
 const DOUBLE_CLICK_MS = 350;
-/** Teclas de la cuadrícula de acciones (sin W/A/S/D, que mueven la cámara). */
-export const ACTION_KEYS = ['Q', 'E', 'R', 'T', 'F', 'G', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'Y', 'U', 'I', 'O', 'P'] as const;
-
 /** Categorías para seleccionar de a muchos (barra del ejército). */
 export const ARMY_GROUPS = {
   infantry: ['infantry', 'armor'],
@@ -767,7 +765,7 @@ export class Input {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.defaultPrevented || (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable]'))) return;
     this.keys.add(e.code);
     if (e.repeat) return;
     switch (e.code) {
@@ -813,7 +811,7 @@ export class Input {
       return;
     }
     // Cuadrícula de acciones: construir con trabajadores, entrenar o investigar con un edificio.
-    const slot = ACTION_KEYS.indexOf(e.key.toUpperCase() as (typeof ACTION_KEYS)[number]);
+    const slot = e.ctrlKey || e.metaKey || e.altKey ? -1 : actionSlot(e.key);
     if (slot < 0) return;
     if (this.ownWorkersSelected().length > 0) {
       const type = this.buildMenu()[slot];

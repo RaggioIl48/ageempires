@@ -10,6 +10,7 @@
 // su lado, y se limita cuántos suenan a la vez (una batalla grande no satura). M = silencio.
 
 import type { GameEvent } from '../../shared/protocol.ts';
+import { isMuteShortcut } from '../../shared/shortcuts.ts';
 import { worldToPx } from './view.ts';
 
 type Kind = 'clash' | 'block' | 'arrow' | 'charge' | 'death' | 'horn';
@@ -40,7 +41,8 @@ export class Sound {
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', (e) => {
       unlock();
-      if (e.code === 'KeyM' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) this.toggle();
+      if (isMuteShortcut(e) && !e.defaultPrevented && !(e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable]')))
+        this.toggle();
     });
   }
 

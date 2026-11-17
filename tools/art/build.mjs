@@ -216,9 +216,12 @@ async function main() {
     addCredit(`oga:${key}`, { pack: key, title: pack.title, authors: pack.authors, licenses: normalizeLicenses(pack.licenses), urls: [pack.url], notes: pack.notes ?? '' });
 
   // Créditos: solo los que usa alguna hoja del manifiesto.
-  const old = only && fs.existsSync(path.join(OUT, 'credits.json')) ? JSON.parse(fs.readFileSync(path.join(OUT, 'credits.json'), 'utf8')).items : {};
+  const creditsFile = path.join(OUT, 'credits.json');
+  const previous = fs.existsSync(creditsFile) ? JSON.parse(fs.readFileSync(creditsFile, 'utf8')) : {};
+  const old = only ? previous.items ?? {} : {};
+  const hudCredits = Object.entries(previous.items ?? {}).filter(([, credit]) => credit.pack === 'game-icons');
   const used = new Set([...Object.values(manifest.sheets).flatMap((s) => s.credits), ...buildingCredits]);
-  const items = {};
+  const items = Object.fromEntries(hudCredits);
   for (const id of [...used].sort()) {
     const c = credits.get(id) ?? old[id];
     if (!c) throw new Error(`sin créditos: ${id}`);
@@ -227,6 +230,7 @@ async function main() {
   const creditsOut = {
     note: 'Unit art built from open-licensed projects. Each image lists the works it uses; see units.json.',
     packs: {
+      ...(previous.packs?.['game-icons'] ? { 'game-icons': previous.packs['game-icons'] } : {}),
       lpc: { title: 'Universal LPC Spritesheet Character Generator', url: LPC_REPO, version: LPC_COMMIT },
       ...Object.fromEntries(Object.entries(OGA_PACKS).map(([k, v]) => [k, { title: v.title, url: v.url }])),
       uh: { title: 'Unknown Horizons (buildings)', url: UH_REPO, version: UH_COMMIT },
