@@ -18,6 +18,8 @@ import {
   CREW_BONUS,
   CREW_SIZE,
   MARKET_LOT,
+  SHIELD_WALL_SPEED,
+  WALK_SPEED,
   TRADE_RESOURCES,
   sellPrice,
   type TradeResource,
@@ -28,6 +30,7 @@ import {
   type UnitType, ABILITIES, ABILITY_IDS, GENERAL_AURA, RANK_DAMAGE, RANK_NAMES, FATIGUE_TIERS, WALL_COVER, type AbilityId, regimentSize, shieldBearer, SHIELD_WALL_ARMOR,
   MEDIEVAL_ERA, MEDIEVAL_STAGES, POP_CAP_MAX, isAdvanceTech, stageLabel, stageReached } from '../../shared/data.ts';
 import type { BuildingView, UnitView } from '../../shared/protocol.ts';
+import { REGIMENT_STATUS, regimentState } from '../../shared/regiment.ts';
 import { buildingCost, canAfford, carryCapacity, chargeOf, isUpgraded, techsOf, unitCost, trainCost, trainTime } from '../../shared/stats.ts';
 import { goodAgainst, weakAgainst } from '../../shared/counters.ts';
 import { unitPortrait } from './art.ts';
@@ -174,6 +177,8 @@ export class Hud {
   ) {
     el('selection-grid').addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
+      const regiment = target.closest<HTMLButtonElement>('[data-regiment]');
+      if (regiment) return this.input.selectRegiment(Number(regiment.dataset.regiment), e.shiftKey);
       const card = target.closest<HTMLElement>('[data-id]');
       if (card) return this.input.selectOnly({ kind: 'unit', id: Number(card.dataset.id) });
       const queued = target.closest<HTMLElement>('[data-action="cancel"]');
@@ -493,38 +498,58 @@ export class Hud {
   private renderBottom(): void {
     const sel = this.input.sel;
     const units = [...sel.units].map((id) => this.state.units.get(id)?.v).filter((u): u is UnitView => !!u);
-    // Tarjetas: una por regimiento (Total War), con vida, moral y munición promedio; el resto, una por unidad.
     const regs = new Map<number, UnitView[]>();
     const singles: UnitView[] = [];
-    for (const u of units) {
-      if (u.rg) {
-        const list = regs.get(u.rg) ?? [];
-        list.push(u);
-        regs.set(u.rg, list);
-      } else singles.push(u);
+    for (const unit of units) {
+      if (unit.rg) {
+        if (!regs.has(unit.rg)) regs.set(unit.rg, []);
+      } else singles.push(unit);
     }
-    const bar = (cls: string, frac: number) => `<div class="${cls}"><div style="width:${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%"></div></div>`;
-    const regCards = [...regs.values()].map((list) => {
-      const u = list[0];
-      const maxHp = this.state.statsOf(u.owner, u.type).hp;
-      const hp = list.reduce((s, m) => s + m.hp / maxHp, 0) / list.length;
-      const morale = list.reduce((s, m) => s + (m.morale ?? 100), 0) / list.length / 100;
-      const routing = list.filter((m) => m.rout).length;
-      const ammo = list.some((m) => m.am !== undefined) ? list.reduce((s, m) => s + (m.am ?? 100), 0) / list.length / 100 : null;
-      const size = regimentSize(u.type);
-      const shattered = list.some((m) => m.sh);
-      const state = routing * 2 >= list.length ? (shattered ? '💔 Shattered' : '🏳 Routing') : morale < 0.45 ? '⚠ Wavering' : list.some((m) => m.sw) ? '🛡 Shield wall' : '';
-      const tip = `${this.state.labelOf(u.owner, u.type)} regiment: ${list.length}/${size} men · health ${Math.round(hp * 100)}% · morale ${Math.round(morale * 100)}%${ammo !== null ? ` · ammo ${Math.round(ammo * 100)}%` : ''}${state ? ` · ${state}` : ''}`;
-      return `<div class="card reg ${state ? 'warn' : ''}" data-id="${u.id}" title="${esc(tip)}" style="color:${this.state.color(u.owner)}">
-        ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<span class="count">${list.length}</span>
-        ${bar('hp', hp)}${bar('mo', morale)}${ammo !== null ? bar('am', ammo) : ''}</div>`;
+    if (regs.size)
+      for (const { v } of this.state.units.values()) if (v.rg) regs.get(v.rg)?.push(v);
+
+    const bar = (cls: string, fraction: number) =>
+      `<div class="${cls}" aria-hidden="true"><div style="width:${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%"></div></div>`;
+    const regCards = [...regs].map(([id, members]) => {
+      const unit = members[0];
+      const stats = this.state.statsOf(unit.owner, unit.type);
+      const maximum = Math.max(regimentSize(unit.type), members.length);
+      const hp = members.reduce((sum, member) => sum + member.hp, 0) / (stats.hp * maximum);
+      const morale = members.reduce((sum, member) => sum + (member.morale ?? 100), 0) / (100 * members.length);
+      const state = regimentState(members);
+      const status = REGIMENT_STATUS[state];
+      const canGuard = members.some((member) => member.guard);
+      const shieldWall = members.some((member) => member.sw);
+      // The server reports movement, so identify a run only when the observed speed exceeds walking pace.
+      const running = state === 'steady' || state === 'wavering' ? members.some((member) => {
+        const motion = this.state.units.get(member.id);
+        const pace = stats.speed * WALK_SPEED * (member.sw ? SHIELD_WALL_SPEED : 1);
+        return motion?.moving && (motion.speed ?? 0) > pace + 0.08 && member.state === 'moving';
+      }) : false;
+      const ammo = members.some((member) => member.am !== undefined)
+        ? Math.round(members.reduce((sum, member) => sum + (member.am ?? 100), 0) / members.length)
+        : null;
+      const stance = [canGuard ? ['⬒', 'Guard'] : null, shieldWall ? ['⬔', 'Shield wall'] : null, running ? ['»', 'Running'] : null]
+        .filter((item): item is string[] => item !== null);
+      const label = `${this.state.labelOf(unit.owner, unit.type)}: ${members.length}/${maximum} soldiers, ${status.label}, health ${Math.round(hp * 100)}%, morale ${Math.round(morale * 100)}%` +
+        (ammo === null ? '' : `, ammo ${ammo}%`) + stance.map(([, name]) => `, ${name}`).join('');
+      const color = this.state.color(unit.owner);
+      return `<button type="button" class="card reg regiment-${state}" data-regiment="${id}" aria-label="${esc(label)}" title="${esc(label)}"
+        style="color:${color};--regiment-status:${status.color}">
+        ${iconOf(unit.type, this.state.faction(unit.owner), color)}
+        <span class="count" aria-hidden="true">${members.length}/${maximum}</span>
+        <span class="regiment-state" aria-hidden="true">${status.glyph}</span>
+        ${bar('hp', hp)}${bar('mo', morale)}
+        ${ammo === null ? '' : `<span class="ammo-pips" aria-hidden="true">${Array.from({ length: 5 }, (_, i) => `<i style="--fill:${Math.max(0, Math.min(100, (ammo - i * 20) * 5))}%"></i>`).join('')}</span>`}
+        ${stance.length ? `<span class="regiment-stances" aria-hidden="true">${stance.map(([glyph]) => glyph).join(' ')}</span>` : ''}
+      </button>`;
     });
     const singleCards = singles.map((u) => {
       const frac = u.hp / this.state.statsOf(u.owner, u.type).hp;
       return `<div class="card" data-id="${u.id}" title="${esc(this.state.labelOf(u.owner, u.type))}" style="color:${this.state.color(u.owner)}">
           ${iconOf(u.type, this.state.faction(u.owner), this.state.color(u.owner))}<div class="hp"><div style="width:${Math.round(frac * 100)}%"></div></div></div>`;
     });
-    const cards = [...regCards, ...singleCards].slice(0, 36).join('');
+    const cards = [...regCards, ...singleCards.slice(0, 36)].join('');
     if (this.state.spectator) {
       setHtml(el('selection-grid'), this.economyTable());
       setHtml(el('actions'), this.teacherActions());

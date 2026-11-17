@@ -29,6 +29,7 @@ import type { BuildingView, Formation } from '../../shared/protocol.ts';
 import { hasTech } from '../../shared/stats.ts';
 import { dragFacing, formationLayout, rankOf } from '../../shared/formation.ts';
 import { wallLine } from '../../shared/wall.ts';
+import { toggleRegimentMembers } from '../../shared/regiment.ts';
 import type { Net } from './net.ts';
 import type { Ghost, Marker, SceneSelection } from './render.ts';
 import { buildingTop, UNIT_LOOK, unitTop } from './sprites.ts';
@@ -179,6 +180,18 @@ export class Input {
   ownBuilding() {
     const b = this.sel.building !== null ? this.state.buildings.get(this.sel.building) : undefined;
     return b && b.owner === this.state.you ? b : undefined;
+  }
+
+  selectRegiment(regimentId: number, extend: boolean): void {
+    const members: number[] = [];
+    for (const { v } of this.state.units.values()) if (v.rg === regimentId) members.push(v.id);
+    if (!members.length) return;
+    if (!extend) this.sel.units.clear();
+    toggleRegimentMembers(this.sel.units, members);
+    this.sel.building = null;
+    this.sel.node = null;
+    this.ghost = null;
+    this.onSelectionChange();
   }
 
   selectOnly(p: Picked): void {

@@ -35,6 +35,7 @@ import { drawDyingUnit } from './art.ts';
 import { approachAngle } from './motion.ts';
 import { buildFogIndex, paintFog } from './fogmap.ts';
 import { Particles, puffAt, type PuffKind } from './particles.ts';
+import { REGIMENT_STATUS, regimentState } from '../../shared/regiment.ts';
 import type { ClientState, ClientUnit, Corpse } from './state.ts';
 import { Camera, ELEV_PX, TILE_H, TILE_W, worldToPx } from './view.ts';
 import { KNOCKDOWN_SECONDS, MAX_LEVEL, RANK_NAMES, TICK_MS } from '../../shared/data.ts';
@@ -606,7 +607,7 @@ export class Renderer {
     }
 
     this.mark('units');
-    this.drawStandards(ctx, state, list, sel, now);
+    this.drawStandards(ctx, state, list, sel, now, cam.zoom);
 
     // Barras de vida: de lo seleccionado y de todo lo que esté herido.
     for (const d of list) {
@@ -838,80 +839,80 @@ export class Renderer {
    * Estandartes de regimiento (Total War): sobre cada regimiento a la vista, un banderín con el
    * color del dueño, cuántos quedan, y barras de vida y moral del conjunto. Bandera blanca si huye.
    */
-  private drawStandards(ctx: CanvasRenderingContext2D, state: ClientState, list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[], sel: { units: Set<number> }, now: number): void {
-    const regs = new Map<number, { xs: number; ys: number; top: number; n: number; hp: number; mo: number; rout: number; owner: number; chosen: boolean; type: UnitView['type']; wall: boolean; shattered: boolean }>();
+  private drawStandards(
+    ctx: CanvasRenderingContext2D,
+    state: ClientState,
+    list: { k: string; u?: UnitView; x?: number; y?: number; lift?: number }[],
+    sel: { units: Set<number> },
+    now: number,
+    zoom: number,
+  ): void {
+    const regs = new Map<number, { units: UnitView[]; xs: number; top: number; hp: number; morale: number; chosen: boolean; wall: boolean; charge: boolean }>();
     for (const d of list) {
-      if (d.k !== 'unit' || !d.u?.rg) continue;
-      const u = d.u, rg = d.u.rg, p = worldToPx(d.x!, d.y!);
+      const u = d.u;
+      if (d.k !== 'unit' || !u?.rg) continue;
+      const p = worldToPx(d.x!, d.y!);
+      const stats = state.statsOf(u.owner, u.type);
       const top = p.py - (d.lift ?? 0) - unitTop(u.type, state.faction(u.owner));
-      const r = regs.get(rg) ?? { xs: 0, ys: 0, top: Infinity, n: 0, hp: 0, mo: 0, rout: 0, owner: u.owner, chosen: false, type: u.type, wall: false, shattered: false };
-      if (u.sw) r.wall = true;
-      if (u.sh) r.shattered = true;
-      r.xs += p.px;
-      r.ys += p.py;
-      r.top = Math.min(r.top, top);
-      r.n++;
-      r.hp += u.hp / state.statsOf(u.owner, u.type).hp;
-      r.mo += (u.morale ?? 100) / 100;
-      if (u.rout) r.rout++;
-      if (sel.units.has(u.id)) r.chosen = true;
-      regs.set(rg, r);
+      let regiment = regs.get(u.rg);
+      if (!regiment) {
+        regiment = { units: [], xs: 0, top: Infinity, hp: 0, morale: 0, chosen: false, wall: false, charge: false };
+        regs.set(u.rg, regiment);
+      }
+      regiment.units.push(u);
+      regiment.xs += p.px;
+      regiment.top = Math.min(regiment.top, top);
+      regiment.hp += u.hp / stats.hp;
+      regiment.morale += (u.morale ?? 100) / 100;
+      regiment.chosen ||= sel.units.has(u.id);
+      regiment.wall ||= !!u.sw;
+      regiment.charge ||= !u.rout && !u.dn && u.state === 'attacking' && !!u.walk &&
+        stats.category === 'cavalry' && stats.attack.type === 'melee' && (u.sp ?? 0) > stats.speed * 0.65;
     }
+    const size = Math.max(1, 0.8 / zoom);
+    ctx.font = `bold ${Math.round(12 * size)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
     for (const r of regs.values()) {
-      if (r.n < 2) continue;
-      const x = r.xs / r.n, y = r.top - 10;
-      const color = state.color(r.owner);
-      const routing = r.rout * 2 >= r.n;
-      // Asta
-      ctx.fillStyle = '#3b2a1a';
-      ctx.fillRect(x - 0.75, y - 16, 1.5, 18);
-      // Paño (ondea un poco)
-      const wave = Math.sin(now / 260 + r.xs) * 1.2;
-      ctx.fillStyle = routing ? '#f4f1e8' : color;
+      const count = r.units.length;
+      const x = r.xs / count, y = r.top - 8 * size;
+      const condition = regimentState(r.units);
+      const status = REGIMENT_STATUS[condition];
+      const fleeing = condition === 'routing' || condition === 'shattered';
+      const glyph = condition === 'steady' && r.charge ? '➜' : status.glyph;
+      const color = state.color(r.units[0].owner);
+      const wave = Math.sin(now / 260 + r.xs) * size;
+      ctx.fillStyle = '#392b20';
+      ctx.fillRect(x - size, y - 20 * size, 2 * size, 22 * size);
+      ctx.fillStyle = fleeing ? '#f6efe0' : color;
       ctx.beginPath();
-      ctx.moveTo(x + 0.75, y - 16);
-      ctx.lineTo(x + 15, y - 15 + wave);
-      ctx.lineTo(x + 15, y - 7 + wave);
-      ctx.lineTo(x + 0.75, y - 8);
+      ctx.moveTo(x, y - 20 * size);
+      ctx.lineTo(x + 26 * size, y - 19 * size + wave);
+      if (condition === 'shattered') ctx.lineTo(x + 23 * size, y - 13 * size + wave);
+      ctx.lineTo(x + 26 * size, y - 7 * size + wave);
+      ctx.lineTo(x, y - 8 * size);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = r.chosen ? '#ffffff' : 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = r.chosen ? 1.2 : 0.8;
+      ctx.strokeStyle = r.chosen ? '#fff8db' : '#241a12';
+      ctx.lineWidth = (r.chosen ? 1.7 : 1.25) * size;
       ctx.stroke();
-      ctx.fillStyle = routing ? '#333' : '#fff';
-      ctx.font = 'bold 7px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(String(r.n), x + 8, y - 9.3 + wave * 0.5);
-      ctx.textAlign = 'start';
-      // Vida (verde) y moral (azul) del regimiento.
-      const bar = (yy: number, frac: number, fg: string) => {
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(x - 8, yy, 16, 2.2);
-        ctx.fillStyle = fg;
-        ctx.fillRect(x - 8, yy, 16 * Math.max(0, Math.min(1, frac)), 2.2);
+      ctx.fillStyle = fleeing ? '#2c2217' : '#fff8e9';
+      if (!fleeing) {
+        ctx.strokeStyle = '#20160e';
+        ctx.lineWidth = 2.6 * size;
+        ctx.strokeText(glyph, x + 13 * size, y - 9 * size + wave * 0.6);
+      }
+      ctx.fillText(glyph, x + 13 * size, y - 9 * size + wave * 0.6);
+      const bar = (yy: number, fraction: number, fill: string) => {
+        ctx.fillStyle = '#21180f';
+        ctx.fillRect(x - 8 * size, yy, 16 * size, 2 * size);
+        ctx.fillStyle = fill;
+        ctx.fillRect(x - 8 * size, yy, 16 * size * Math.max(0, Math.min(1, fraction)), 2 * size);
       };
-      bar(y + 3, r.hp / r.n, '#3fb04f');
-      bar(y + 6, r.mo / r.n, r.mo / r.n < 0.45 ? '#ff9f43' : '#5ab0ff');
-      // Muro de escudos: un escudo junto al asta. Destrozado: el paño rasgado (una muesca oscura).
-      if (r.wall) {
-        ctx.fillStyle = '#c9a24a';
-        ctx.strokeStyle = '#3b2a1a';
-        ctx.lineWidth = 0.8;
-        ctx.beginPath();
-        ctx.ellipse(x - 5, y - 10, 3, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-      if (r.shattered) {
-        ctx.fillStyle = 'rgba(30,20,10,0.85)';
-        ctx.beginPath();
-        ctx.moveTo(x + 15, y - 15 + wave);
-        ctx.lineTo(x + 9, y - 11 + wave);
-        ctx.lineTo(x + 15, y - 7 + wave);
-        ctx.closePath();
-        ctx.fill();
-      }
+      bar(y + 2 * size, r.hp / count, '#3fb04f');
+      bar(y + 5 * size, r.morale / count, condition === 'steady' ? '#5ab0ff' : status.color);
+      if (r.wall) ellipse(ctx, x - 5 * size, y - 12 * size, 3 * size, 4 * size, '#c9a24a', '#3b2a1a', size);
     }
+    ctx.textAlign = 'start';
   }
 
   /** Flechas que cayeron: quedan clavadas un rato, inclinadas según de dónde vinieron. */
