@@ -15,6 +15,7 @@ import { Camera, renderDpr } from './view.ts';
 import { PerfMeter, perfVerdict } from './perf.ts';
 import { Sound } from './sound.ts';
 import { LoadingScreen } from './loading.ts';
+import { OpeningChecklist } from './opening-checklist.ts';
 
 export class GameView {
   readonly state = new ClientState();
@@ -36,6 +37,7 @@ export class GameView {
   private perfOpen = false;
   /** Pantalla de carga en curso (una por bienvenida) y cuánto tardó la última. */
   private readonly loading = new LoadingScreen();
+  private readonly opening = new OpeningChecklist(document.getElementById('opening-checklist')!);
   loadMs = 0;
   private readonly perfBox = document.getElementById('perf')!;
   readonly perf = new PerfMeter();
@@ -87,6 +89,7 @@ export class GameView {
       this.sound.onEvents(this.state.lastEvents, { cx: this.cam.cx, cy: this.cam.cy, w, h }, this.state.battles.length > battlesBefore);
     }
     if (msg.t === 'welcome') {
+      this.opening.start(this.state);
       this.showLoading();
       this.renderer.setMap(this.state);
       this.minimap.reset();
@@ -96,6 +99,7 @@ export class GameView {
     } else if (msg.t === 'd') {
       if (this.needCenter) this.centerOnStart();
       this.input.prune();
+      this.opening.update(this.state);
     }
     this.hud.update();
     this.diplo.update();

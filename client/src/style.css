@@ -1430,6 +1430,58 @@ img.portrait {
   border-radius: 3px;
 }
 
+#opening-checklist {
+  position: fixed;
+  left: 10px;
+  bottom: calc(var(--bar-h) + 45px);
+  width: min(245px, 46vw);
+  max-height: 38vh;
+  overflow-y: auto;
+  padding: 7px 9px;
+  z-index: 5;
+}
+#opening-checklist[hidden] {
+  display: none;
+}
+.opening-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.opening-header h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+.opening-header button {
+  padding: 0 5px;
+}
+#opening-checklist ol {
+  margin: 5px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+#opening-checklist li {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 0;
+}
+.objective-check {
+  flex: 0 0 12px;
+}
+.opening-header button:focus-visible,
+#opening-checklist .complete {
+  color: #afdf9b;
+}
+.objective-complete {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
 /* ---------- Guerra: marchas, batallas y resultados ---------- */
 #war-panel {
   position: fixed;
