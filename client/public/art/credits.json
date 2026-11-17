@@ -1,6 +1,7 @@
 {
  "note": "Unit art built from open-licensed projects. Each image lists the works it uses; see units.json.",
  "packs": {
+  "game-icons": { "title": "Game-icons.net", "url": "https://game-icons.net" },
   "lpc": {
    "title": "Universal LPC Spritesheet Character Generator",
    "url": "https://github.com/liberatedpixelcup/Universal-LPC-Spritesheet-Character-Generator",
@@ -38,6 +39,111 @@
   }
  },
  "items": {
+  "game-icons:hammer-nails": {
+   "pack": "game-icons",
+   "title": "Hammer Nails",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/hammer-nails.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
+  "game-icons:broadsword": {
+   "pack": "game-icons",
+   "title": "Broadsword",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/broadsword.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
+  "game-icons:checked-shield": {
+   "pack": "game-icons",
+   "title": "Checked Shield",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/checked-shield.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
+  "game-icons:sprint": {
+   "pack": "game-icons",
+   "title": "Sprint",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/sprint.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
+  "game-icons:archery-target": {
+   "pack": "game-icons",
+   "title": "Archery Target",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/archery-target.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
+  "game-icons:castle": {
+   "pack": "game-icons",
+   "title": "Castle",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/castle.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
+  "game-icons:stopwatch": {
+   "pack": "game-icons",
+   "title": "Stopwatch",
+   "authors": [
+    "Lorc"
+   ],
+   "licenses": [
+    "CC-BY 3.0"
+   ],
+   "urls": [
+    "https://game-icons.net/1x1/lorc/stopwatch.html",
+    "https://creativecommons.org/licenses/by/3.0/"
+   ],
+   "notes": "Game-icons.net. Original SVG."
+  },
   "0ad:structures": {
    "pack": "0ad",
    "title": "0 A.D. buildings, walls, towers and vehicles (ram, war chariot, trebuchet)",
